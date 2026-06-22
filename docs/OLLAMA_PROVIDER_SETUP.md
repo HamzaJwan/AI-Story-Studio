@@ -35,7 +35,7 @@ GET /api/ai/ollama/health
   "ok": true,
   "provider": "ollama",
   "base_url_configured": true,
-  "model": "deepseek-r1:7b",
+  "model": "qwen2.5:7b",
   "latency_ms": 123
 }
 ```
@@ -52,7 +52,7 @@ Payload:
 
 ```json
 {
-  "model": "deepseek-r1:7b",
+  "model": "qwen2.5:7b",
   "prompt": "...",
   "stream": false,
   "options": {
