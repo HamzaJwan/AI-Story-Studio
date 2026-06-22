@@ -1,0 +1,7 @@
+{
+  "files.encoding": "utf8",
+  "files.eol": "\n",
+  "editor.formatOnSave": true,
+  "markdown.preview.fontSize": 15,
+  "terminal.integrated.defaultProfile.windows": "PowerShell"
+}
