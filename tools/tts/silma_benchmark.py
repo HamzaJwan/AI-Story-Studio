@@ -76,6 +76,7 @@ def instantiate_tts(silma_cls: type[Any]) -> Any:
 
 def call_silma(tts: Any, text: str, output_wav: Path, reference_audio: Path | None, ref_text: str, speed: float) -> None:
     method_names = [
+        "infer",
         "tts_to_file",
         "text_to_file",
         "synthesize_to_file",
@@ -95,6 +96,10 @@ def call_silma(tts: Any, text: str, output_wav: Path, reference_audio: Path | No
         "reference_audio": str(reference_audio) if reference_audio else None,
         "ref_text": ref_text,
         "reference_text": ref_text,
+        "ref_file": str(reference_audio) if reference_audio else None,
+        "gen_text": text,
+        "file_wave": str(output_wav),
+        "seed": None,
         "speed": speed,
     }
 
@@ -120,6 +125,21 @@ def call_silma(tts: Any, text: str, output_wav: Path, reference_audio: Path | No
         if isinstance(result, (str, Path)) and Path(result).exists():
             shutil.copyfile(result, output_wav)
             return
+        if isinstance(result, dict):
+            audio = result.get("wav") or result.get("audio")
+            sample_rate = result.get("sr") or result.get("sample_rate") or result.get("sampling_rate")
+            if audio is not None and sample_rate:
+                import soundfile as sf
+
+                sf.write(output_wav, audio, int(sample_rate))
+                return
+        if isinstance(result, tuple) and len(result) >= 2:
+            audio, sample_rate = result[0], result[1]
+            if sample_rate:
+                import soundfile as sf
+
+                sf.write(output_wav, audio, int(sample_rate))
+                return
         errors.append(f"{method_name}: completed but did not create {output_wav}")
 
     methods = ", ".join(name for name in method_names if callable(getattr(tts, name, None)))
