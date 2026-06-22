@@ -14,6 +14,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+.venv-silma/
 .envrc
 
 # Node
@@ -23,6 +24,7 @@ build/
 .next/
 
 # Local generated media
+data/benchmarks/
 data/projects/**
 !data/projects/.gitkeep
 outputs/
