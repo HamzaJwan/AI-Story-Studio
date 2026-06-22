@@ -1,0 +1,16 @@
+services:
+  silma-lab:
+    build:
+      context: ../../..
+      dockerfile: deploy/ai-server/silma-lab/Dockerfile
+    gpus: all
+    environment:
+      SILMA_OUTPUT_DIR: ${SILMA_OUTPUT_DIR:-/workspace/data/benchmarks/tts/silma}
+      SILMA_SPEED: ${SILMA_SPEED:-1.0}
+      REF_AUDIO: ${REF_AUDIO:-}
+      REF_TEXT: ${REF_TEXT:-}
+    volumes:
+      - ./data:/workspace/data
+      - ../../../tools:/workspace/tools
+    working_dir: /workspace
+    command: python tools/tts/silma_benchmark.py

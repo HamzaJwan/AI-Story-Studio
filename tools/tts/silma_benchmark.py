@@ -16,7 +16,6 @@ DEFAULT_TEXT = (
     "لم يكن صباحاً عادياً، بل كانت تسبقه ليلة طويلة من المعارك الخفية مع الذات.\n"
     "كنت أعرف أن وقود هذا اليوم لن يكون النوم، بل اليقين."
 )
-DEFAULT_REF_TEXT = "صوت مرجعي عربي واضح لاختبار توليد الكلام."
 
 
 def env_path(name: str) -> Path | None:
@@ -36,6 +35,26 @@ def find_reference_audio(output_dir: Path) -> Path | None:
     for path in candidates:
         if path.exists():
             return path
+    return None
+
+
+def find_reference_text(reference_audio: Path | None) -> str | None:
+    configured = os.getenv("REF_TEXT", "").strip()
+    if configured:
+        return configured
+    if not reference_audio:
+        return None
+
+    candidates = [
+        reference_audio.with_suffix(".txt"),
+        reference_audio.parent / "ref_text.txt",
+        reference_audio.parent / "reference_text.txt",
+    ]
+    for path in candidates:
+        if path.exists():
+            text = path.read_text(encoding="utf-8").strip()
+            if text:
+                return text
     return None
 
 
@@ -130,7 +149,6 @@ def main() -> int:
     output_wav = output_dir / "test_audio_silma.wav"
     output_mp3 = output_dir / "test_audio_silma.mp3"
     text = os.getenv("SILMA_TEXT", DEFAULT_TEXT)
-    ref_text = os.getenv("REF_TEXT", DEFAULT_REF_TEXT)
     speed = float(os.getenv("SILMA_SPEED", "1.0"))
 
     print("[INFO] SILMA benchmark starting")
@@ -144,6 +162,12 @@ def main() -> int:
         print("[WARN] Reference audio not found.")
         print(f"[WARN] Put a permitted reference_voice.wav at: {output_dir / 'reference_voice.wav'}")
         print("[WARN] Continuing without reference audio if the installed SILMA API supports it.")
+
+    ref_text = find_reference_text(reference_audio)
+    if reference_audio and not ref_text:
+        print("[FAIL] Reference audio exists but no permitted REF_TEXT was provided or found next to it.")
+        print("[HINT] Set REF_TEXT explicitly or provide ref_text.txt beside reference_voice.wav.")
+        return 2
 
     try:
         from silma_tts.api import SilmaTTS
