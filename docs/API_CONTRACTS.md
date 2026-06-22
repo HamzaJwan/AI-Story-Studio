@@ -24,12 +24,30 @@ Response:
   "data": {
     "status": "ok",
     "app": "AI Story Studio",
-    "version": "0.1.0"
+    "phase": "0.1"
   },
   "meta": {},
   "errors": []
 }
 ```
+
+## GET /api/config
+
+Response:
+
+```json
+{
+  "data": {
+    "provider": "ollama",
+    "model": "qwen2.5:7b",
+    "ollama_configured": true
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+لا يرجع `OLLAMA_BASE_URL` كاملاً.
 
 ## GET /api/ai/ollama/health
 
@@ -40,10 +58,56 @@ Response:
   "data": {
     "ok": true,
     "provider": "ollama",
-    "model": "deepseek-r1:7b",
-    "base_url_configured": true
+    "model": "qwen2.5:7b",
+    "base_url_configured": true,
+    "latency_ms": 123
   },
   "meta": {},
+  "errors": []
+}
+```
+
+## POST /api/ollama/test
+
+Response:
+
+```json
+{
+  "data": {
+    "connected": true,
+    "latency_ms": 123,
+    "model": "qwen2.5:7b"
+  },
+  "meta": {
+    "provider": "ollama"
+  },
+  "errors": []
+}
+```
+
+## POST /api/story/improve
+
+Request:
+
+```json
+{
+  "story_text": "النص...",
+  "tone": "عسكري هادئ",
+  "language": "ar"
+}
+```
+
+Response:
+
+```json
+{
+  "data": {
+    "improved_text": "..."
+  },
+  "meta": {
+    "provider": "ollama",
+    "model": "qwen2.5:7b"
+  },
   "errors": []
 }
 ```
@@ -74,32 +138,20 @@ Response:
         "title_ar": "ليلة الأرق",
         "narration_ar": "نص الراوي...",
         "visual_description_ar": "وصف بصري...",
-        "visual_prompt_en": "Cinematic realistic scene...",
-        "audio_sfx_suggestions": ["heartbeat", "night_room"],
-        "duration_seconds": 35
+        "image_prompt_en": "Cinematic realistic scene...",
+        "duration_seconds": 8
       }
     ]
   },
   "meta": {
-    "source": "ollama",
-    "model": "deepseek-r1:7b",
+    "provider": "ollama",
+    "model": "qwen2.5:7b",
     "limitations": ["AI output requires human review"]
   },
   "errors": []
 }
 ```
 
-## POST /api/story/improve-narration
+## GET /api/projects/{project_id}/scenes.json
 
-Request:
-
-```json
-{
-  "story_text": "النص...",
-  "tone": "وثائقي عسكري هادئ",
-  "preserve_meaning": true
-}
-```
-
-Response:
-نفس envelope مع `improved_text`.
+يرجع ملف `scenes.json` المحفوظ للمشروع.

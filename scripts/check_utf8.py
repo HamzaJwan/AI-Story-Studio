@@ -18,9 +18,9 @@ for path in ROOT.rglob("*"):
             bad_files.append((str(path.relative_to(ROOT)), f"possible mojibake chars={mojibake}"))
 
 if bad_files:
-    print("❌ UTF-8 / Mojibake issues found:")
+    print("[FAIL] UTF-8 / Mojibake issues found:")
     for file, reason in bad_files:
         print(f"- {file}: {reason}")
     raise SystemExit(1)
 
-print("✅ UTF-8 check passed")
+print("[OK] UTF-8 check passed")

@@ -8,13 +8,13 @@
 
 | الحقل | القيمة |
 |---|---|
-| **Current Phase** | Phase 0.0 — Preflight & Foundation |
-| **Current Status** | DONE LOCALLY — Pending Gemini review and Hamza approval to push |
+| **Current Phase** | Phase 0.1 — Ollama Story Workspace |
+| **Current Status** | IMPLEMENTED LOCALLY — Pending verification, Gemini review, and Hamza commit approval |
 | **Current Owner** | Hamza |
 | **Current Executor** | Codex |
 | **Current Reviewer** | Gemini / Antigravity |
 | **Last Updated** | 2026-06-22 |
-| **Current Decision** | لا تبدأ Phase 0.1 حتى يوافق حمزة على تقرير Preflight ويُضاف هذا الملف إلى الـ commit |
+| **Current Decision** | لا تبدأ Phase 0.2 أو أي commit/push قبل مراجعة Phase 0.1 |
 
 ---
 
@@ -57,7 +57,7 @@
 | Phase | الاسم | الهدف | الحالة | المخرجات | شرط الانتقال |
 |---|---|---|---|---|---|
 | **0.0** | Preflight & Foundation | هيكل + Docker + UTF-8 + docs | ✅ DONE LOCALLY | Git ✓, Dockerfiles ✓, requirements.txt ✓, UTF-8 ✓ | موافقة حمزة + Gemini review |
-| **0.1** | Ollama Story Workspace | Backend + Frontend + Ollama + Split Scenes | ⏳ NEXT | scenes.json, UI عربي جميل وحركي | Gemini review + check_utf8 pass + حمزة |
+| **0.1** | Ollama Story Workspace | Backend + Frontend + Ollama + Split Scenes | ✅ IMPLEMENTED LOCALLY | scenes.json, UI عربي جميل وحركي | Gemini review + check_utf8 pass + حمزة |
 | **0.2** | Review & Stabilization | مراجعة + إصلاح + commit/push | ⏳ LATER | نظام مستقر وموثّق، git push | Gemini Approved + git push نظيف |
 | **1.0** | MP3 Narrator Benchmark | اختبار SILMA TTS | ⬜ LATER | test_audio.wav قصير | نجاح Phase 0.2 |
 | **1.1** | MP3 Narrator MVP | Pipeline صوت كامل | ⬜ LATER | MP3 قابل للتحميل | نجاح Phase 1.0 Benchmark |
@@ -84,7 +84,7 @@
 ---
 
 ### Phase 0.1 — Ollama Story Workspace
-**الحالة:** ⏳ NEXT — بعد موافقة حمزة
+**الحالة:** ✅ IMPLEMENTED LOCALLY — Pending verification/review
 
 **الأهداف:**
 - `backend/app/main.py` — FastAPI entry point
@@ -217,7 +217,7 @@
 | ✅ DONE LOCALLY | Phase 0.0 Preflight — Git + Dockerfiles + requirements + UTF-8 | Codex | commit: `67d78a1` |
 | 🔍 IN REVIEW | Gemini يراجع Preflight ويُضيف ROADMAP.md | Gemini/Antigravity | الآن |
 | ⏳ NEXT | حمزة يوافق على تقرير Preflight ويقرر push أو Phase 0.1 | Hamza | قرار إلزامي |
-| ⏳ NEXT | Codex ينفذ Phase 0.1 — Backend + Frontend + Ollama | Codex | بعد موافقة حمزة فقط |
+| ✅ DONE LOCALLY | Codex ينفذ Phase 0.1 — Backend + Frontend + Ollama | Codex | بانتظار التحقق والمراجعة |
 | ⏳ NEXT | Gemini يراجع Phase 0.1 | Gemini/Antigravity | بعد تقرير Codex |
 | ⏳ NEXT | Git commit + push لـ Phase 0.1 | Hamza | بعد Gemini Approved |
 | 🔵 LATER | SILMA TTS Benchmark — Phase 1.0 | Codex | بعد نجاح Phase 0.2 |

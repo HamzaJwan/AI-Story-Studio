@@ -31,3 +31,19 @@
 
 **Reason:**
 المستخدم يريد تصميم جميل وعصري قريب من ADC Portal، لا مجرد demo.
+
+---
+
+## 2026-06-22 — Implement Phase 0.1 with local Ollama only
+
+**Decision:** Phase 0.1 يستخدم FastAPI + React/Vite + Ollama عبر `.env` فقط.
+
+**Reason:**
+- المطلوب إثبات Improve Story وSplit Scenes قبل أي صوت أو صور أو فيديو.
+- التخزين file-based يكفي للمرحلة الحالية.
+- CORS يقرأ من env ولا يستخدم wildcard.
+
+**Impact:**
+- لا DB/Auth/Redis/Celery.
+- لا OpenAI/Gemini API.
+- `scenes.json` هو مخرج Phase 0.1 الأساسي.

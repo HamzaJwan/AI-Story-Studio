@@ -52,3 +52,21 @@ OLLAMA_MODEL=deepseek-r1:7b
 ```
 
 لا تضع أسرار حقيقية داخل Git.
+
+## Phase 0.1 — التشغيل المحلي
+
+بعد ضبط `.env` المحلي، شغّل:
+
+```powershell
+$env:PYTHONIOENCODING="utf-8"; python scripts/check_utf8.py
+docker compose config
+docker compose up --build
+```
+
+الروابط:
+
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:8810`
+- Health: `http://localhost:8810/health`
+
+Phase 0.1 يدعم فقط: اختبار Ollama، تحسين القصة، تقسيم المشاهد، وتحميل `scenes.json`.
