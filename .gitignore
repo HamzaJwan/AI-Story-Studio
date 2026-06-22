@@ -3,8 +3,10 @@
 .env.*
 !.env.example
 *.secret
+*secrets*
 *credentials*
 *password*
+*.private.md
 *_KEY.txt
 
 # Python

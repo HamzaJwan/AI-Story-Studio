@@ -114,8 +114,8 @@ Invoke-WebRequest http://127.0.0.1:2028/api/v1/system/ready -UseBasicParsing
 
 **بيانات الدخول المحلية (ENV=development):**
 ```
-Username: test_admin
-Password: test_admin123
+Username: TEST_ADMIN_USERNAME
+Password: TEST_ADMIN_PASSWORD
 ```
 
 ---
@@ -123,8 +123,8 @@ Password: test_admin123
 ### بيئة الإنتاج (Production)
 
 ```
-الخادم: 172.31.1.71
-الإدارة: Portainer (http://172.31.1.71:9000)
+الخادم: ADC_PRODUCTION_HOST
+الإدارة: Portainer (http://PORTAINER_HOST:9000)
 اسم الـ Stack: adc-portal-v2
 الملف: docker-compose.production.yml
 الرابط العام: https://adc.juanspace.org

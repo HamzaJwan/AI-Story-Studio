@@ -5,17 +5,20 @@
 في `.env`:
 
 ```env
-OLLAMA_BASE_URL=http://YOUR_OLLAMA_IP:11434
-OLLAMA_MODEL=deepseek-r1:7b
+OLLAMA_BASE_URL=http://AI_SERVER_LAN_IP:11434
+OLLAMA_MODEL=qwen2.5:7b
 ```
 
-مثال من بيئة المستخدم:
+مثال آمن بدون IP حقيقي:
 
 ```env
-OLLAMA_BASE_URL=http://192.168.88.3:11434
+OLLAMA_BASE_URL=http://AI_SERVER_LAN_IP:11434
 ```
 
-لا تضع هذا المثال كقيمة نهائية داخل repo العام.
+- لا تضع IP الحقيقي داخل Git.
+- القيمة الحقيقية توضع في `.env` المحلي فقط.
+- في Docker Desktop على Windows، إذا كان Ollama على سيرفر LAN استخدم LAN URL في `.env`.
+- إذا كان Ollama داخل نفس docker network لاحقاً، يمكن استخدام service name مثل `http://ollama:11434`.
 
 ## Health Check
 
