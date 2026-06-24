@@ -13,6 +13,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /opt/silma_stubs/nemo_text_processing/text_normalization \
+    && mkdir -p /opt/silma_stubs/catt_tashkeel \
     && touch /opt/silma_stubs/nemo_text_processing/__init__.py \
     && touch /opt/silma_stubs/nemo_text_processing/text_normalization/__init__.py \
     && printf '%s\n' \
@@ -21,16 +22,21 @@ RUN mkdir -p /opt/silma_stubs/nemo_text_processing/text_normalization \
         '        pass' \
         '    def normalize(self, text, *args, **kwargs):' \
         '        return text' \
-        > /opt/silma_stubs/nemo_text_processing/text_normalization/normalize.py
+        > /opt/silma_stubs/nemo_text_processing/text_normalization/normalize.py \
+    && printf '%s\n' \
+        'class CATTEncoderOnly:' \
+        '    def __init__(self, *args, **kwargs):' \
+        '        pass' \
+        '    def do_tashkeel(self, text, *args, **kwargs):' \
+        '        return text' \
+        > /opt/silma_stubs/catt_tashkeel/__init__.py
 
 RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir \
         "numpy<=1.26.4" \
         cached_path \
-        catt_tashkeel==1.0.2 \
         click \
         "ema_pytorch>=0.5.2" \
-        gradio \
         "hydra-core>=1.3.0" \
         librosa \
         matplotlib \
