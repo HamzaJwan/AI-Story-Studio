@@ -41,3 +41,19 @@ Phase 1/2/3 — DO NOT IMPLEMENT IN PHASE 0.
 - لا WanGP.
 - لا production deploy.
 - لا database/auth.
+
+---
+
+## Phase 0.2 — Project Workspace
+
+**Status:** In implementation.
+
+Phase 0.2 turns the working Ollama story demo into a local workspace:
+
+- Create a story project.
+- Save and load UTF-8 project JSON files under `data/projects/`.
+- Preserve `original_story`, `improved_story`, and editable `scenes`.
+- Export the edited `scenes.json`.
+- Keep Phase 0.1 endpoints working.
+
+TTS remains an isolated AI Server lab and is not a blocker for the product workspace.

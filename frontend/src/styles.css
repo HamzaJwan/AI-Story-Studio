@@ -151,6 +151,81 @@ h1 {
   color: #fecaca;
 }
 
+.notice-banner {
+  margin: 18px 0;
+  padding: 15px 18px;
+  border-radius: 18px;
+  background: rgba(45, 212, 191, 0.12);
+  border: 1px solid rgba(45, 212, 191, 0.28);
+  color: #b9fff6;
+}
+
+.project-panel {
+  margin-top: 22px;
+}
+
+.project-actions,
+.project-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.project-actions button,
+.project-item {
+  min-height: 42px;
+  border-radius: 14px;
+  padding: 0 16px;
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.project-actions button:not(:disabled) {
+  background: linear-gradient(135deg, rgba(218, 168, 78, 0.92), rgba(61, 120, 204, 0.78));
+  color: #07111f;
+  font-weight: 700;
+}
+
+.project-actions .danger-button:not(:disabled) {
+  color: #fee2e2;
+  background: rgba(190, 48, 78, 0.25);
+  border-color: rgba(248, 113, 113, 0.32);
+}
+
+.project-list {
+  align-items: stretch;
+}
+
+.project-item {
+  display: grid;
+  gap: 5px;
+  min-width: 190px;
+  height: auto;
+  padding: 12px 14px;
+  text-align: right;
+}
+
+.project-item.active {
+  border-color: rgba(249, 210, 138, 0.5);
+  background: rgba(249, 210, 138, 0.12);
+}
+
+.project-item small,
+.muted-text {
+  color: #94a3b8;
+}
+
+.project-id-chip {
+  direction: ltr;
+  white-space: nowrap;
+  color: #f9d28a;
+  padding: 8px 11px;
+  border-radius: 999px;
+  background: rgba(249, 210, 138, 0.1);
+  border: 1px solid rgba(249, 210, 138, 0.18);
+}
+
 .workspace-grid {
   display: grid;
   grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
@@ -210,6 +285,10 @@ textarea {
   min-height: 260px;
   resize: vertical;
   line-height: 1.9;
+}
+
+.compact-textarea {
+  min-height: 160px;
 }
 
 .tone-selector,
@@ -299,6 +378,28 @@ textarea {
   grid-template-columns: 54px minmax(0, 1fr);
   gap: 16px;
   animation: rise-in 500ms ease both;
+}
+
+.editable-scene {
+  align-items: start;
+}
+
+.scene-fields {
+  display: grid;
+  gap: 12px;
+}
+
+.scene-fields label {
+  margin-bottom: 0;
+}
+
+.scene-textarea {
+  min-height: 110px;
+}
+
+.ltr-field {
+  direction: ltr;
+  text-align: left;
 }
 
 .scene-number {

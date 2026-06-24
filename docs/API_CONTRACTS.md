@@ -155,3 +155,46 @@ Response:
 ## GET /api/projects/{project_id}/scenes.json
 
 يرجع ملف `scenes.json` المحفوظ للمشروع.
+
+---
+
+## Phase 0.2 Project Workspace Endpoints
+
+Project storage uses local UTF-8 JSON files under `data/projects/`. Do not commit generated project JSON files.
+
+### POST /api/projects
+
+Creates a local project.
+
+Request:
+
+```json
+{
+  "title": "قصة جديدة",
+  "original_story": "النص الأصلي...",
+  "improved_story": "سكريبت الراوي...",
+  "scenes": []
+}
+```
+
+Response: `ProjectResponse` with `project_id`, `title`, `original_story`, `improved_story`, `scenes`, `created_at`, and `updated_at`.
+
+### GET /api/projects
+
+Returns `{ "projects": ProjectListItem[] }` with `project_id`, `title`, `scene_count`, `created_at`, and `updated_at`.
+
+### GET /api/projects/{project_id}
+
+Returns one local project.
+
+### PUT /api/projects/{project_id}
+
+Updates `title`, `original_story`, `improved_story`, and/or `scenes`.
+
+### DELETE /api/projects/{project_id}
+
+Deletes one local project JSON file.
+
+### GET /api/projects/{project_id}/scenes.json
+
+Exports the latest edited scenes as downloadable `scenes.json`.

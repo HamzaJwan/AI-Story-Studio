@@ -25,8 +25,11 @@ build/
 
 # Local generated media
 data/benchmarks/
+data/projects/*.json
+data/projects/*/
 data/projects/**
 !data/projects/.gitkeep
+deploy/ai-server/*/data/
 outputs/
 *.wav
 *.mp3

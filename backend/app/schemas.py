@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
@@ -49,3 +50,45 @@ class SplitScenesData(BaseModel):
     project_id: str | None = None
     story_title: str
     scenes: list[Scene] = Field(min_length=1)
+
+
+class ProjectCreateRequest(BaseModel):
+    title: str = Field(default="قصة جديدة", min_length=1, max_length=180)
+    original_story: str = Field(default="", max_length=25000)
+    improved_story: str = Field(default="", max_length=30000)
+    scenes: list[Scene] = Field(default_factory=list)
+
+    @field_validator("title", "original_story", "improved_story")
+    @classmethod
+    def strip_project_text(cls, value: str) -> str:
+        return value.strip()
+
+
+class ProjectUpdateRequest(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=180)
+    original_story: str | None = Field(default=None, max_length=25000)
+    improved_story: str | None = Field(default=None, max_length=30000)
+    scenes: list[Scene] | None = None
+
+    @field_validator("title", "original_story", "improved_story")
+    @classmethod
+    def strip_optional_project_text(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else value
+
+
+class ProjectResponse(BaseModel):
+    project_id: str
+    title: str
+    original_story: str = ""
+    improved_story: str = ""
+    scenes: list[Scene] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class ProjectListItem(BaseModel):
+    project_id: str
+    title: str
+    scene_count: int = 0
+    created_at: datetime
+    updated_at: datetime

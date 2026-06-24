@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends
-from fastapi.responses import FileResponse
 
 from app.ai_providers.ollama import OllamaError, OllamaProvider
 from app.config import Settings, get_settings
@@ -75,12 +74,3 @@ def split_scenes(
             meta={"provider": "ollama", "model": provider.model},
             errors=[str(exc)],
         )
-
-
-@router.get("/projects/{project_id}/scenes.json")
-def download_scenes(
-    project_id: str,
-    storage: ProjectStorage = Depends(get_storage),
-) -> FileResponse:
-    path = storage.scenes_file_path(project_id)
-    return FileResponse(path, media_type="application/json", filename="scenes.json")

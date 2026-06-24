@@ -64,3 +64,19 @@
 - SILMA stays in `deploy/ai-server/silma-lab/`.
 - No backend/frontend TTS integration yet.
 - Future product integration should use a separate LAN `tts-worker` API.
+
+---
+
+## 2026-06-24 — Start Phase 0.2 Project Workspace
+
+**Decision:** Return to the product and implement a local Project Workspace before expanding TTS.
+
+**Reason:**
+- Phase 0.1 is useful, but users need saved projects and editable scenes.
+- SILMA passed as a benchmark, but TTS remains isolated and should not block workspace progress.
+
+**Impact:**
+- Add JSON-file project storage under `data/projects/`.
+- Add project CRUD endpoints.
+- Add editable scene cards and `scenes.json` export after edits.
+- No TTS/audio/image/video integration in Phase 0.2.

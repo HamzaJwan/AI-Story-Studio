@@ -33,39 +33,85 @@ type SplitData = {
   scenes: Scene[];
 };
 
-type LoadingAction = "test" | "improve" | "split" | null;
+type Project = {
+  project_id: string;
+  title: string;
+  original_story: string;
+  improved_story: string;
+  scenes: Scene[];
+  created_at: string;
+  updated_at: string;
+};
 
-async function postJson<T>(path: string, payload?: unknown): Promise<ApiEnvelope<T>> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+type ProjectListItem = {
+  project_id: string;
+  title: string;
+  scene_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+type ProjectListData = {
+  projects: ProjectListItem[];
+};
+
+type LoadingAction = "test" | "improve" | "split" | "new" | "save" | "load" | "delete" | null;
+
+async function requestJson<T>(path: string, options?: RequestInit): Promise<ApiEnvelope<T>> {
+  const response = await fetch(`${API_BASE_URL}${path}`, options);
+  const payload = await response.json();
+  if (!response.ok) {
+    const detail = payload?.detail || payload?.errors?.join?.(" ") || "Request failed.";
+    throw new Error(detail);
+  }
+  return payload;
+}
+
+function getJson<T>(path: string): Promise<ApiEnvelope<T>> {
+  return requestJson<T>(path);
+}
+
+function postJson<T>(path: string, payload?: unknown): Promise<ApiEnvelope<T>> {
+  return requestJson<T>(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: payload ? JSON.stringify(payload) : "{}",
   });
-  return response.json();
 }
 
-async function getJson<T>(path: string): Promise<ApiEnvelope<T>> {
-  const response = await fetch(`${API_BASE_URL}${path}`);
-  return response.json();
+function putJson<T>(path: string, payload: unknown): Promise<ApiEnvelope<T>> {
+  return requestJson<T>(path, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+function deleteJson<T>(path: string): Promise<ApiEnvelope<T>> {
+  return requestJson<T>(path, { method: "DELETE" });
 }
 
 export default function App() {
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [title, setTitle] = useState("المسرح لي");
   const [storyText, setStoryText] = useState("");
   const [tone, setTone] = useState(TONES[0]);
   const [config, setConfig] = useState<ConfigData | null>(null);
   const [providerMessage, setProviderMessage] = useState("لم يتم الاختبار بعد");
   const [improvedText, setImprovedText] = useState("");
-  const [splitData, setSplitData] = useState<SplitData | null>(null);
+  const [scenes, setScenes] = useState<Scene[]>([]);
   const [rawJsonOpen, setRawJsonOpen] = useState(false);
+  const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState<LoadingAction>(null);
 
   const canRun = storyText.trim().length > 0 && loading === null;
-  const rawJson = useMemo(() => {
-    if (!splitData) return "";
-    return JSON.stringify(splitData, null, 2);
-  }, [splitData]);
+  const splitData = useMemo<SplitData | null>(() => {
+    if (!scenes.length) return null;
+    return { project_id: projectId, story_title: title, scenes };
+  }, [projectId, scenes, title]);
+  const rawJson = useMemo(() => (splitData ? JSON.stringify(splitData, null, 2) : ""), [splitData]);
 
   useEffect(() => {
     getJson<ConfigData>("/api/config")
@@ -74,7 +120,105 @@ export default function App() {
         if (result.errors.length) setError(result.errors.join(" "));
       })
       .catch(() => setError("تعذر تحميل إعدادات المزود من backend."));
+    refreshProjects();
   }, []);
+
+  async function refreshProjects() {
+    try {
+      const result = await getJson<ProjectListData>("/api/projects");
+      setProjects(result.data.projects || []);
+    } catch {
+      setError("تعذر تحميل قائمة المشاريع.");
+    }
+  }
+
+  function showNotice(message: string) {
+    setNotice(message);
+    window.setTimeout(() => setNotice(""), 3500);
+  }
+
+  function applyProject(project: Project) {
+    setProjectId(project.project_id);
+    setTitle(project.title);
+    setStoryText(project.original_story || "");
+    setImprovedText(project.improved_story || "");
+    setScenes(project.scenes || []);
+    setRawJsonOpen(Boolean(project.scenes?.length));
+  }
+
+  async function handleNewProject() {
+    setLoading("new");
+    setError("");
+    try {
+      const result = await postJson<Project>("/api/projects", {
+        title: "قصة جديدة",
+        original_story: "",
+        improved_story: "",
+        scenes: [],
+      });
+      applyProject(result.data);
+      await refreshProjects();
+      showNotice("تم إنشاء مشروع جديد.");
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : "تعذر إنشاء مشروع جديد.");
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  async function handleLoadProject(selectedProjectId: string) {
+    setLoading("load");
+    setError("");
+    try {
+      const result = await getJson<Project>(`/api/projects/${selectedProjectId}`);
+      applyProject(result.data);
+      showNotice("تم تحميل المشروع.");
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : "تعذر تحميل المشروع.");
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  async function handleSaveProject() {
+    setLoading("save");
+    setError("");
+    const payload = { title, original_story: storyText, improved_story: improvedText, scenes };
+    try {
+      const result = projectId
+        ? await putJson<Project>(`/api/projects/${projectId}`, payload)
+        : await postJson<Project>("/api/projects", payload);
+      applyProject(result.data);
+      await refreshProjects();
+      showNotice("تم حفظ المشروع.");
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : "تعذر حفظ المشروع.");
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  async function handleDeleteProject() {
+    if (!projectId) return;
+    if (!window.confirm("هل تريد حذف هذا المشروع؟ لا يمكن التراجع عن الحذف.")) return;
+    setLoading("delete");
+    setError("");
+    try {
+      await deleteJson(`/api/projects/${projectId}`);
+      setProjectId(null);
+      setTitle("قصة جديدة");
+      setStoryText("");
+      setImprovedText("");
+      setScenes([]);
+      setRawJsonOpen(false);
+      await refreshProjects();
+      showNotice("تم حذف المشروع.");
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : "تعذر حذف المشروع.");
+    } finally {
+      setLoading(null);
+    }
+  }
 
   async function handleTestOllama() {
     setLoading("test");
@@ -110,6 +254,7 @@ export default function App() {
         setError(result.errors.join(" "));
       } else {
         setImprovedText(result.data.improved_text);
+        showNotice("تم تحسين القصة. لا تنس حفظ المشروع.");
       }
     } catch {
       setError("تعذر تحسين القصة. تحقق من backend وOllama.");
@@ -130,10 +275,14 @@ export default function App() {
       });
       if (result.errors.length) {
         setError(result.errors.join(" "));
-        setSplitData(null);
+        setScenes([]);
       } else {
-        setSplitData(result.data);
+        setScenes(result.data.scenes);
         setRawJsonOpen(true);
+        if (result.data.project_id) {
+          await saveGeneratedProject(result.data.project_id, result.data.scenes);
+        }
+        showNotice("تم تقسيم القصة إلى مشاهد وحفظ المشروع.");
       }
     } catch {
       setError("تعذر تقسيم القصة إلى مشاهد. تحقق من استجابة Ollama.");
@@ -142,14 +291,44 @@ export default function App() {
     }
   }
 
+  async function saveGeneratedProject(generatedProjectId: string, generatedScenes: Scene[]) {
+    const result = await putJson<Project>(`/api/projects/${generatedProjectId}`, {
+      title,
+      original_story: storyText,
+      improved_story: improvedText,
+      scenes: generatedScenes,
+    });
+    applyProject(result.data);
+    await refreshProjects();
+  }
+
+  function updateScene(index: number, field: keyof Scene, value: string | number) {
+    setScenes((currentScenes) =>
+      currentScenes.map((scene, sceneIndex) =>
+        sceneIndex === index ? { ...scene, [field]: value } : scene,
+      ),
+    );
+  }
+
   async function handleDownloadJson() {
-    if (!splitData?.project_id) return;
-    const response = await fetch(`${API_BASE_URL}/api/projects/${splitData.project_id}/scenes.json`);
-    const blob = await response.blob();
+    if (projectId) {
+      const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/scenes.json`);
+      downloadBlob(await response.blob(), "scenes.json");
+      return;
+    }
+    if (splitData) {
+      downloadBlob(
+        new Blob([JSON.stringify(splitData, null, 2)], { type: "application/json;charset=utf-8" }),
+        "scenes.json",
+      );
+    }
+  }
+
+  function downloadBlob(blob: Blob, filename: string) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "scenes.json";
+    link.download = filename;
     link.click();
     URL.revokeObjectURL(url);
   }
@@ -158,9 +337,9 @@ export default function App() {
     <main className="app-shell" dir="rtl">
       <section className="hero-section">
         <div className="hero-copy">
-          <span className="phase-pill">Phase 0.1</span>
+          <span className="phase-pill">Phase 0.2</span>
           <h1>AI Story Studio</h1>
-          <p>حوّل قصتك إلى سكريبت راوي ومشاهد منظمة.</p>
+          <p>حوّل قصتك إلى مشروع محفوظ، سكريبت راوي، ومشاهد قابلة للتعديل والتصدير.</p>
         </div>
         <div className={`status-chip ${config?.ollama_configured ? "ready" : "warning"}`}>
           <span>{config?.provider || "ollama"}</span>
@@ -170,6 +349,43 @@ export default function App() {
       </section>
 
       {error && <div className="error-banner">{error}</div>}
+      {notice && <div className="notice-banner">{notice}</div>}
+
+      <section className="project-panel glass-panel">
+        <div className="panel-header">
+          <div>
+            <span className="eyebrow">Project Workspace</span>
+            <h2>المشاريع المحفوظة</h2>
+          </div>
+          <div className="project-actions">
+            <button onClick={handleNewProject} disabled={loading !== null}>
+              {loading === "new" ? "جاري الإنشاء..." : "مشروع جديد"}
+            </button>
+            <button onClick={handleSaveProject} disabled={loading !== null}>
+              {loading === "save" ? "جاري الحفظ..." : projectId ? "حفظ التغييرات" : "حفظ المشروع"}
+            </button>
+            <button className="danger-button" onClick={handleDeleteProject} disabled={!projectId || loading !== null}>
+              حذف المشروع
+            </button>
+          </div>
+        </div>
+        <div className="project-list">
+          {projects.length === 0 && <span className="muted-text">لا توجد مشاريع محفوظة بعد.</span>}
+          {projects.map((project) => (
+            <button
+              key={project.project_id}
+              className={project.project_id === projectId ? "project-item active" : "project-item"}
+              onClick={() => handleLoadProject(project.project_id)}
+              disabled={loading !== null}
+            >
+              <strong>{project.title}</strong>
+              <small>
+                {project.scene_count} مشاهد · {new Date(project.updated_at).toLocaleString("ar")}
+              </small>
+            </button>
+          ))}
+        </div>
+      </section>
 
       <section className="workspace-grid">
         <div className="glass-panel editor-panel">
@@ -184,16 +400,26 @@ export default function App() {
           </div>
 
           <label>
-            عنوان القصة
+            عنوان المشروع
             <input value={title} onChange={(event) => setTitle(event.target.value)} />
           </label>
 
           <label className="story-label">
-            نص القصة
+            نص القصة الأصلي
             <textarea
               value={storyText}
               onChange={(event) => setStoryText(event.target.value)}
               placeholder="اكتب القصة العربية هنا..."
+            />
+          </label>
+
+          <label className="story-label">
+            سكريبت الراوي المحسن
+            <textarea
+              className="compact-textarea"
+              value={improvedText}
+              onChange={(event) => setImprovedText(event.target.value)}
+              placeholder="سيظهر النص المحسن هنا، ويمكنك تعديله قبل الحفظ أو التقسيم."
             />
           </label>
 
@@ -211,15 +437,15 @@ export default function App() {
 
           <div className="action-bar">
             <button onClick={handleTestOllama} disabled={loading !== null}>
-              {loading === "test" ? "جار الاختبار..." : "اختبار Ollama"}
+              {loading === "test" ? "جاري الاختبار..." : "اختبار Ollama"}
             </button>
             <button onClick={handleImproveStory} disabled={!canRun}>
-              {loading === "improve" ? "جار التحسين..." : "تحسين القصة"}
+              {loading === "improve" ? "جاري التحسين..." : "تحسين القصة"}
             </button>
             <button onClick={handleSplitScenes} disabled={!canRun}>
-              {loading === "split" ? "جار التقسيم..." : "تقسيم إلى مشاهد"}
+              {loading === "split" ? "جاري التقسيم..." : "تقسيم إلى مشاهد"}
             </button>
-            <button className="download-button" onClick={handleDownloadJson} disabled={!splitData?.project_id}>
+            <button className="download-button" onClick={handleDownloadJson} disabled={!scenes.length}>
               تحميل scenes.json
             </button>
           </div>
@@ -228,39 +454,70 @@ export default function App() {
         <div className="glass-panel result-panel">
           <div className="panel-header">
             <div>
-              <span className="eyebrow">Output</span>
-              <h2>المخرجات</h2>
+              <span className="eyebrow">Editable Scenes</span>
+              <h2>المشاهد</h2>
             </div>
+            <span className="project-id-chip">{projectId ? `ID: ${projectId.slice(0, 8)}` : "غير محفوظ"}</span>
           </div>
 
-          {!improvedText && !splitData && (
+          {!scenes.length && (
             <div className="empty-state">
-              ابدأ باختبار Ollama، ثم حسّن القصة أو قسّمها إلى مشاهد قابلة للمراجعة.
+              ابدأ بتحسين القصة أو تقسيمها. بعد توليد المشاهد ستستطيع تعديلها وحفظها وإعادة تصدير scenes.json.
             </div>
           )}
 
-          {improvedText && (
-            <section className="output-card">
-              <h3>سكريبت الراوي المحسن</h3>
-              <p>{improvedText}</p>
-            </section>
-          )}
-
-          {splitData && (
+          {scenes.length > 0 && (
             <section className="scene-list">
               <div className="scene-list-title">
-                <h3>{splitData.story_title}</h3>
-                <span>{splitData.scenes.length} مشاهد</span>
+                <h3>{title}</h3>
+                <span>{scenes.length} مشاهد</span>
               </div>
-              {splitData.scenes.map((scene) => (
-                <article className="scene-card" key={scene.scene_id}>
+              {scenes.map((scene, index) => (
+                <article className="scene-card editable-scene" key={`${scene.scene_id}-${index}`}>
                   <div className="scene-number">{scene.scene_id}</div>
-                  <div>
-                    <h4>{scene.title_ar}</h4>
-                    <p>{scene.narration_ar}</p>
-                    <small>{scene.visual_description_ar}</small>
-                    <code>{scene.image_prompt_en}</code>
-                    <span className="duration">{scene.duration_seconds} ثانية</span>
+                  <div className="scene-fields">
+                    <label>
+                      عنوان المشهد
+                      <input
+                        value={scene.title_ar}
+                        onChange={(event) => updateScene(index, "title_ar", event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      نص الراوي
+                      <textarea
+                        className="scene-textarea"
+                        value={scene.narration_ar}
+                        onChange={(event) => updateScene(index, "narration_ar", event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      الوصف البصري
+                      <textarea
+                        className="scene-textarea"
+                        value={scene.visual_description_ar}
+                        onChange={(event) => updateScene(index, "visual_description_ar", event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Visual prompt
+                      <textarea
+                        className="scene-textarea ltr-field"
+                        dir="ltr"
+                        value={scene.image_prompt_en}
+                        onChange={(event) => updateScene(index, "image_prompt_en", event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      المدة بالثواني
+                      <input
+                        type="number"
+                        min="3"
+                        max="180"
+                        value={scene.duration_seconds}
+                        onChange={(event) => updateScene(index, "duration_seconds", Number(event.target.value))}
+                      />
+                    </label>
                   </div>
                 </article>
               ))}
