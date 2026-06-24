@@ -1,0 +1,12 @@
+services:
+  comfyui-lab:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    gpus: all
+    ports:
+      - "${COMFYUI_PORT:-8188}:8188"
+    volumes:
+      - ./data/checkpoints:/workspace/ComfyUI/models/checkpoints
+      - ./data/output:/workspace/ComfyUI/output
+    restart: "no"

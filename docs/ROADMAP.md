@@ -9,12 +9,12 @@
 | الحقل | القيمة |
 |---|---|
 | **Current Phase** | Phase 2.0 — Image Benchmark Lab |
-| **Current Status** | ⏳ ASSESSING SCOPE — Phase 1.4 نجحت فعلياً (صوت حقيقي لمشروع كامل داخل export.zip) |
+| **Current Status** | 🟡 BLOCKED — كود الـ lab جاهز (ComfyUI + SDXL base)، تحميل checkpoint (~6.94GB) تجمّد بسبب شبكة AI Server نفسها التي حجبت SILMA سابقاً |
 | **Current Owner** | Hamza |
 | **Current Executor** | Claude |
 | **Current Reviewer** | Hamza |
 | **Last Updated** | 2026-06-24 |
-| **Current Decision** | Phase 1.x (الصوت) منتهية بنجاح بالكامل. SSH alias `ai-story-server` يعمل لكل مراحل AI Server. SILMA لا يزال BLOCKED بسبب شبكة AI Server (راجع DECISION_LOG)؛ Piper هو المحرك الصوتي الافتراضي. Phase 2.0 تحتاج تقييم محرك صور حقيقي قبل أي كود |
+| **Current Decision** | Phase 1.x (الصوت) منتهية بنجاح بالكامل. شبكة AI Server غير مستقرة بشكل متكرر هذا المساء (أثّرت على SILMA والآن على SDXL) — هذا نمط بيئي متكرر يستحق فحصاً منفصلاً من حمزة، ليس مشكلة كود |
 
 ---
 
@@ -67,7 +67,7 @@
 | **1.2** | TTS Worker Lab API | worker حقيقي منفصل (Piper، SILMA معطّل مؤقتاً) في `deploy/ai-server/tts-worker/` | ✅ PASS (Piper) | FastAPI worker شغّال + WAV حقيقي على AI Server | تحقق حمزة + git push |
 | **1.3** | Connect App to TTS Worker | ربط Audio panel بمشهد واحد فعلياً | ✅ PASS | job حقيقي + audio player حقيقي يعملان | تحقق حمزة + git push |
 | **1.4** | Project Audio Export | صوت لكل المشاهد + إضافته لـ export.zip | ✅ PASS | `audio/*.wav` + `final_story.wav` داخل ZIP | تحقق حمزة + git push |
-| **2.0** | Cinematic Images + MP4 | SDXL/ComfyUI + FFmpeg | ⬜ LATER — **يحتاج Benchmark Gate = PASS** | 3 صور + MP4 أولي | Benchmark Gate PASS لـ Images |
+| **2.0** | Cinematic Images + MP4 | SDXL/ComfyUI + FFmpeg | 🟡 BLOCKED — كود جاهز، تحميل checkpoint متجمّد (شبكة) | `deploy/ai-server/comfyui-lab/` جاهز، لا PNG حقيقي بعد | إعادة محاولة التحميل عندما تتحسن الشبكة |
 | **3.0** | AI Video POC | WanGP/Wan2.1 مشهدين | ⬜ LATER — **يحتاج Benchmark Gate = PASS** | كليب 3-5 ثوانٍ | Benchmark Gate PASS لـ Video + نجاح Phase 2.0 |
 | **4.0** | Staging/Production | Portainer + Security | ⬜ LATER | نشر آمن ومستقر | نجاح Phase 3.0 أو قرار تجاري |
 
@@ -203,13 +203,18 @@
 
 ---
 
-### Phase 2.0 — Cinematic Images + MP4
-**الحالة:** ⬜ LATER
+### Phase 2.0 — Image Benchmark Lab
+**الحالة:** 🟡 BLOCKED — كود الـ lab جاهز، لم يُنتَج أي PNG حقيقي بعد
 
-**الأهداف:**
-- Visual prompts لكل مشهد
-- اختبار SDXL / ComfyUI على 3 صور
-- تركيب MP4: صور ثابتة + صوت + subtitles + Ken Burns transitions
+**ما تم:**
+- `deploy/ai-server/comfyui-lab/` — Dockerfile (ComfyUI + `--lowvram`)، docker-compose.yml، workflow JSON جاهز (نص-إلى-صورة، 768×768 — مُخفَّض من 1024 بسبب VRAM فعلي محدود)، README بقواعد البحث/الترخيص/Stop Conditions.
+- **اختيار المحرك (بحث، لا تجربة فعلية بعد):** ComfyUI + SDXL base 1.0 fp16 (~6.94GB) — اختيار مبني على بحث ويب (ComfyUI أخف من A1111 على VRAM محدود؛ SDXL يعمل على 8GB لكن بصعوبة؛ FLUX يحتاج VRAM أكبر من المتاح). **هذا shortlist بحثي فقط حسب `docs/BENCHMARK_PROTOCOL.md` — ليس قراراً نهائياً حتى ينجح اختبار فعلي.**
+- **اكتشاف مهم:** VRAM الفعلي المتاح ~5.86GB فقط (لا 8GB كاملة) — بسبب container آخر موجود مسبقاً على AI Server (`alltalk_tts`، ليس من هذا المشروع، لم يُلمس) يحجز ~1.9GB بثبات. هذا أقل من الحد الأدنى الموثَّق لـ SDXL (8GB "ضيق").
+
+**سبب BLOCKED:**
+- تحميل checkpoint SDXL (~6.94GB، أقل من حد 20GB المسموح) تجمّد فعلياً — نفس نمط شبكة AI Server الذي حجب SILMA سابقاً الليلة (سرعة تراوحت بين ~123 KB/s وأقل من 1 KB/s، تأكَّد بفحص النمو على فترات). هذا تكرار ثانٍ لنفس مشكلة الشبكة في نفس الجلسة — جدير بفحص حمزة المباشر لشبكة/مزود AI Server بدل افتراض أنها مصادفة.
+- لم يُكمَل بناء صورة Docker أيضاً (نفس التزاحم على النطاق الترددي المحدود).
+- **لا PASS ولا حتى CANDIDATE حتى يُنتَج PNG حقيقي وتُقاس VRAM فعلياً.**
 
 ---
 

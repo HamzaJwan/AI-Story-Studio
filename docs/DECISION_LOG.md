@@ -1,5 +1,22 @@
 # Decision Log
 
+## 2026-06-24 — Phase 2.0 scaffolded but BLOCKED on AI Server network (second time tonight)
+
+**Decision:** Write the ComfyUI + SDXL image benchmark lab fully (code, workflow, docs) per the standing autopilot instruction to proceed past audio into images, but do not claim any PASS/CANDIDATE without a real generated PNG.
+
+**Engine choice (research, not guesswork):** ComfyUI + SDXL base 1.0 fp16 (~6.94GB, under the 20GB stop-condition). Web research (cited in `deploy/ai-server/comfyui-lab/README.md`) shows ComfyUI's baseline VRAM footprint is meaningfully lower than Automatic1111's on the same SDXL workload, and SDXL is documented as workable (tightly) on 8GB cards, while FLUX needs more VRAM than this card has. This is a shortlist per `docs/BENCHMARK_PROTOCOL.md`, not a final decision — only a real successful generation makes it one.
+
+**Real constraint discovered:** `nvidia-smi` showed only ~5.86GB free, not the full 8GB — a pre-existing, unrelated container (`alltalk_tts-main-alltalk-tts-1`, not part of this project) holds ~1.9GB permanently and was deliberately left untouched (not ours to manage). Compensated with `--lowvram` and a 768×768 benchmark resolution instead of 1024×1024.
+
+**What happened:** Started the Docker image build and the ~6.94GB checkpoint download in parallel. Both stalled — checkpoint download speed dropped from ~123 KB/s to under 1 KB/s sustained over 20+ minutes (confirmed via repeated byte-count checks, same diagnostic method used for SILMA). This is the **second** time tonight the AI Server's network has stalled a large download (SILMA's ~2GB model earlier, now this). Killed the dead `wget` and removed the useless partial file. Could not kill the build's root-owned `apt-get install` subprocess without sudo — left it running; it's a few small packages, not a resource concern.
+
+**Impact:**
+- Phase 2.0 is `BLOCKED` (network), not `PASS`/`CANDIDATE`/`REJECTED` — no image has been generated. The lab code itself is complete and ready to retry the moment the network is healthy.
+- This is now a pattern (2 of 2 large downloads attempted on the AI Server tonight have stalled) worth Hamza checking independently — likely the AI Server's actual internet link, not anything about SILMA or SDXL specifically.
+- Not proceeding to Phase 2.1 (Image Worker Bridge) or any UI work — nothing to bridge yet without a real generated image.
+
+---
+
 ## 2026-06-24 — Phase 1.4: Project Audio Export (real audio in export.zip)
 
 **Decision:** Generate audio for every scene in a project, persist metadata, and add it to `export.zip` — without breaking the existing ZIP shape for projects with no audio.
