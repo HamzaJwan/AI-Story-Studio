@@ -8,13 +8,13 @@
 
 | الحقل | القيمة |
 |---|---|
-| **Current Phase** | Phase 0.5 — Hardware-Aware Benchmark Foundation |
+| **Current Phase** | Phase 1.1 — Audio Bridge MVP |
 | **Current Status** | IMPLEMENTED LOCALLY — Pending Hamza verification and push approval |
 | **Current Owner** | Hamza |
 | **Current Executor** | Claude |
 | **Current Reviewer** | Hamza |
 | **Last Updated** | 2026-06-24 |
-| **Current Decision** | لا تبدأ Phase 1.1 (TTS Worker API) أو أي Phase 2.0/3.0 قبل Benchmark Gate = PASS لكل engine على حدة، وموافقة حمزة |
+| **Current Decision** | Phase 1.1 هي جسر اتصال فقط (لا engine حقيقي). لا تشغيل صوت فعلي أو Phase 2.0/3.0 قبل Benchmark Gate = PASS لكل engine على حدة، وموافقة حمزة |
 
 ---
 
@@ -61,9 +61,9 @@
 | **0.2** | Project Workspace | حفظ/تحميل/تعديل مشاريع محلية (JSON) | ✅ DONE | Project CRUD endpoints, scene editing | تحقق يدوي + حمزة |
 | **0.3** | Scene Editing UX Polish | تحسين واجهة تعديل المشاهد (frontend-only) | ✅ DONE | scene cards, validation, stats bar | تحقق يدوي + حمزة |
 | **0.4** | Story Package Export | تصدير حزمة المشروع كـ ZIP | ✅ DONE | export.zip endpoint + زر تحميل | تحقق حمزة + git push |
-| **0.5** | Hardware-Aware Benchmark Foundation | توثيق العتاد + Benchmark Gate رسمي | ✅ IMPLEMENTED LOCALLY | HARDWARE_PROFILE.md, BENCHMARK_PROTOCOL.md | تحقق حمزة + git push |
+| **0.5** | Hardware-Aware Benchmark Foundation | توثيق العتاد + Benchmark Gate رسمي | ✅ DONE | HARDWARE_PROFILE.md, BENCHMARK_PROTOCOL.md | تحقق حمزة + git push |
 | **1.0** | TTS Benchmark | اختبار SILMA TTS كـ isolated lab | ✅ DONE (isolated lab) | WAV/MP3 ناجح على AI Server GPU | نجاح Phase 0.5 |
-| **1.1** | TTS Worker API | خدمة TTS منفصلة عبر LAN API | ⬜ LATER — **يحتاج Benchmark Gate = PASS** | tts-worker + TTS_SERVICE_URL | Benchmark Gate PASS لـ TTS + قرار حمزة |
+| **1.1** | Audio Bridge MVP | جسر اتصال backend/frontend لـ TTS Worker خارجي (بدون engine حقيقي) | ✅ IMPLEMENTED LOCALLY | `/api/tts/*` endpoints + لوحة "استوديو الصوت" | تحقق حمزة + git push — **توليد صوت فعلي يبقى ممنوعاً حتى Benchmark Gate = PASS** |
 | **2.0** | Cinematic Images + MP4 | SDXL/ComfyUI + FFmpeg | ⬜ LATER — **يحتاج Benchmark Gate = PASS** | 3 صور + MP4 أولي | Benchmark Gate PASS لـ Images + نجاح Phase 1.1 |
 | **3.0** | AI Video POC | WanGP/Wan2.1 مشهدين | ⬜ LATER — **يحتاج Benchmark Gate = PASS** | كليب 3-5 ثوانٍ | Benchmark Gate PASS لـ Video + نجاح Phase 2.0 |
 | **4.0** | Staging/Production | Portainer + Security | ⬜ LATER | نشر آمن ومستقر | نجاح Phase 3.0 أو قرار تجاري |
@@ -133,13 +133,13 @@
 ---
 
 ### Phase 0.5 — Hardware-Aware Benchmark Foundation
-**الحالة:** ✅ IMPLEMENTED LOCALLY — Pending Hamza verification and push
+**الحالة:** ✅ DONE
 
 **الأهداف:**
 - `docs/HARDWARE_PROFILE.md` — توثيق العتاد الحقيقي (Local Dev Machine + AI Server) بدون أسرار.
 - `docs/BENCHMARK_PROTOCOL.md` — قاعدة رسمية: لا TTS/Image/Video engine يدخل المنتج إلا بعد Benchmark Gate (PASS/CANDIDATE/BLOCKED/REJECTED) مسجَّل بحقول واضحة (زمن، VRAM، جودة، ناتج فعلي).
 - توثيق فقط — لا تنفيذ TTS/Image/Video في هذه المرحلة.
-- Phase 1.1 (TTS Worker API) وPhase 2.0 (Images) وPhase 3.0 (Video) لا تبدأ إلا بعد Benchmark Gate = PASS لكل منها.
+- Phase 2.0 (Images) وPhase 3.0 (Video) لا تبدأ إلا بعد Benchmark Gate = PASS لكل منها.
 
 ---
 
@@ -153,13 +153,15 @@
 
 ---
 
-### Phase 1.1 — TTS Worker API
-**الحالة:** ⬜ LATER
+### Phase 1.1 — Audio Bridge MVP
+**الحالة:** ✅ IMPLEMENTED LOCALLY — Pending Hamza verification and push
 
 **الأهداف:**
-- خدمة `tts-worker` منفصلة على AI Server (Docker + LAN API)، حسب `docs/AI_SERVER_SERVICES_ARCHITECTURE.md`
-- Backend يتصل بها عبر `TTS_SERVICE_URL` فقط — لا دمج مباشر للموديلات داخل backend
-- **لا نبني واجهة كبيرة قبل تثبيت هذه الخدمة**
+- Backend connector (`TtsWorkerClient`) يتصل بخدمة `tts-worker` خارجية مستقبلية عبر `TTS_SERVICE_URL` فقط — لا دمج مباشر للموديلات، لا SILMA/AllTalk فعلي.
+- `TTS_ENABLED` معطّل افتراضياً (`false`) — أي بيئة بدون env إضافية تستمر بالعمل بدون أي تغيير ظاهر.
+- 3 endpoints: `GET /api/tts/health` (يرجع 200 دائماً)، `POST /api/projects/{id}/tts/jobs` و`GET /api/tts/jobs/{id}` (يرجعان 503 إذا غير مفعّل).
+- لوحة "استوديو الصوت" (badge تجريبي) في الواجهة — تعرض الحالة بوضوح، أزرار التوليد معطّلة إذا الخدمة غير مفعّلة، بدون أي صوت وهمي.
+- **هذا جسر اتصال فقط وليس "TTS Worker API" فعلياً** — لا تشغيل فعلي لأي صوت حتى يُبنى `tts-worker` نفسه ويمرّ بـ Benchmark Gate = PASS حسب `docs/BENCHMARK_PROTOCOL.md`.
 
 ---
 
@@ -223,10 +225,12 @@
 - ❌ **Failed if:** SILMA لا تعمل والجودة غير مقبولة بعد تجربة XTTS.
 - 🛑 **Stop if:** لا يوجد TTS يعمل — ننتظر بديلاً قبل Phase 1.1.
 
-### Phase 1.1
-- ✅ **Done when:** Benchmark Gate (`docs/BENCHMARK_PROTOCOL.md`) يسجّل `PASS` لـ TTS على AI Server، ثم MP3/WAV كامل للقصة قابل للتحميل من الواجهة عبر `tts-worker` منفصل.
-- ❌ **Failed if:** Benchmark Gate لم يصدر PASS، أو مقاطع الصوت غير متزامنة، أو جودتها غير مقبولة.
-- 🛑 **Stop if:** وقت التوليد يتجاوز 10 دقائق لقصة قصيرة، أو لم يصدر Benchmark Gate PASS بعد.
+### Phase 1.1 — Audio Bridge MVP
+- ✅ **Done when:** `/api/tts/health` يرجع `configured: false` بدون env إضافية، endpoints الـ job ترجع 503 بوضوح، لوحة "استوديو الصوت" تظهر بدون كسر الواجهة، Phase 0.4/0.x لم تنكسر.
+- ❌ **Failed if:** التطبيق يتعطل بدون `TTS_SERVICE_URL`، أو الواجهة تعرض نجاحاً وهمياً (صوت أو job مزيّف).
+- 🛑 **Stop if:** أي محاولة لتشغيل SILMA/AllTalk أو GPU فعلياً ضمن هذه المرحلة.
+
+> توليد صوت فعلي كامل (MP3/WAV حقيقي من `tts-worker` مبني فعلياً) يبقى خطوة لاحقة منفصلة، ولا تبدأ إلا بعد Benchmark Gate = PASS حسب `docs/BENCHMARK_PROTOCOL.md`.
 
 ### Phase 2.0
 - ✅ **Done when:** Benchmark Gate يسجّل `PASS` لمحرك الصور على AI Server، ثم 3 صور سينمائية + MP4 أولي يعمل.
@@ -254,9 +258,10 @@
 | ✅ DONE | Phase 0.2 — Project Workspace (Project CRUD) | Claude | git push تم |
 | ✅ DONE | Phase 0.3 — Scene Editing UX Polish | Claude | commit: `360ed62` |
 | ✅ DONE | Phase 0.4 — Story Package Export (export.zip) | Claude | commit: `528a0f6`, push تم |
-| ✅ IMPLEMENTED LOCALLY | Phase 0.5 — Hardware-Aware Benchmark Foundation | Claude | بانتظار تحقق حمزة + push |
+| ✅ DONE | Phase 0.5 — Hardware-Aware Benchmark Foundation | Claude | commit: `eee692f`, push تم |
 | ✅ DONE (isolated lab) | SILMA TTS Benchmark — Phase 1.0 | Claude | WAV/MP3 ناجح على AI Server GPU |
-| ⏳ NEXT (بعد قرار حمزة) | TTS Worker API — Phase 1.1 | — | **يحتاج Benchmark Gate = PASS أولاً** |
+| ✅ IMPLEMENTED LOCALLY | Phase 1.1 — Audio Bridge MVP (`/api/tts/*` + لوحة الصوت) | Claude | بانتظار تحقق حمزة + push — جسر اتصال فقط |
+| 🔵 LATER | بناء `tts-worker` فعلي + Benchmark Gate = PASS | — | شرط لأي توليد صوت حقيقي |
 | 🔵 LATER | SDXL Image Benchmark — Phase 2.0 | — | يحتاج Benchmark Gate = PASS أولاً |
 | 🔵 LATER | WanGP Video POC — Phase 3.0 | — | يحتاج Benchmark Gate = PASS أولاً |
 | 🔵 LATER | Portainer Production Deploy | Hamza | بعد اكتمال MVP |

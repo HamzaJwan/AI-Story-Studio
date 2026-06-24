@@ -55,6 +55,28 @@ type ProjectListData = {
   projects: ProjectListItem[];
 };
 
+type TtsHealthData = {
+  enabled: boolean;
+  configured: boolean;
+  service_url_configured: boolean;
+  remote_ok: boolean | null;
+  latency_ms?: number;
+};
+
+type TtsJobFile = {
+  url?: string;
+  format?: string;
+};
+
+type TtsJobData = {
+  job_id?: string;
+  status?: string;
+  files?: TtsJobFile[];
+  [key: string]: unknown;
+};
+
+type TtsBusyAction = "health" | "scene" | "project" | "refresh" | null;
+
 type LoadingAction =
   | "test"
   | "improve"
@@ -139,6 +161,11 @@ export default function App() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState<LoadingAction>(null);
 
+  const [ttsHealth, setTtsHealth] = useState<TtsHealthData | null>(null);
+  const [ttsMessage, setTtsMessage] = useState("");
+  const [ttsJob, setTtsJob] = useState<TtsJobData | null>(null);
+  const [ttsBusy, setTtsBusy] = useState<TtsBusyAction>(null);
+
   const canRun = storyText.trim().length > 0 && loading === null;
 
   const sceneStats = useMemo(() => {
@@ -165,6 +192,7 @@ export default function App() {
       })
       .catch(() => setError("تعذر تحميل إعدادات المزود من backend."));
     refreshProjects();
+    checkTtsHealth();
   }, []);
 
   async function refreshProjects() {
@@ -475,6 +503,72 @@ export default function App() {
     link.download = filename;
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  // ── TTS Bridge (Phase 1.1 — لا يوجد engine حقيقي، فقط جسر اتصال) ────────────────
+
+  async function checkTtsHealth() {
+    setTtsBusy("health");
+    setTtsMessage("");
+    try {
+      const r = await getJson<TtsHealthData>("/api/tts/health");
+      setTtsHealth(r.data);
+      if (r.errors.length) setTtsMessage(r.errors.join(" "));
+    } catch {
+      setTtsHealth(null);
+      setTtsMessage("تعذر فحص خدمة الصوت.");
+    } finally {
+      setTtsBusy(null);
+    }
+  }
+
+  async function handleGenerateAudio(mode: "scene" | "project") {
+    if (!projectId) {
+      setTtsMessage("احفظ المشروع أولاً قبل توليد الصوت.");
+      return;
+    }
+    if (mode === "scene" && !scenes.length) {
+      setTtsMessage("لا توجد مشاهد لتوليد صوت لها.");
+      return;
+    }
+    setTtsBusy(mode);
+    setTtsMessage("");
+    setTtsJob(null);
+    try {
+      const body: Record<string, unknown> = { mode, format: "wav" };
+      if (mode === "scene") body.scene_id = scenes[0].scene_id;
+      const r = await postJson<TtsJobData>(`/api/projects/${projectId}/tts/jobs`, body);
+      setTtsJob(r.data);
+      if (r.errors.length) setTtsMessage(r.errors.join(" "));
+      else setTtsMessage("تم إرسال طلب التوليد.");
+    } catch (exc) {
+      setTtsMessage(exc instanceof Error ? exc.message : "تعذر إرسال طلب توليد الصوت.");
+    } finally {
+      setTtsBusy(null);
+    }
+  }
+
+  async function handleRefreshTtsJob() {
+    if (!ttsJob?.job_id) return;
+    setTtsBusy("refresh");
+    setTtsMessage("");
+    try {
+      const r = await getJson<TtsJobData>(`/api/tts/jobs/${ttsJob.job_id}`);
+      setTtsJob(r.data);
+      if (r.errors.length) setTtsMessage(r.errors.join(" "));
+    } catch (exc) {
+      setTtsMessage(exc instanceof Error ? exc.message : "تعذر تحديث حالة المهمة.");
+    } finally {
+      setTtsBusy(null);
+    }
+  }
+
+  function ttsStatusLabel(): string {
+    if (ttsHealth === null) return "لم يتم الفحص بعد";
+    if (!ttsHealth.configured) return "غير مفعّلة";
+    if (ttsHealth.remote_ok === false) return "خطأ اتصال";
+    if (ttsHealth.remote_ok === true) return "مفعّلة";
+    return "مفعّلة (بانتظار فحص الاتصال)";
   }
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -808,6 +902,68 @@ export default function App() {
               {rawJsonOpen && <pre dir="ltr">{rawJson}</pre>}
             </section>
           )}
+
+          <section className="audio-panel">
+            <div className="panel-header">
+              <div>
+                <span className="eyebrow">Audio Bridge</span>
+                <h2>
+                  استوديو الصوت <span className="badge-experimental">تجريبي</span>
+                </h2>
+              </div>
+              <span className={`tts-status-chip tts-status--${ttsHealth?.configured ? (ttsHealth.remote_ok === false ? "error" : "ready") : "disabled"}`}>
+                {ttsStatusLabel()}
+              </span>
+            </div>
+
+            <p className="muted-text">
+              توليد الصوت يحتاج TTS Worker على AI Server. هذه اللوحة جسر اتصال فقط، ولا تشغّل أي
+              موديل صوت داخل التطبيق.
+            </p>
+
+            {ttsMessage && <div className="notice-banner">{ttsMessage}</div>}
+
+            <div className="action-bar">
+              <button onClick={checkTtsHealth} disabled={ttsBusy !== null}>
+                {ttsBusy === "health" ? "جاري الفحص..." : "فحص خدمة الصوت"}
+              </button>
+              <button
+                onClick={() => handleGenerateAudio("scene")}
+                disabled={!projectId || !scenes.length || !ttsHealth?.configured || ttsBusy !== null}
+                title={!ttsHealth?.configured ? "خدمة الصوت غير مفعّلة" : undefined}
+              >
+                {ttsBusy === "scene" ? "جاري التوليد..." : "توليد صوت للمشهد الأول"}
+              </button>
+              <button
+                onClick={() => handleGenerateAudio("project")}
+                disabled={!projectId || !ttsHealth?.configured || ttsBusy !== null}
+                title={!ttsHealth?.configured ? "خدمة الصوت غير مفعّلة" : undefined}
+              >
+                {ttsBusy === "project" ? "جاري التوليد..." : "توليد صوت للمشروع"}
+              </button>
+            </div>
+
+            {ttsJob && (
+              <div className="tts-job-card">
+                {ttsJob.job_id && (
+                  <span>
+                    Job ID: <code dir="ltr">{ttsJob.job_id}</code>
+                  </span>
+                )}
+                {ttsJob.status && <span>الحالة: {ttsJob.status}</span>}
+                {ttsJob.job_id && (
+                  <button className="ghost-button" onClick={handleRefreshTtsJob} disabled={ttsBusy !== null}>
+                    {ttsBusy === "refresh" ? "جاري التحديث..." : "تحديث الحالة"}
+                  </button>
+                )}
+                {ttsJob.files?.map((file, idx) =>
+                  file.url ? (
+                    <audio key={idx} controls src={file.url} className="tts-audio-player" />
+                  ) : null,
+                )}
+              </div>
+            )}
+          </section>
         </div>
       </section>
     </main>

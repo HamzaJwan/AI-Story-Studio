@@ -2,7 +2,7 @@
 
 ## Current Stage
 
-**Stage:** Phase 0.4 — Story Package Export
+**Stage:** Phase 1.1 — Audio Bridge MVP
 **Status:** Implemented locally — pending Hamza verification and push approval
 **Owner:** Hamza
 **Executor:** Claude
@@ -10,32 +10,30 @@
 
 ## Current Goal
 
-إضافة تصدير حزمة مشروع كاملة كملف ZIP واحد:
-- story.txt (original_story)
-- improved_story.txt (improved_story)
-- scenes.json (مطابق لـ GET /api/projects/{project_id}/scenes.json)
-- metadata.json (project_id, title, created_at, updated_at, scene_count, total_duration_seconds, exported_at, app, phase)
+إضافة طبقة صوت أولية (جسر اتصال فقط) داخل المنتج، بدون تشغيل أي موديل صوت داخل التطبيق:
+- Backend connector لـ TTS Worker خارجي عبر `TTS_SERVICE_URL` / `TTS_ENABLED`.
+- إذا الخدمة غير مفعّلة، endpoints وواجهة المستخدم تقول ذلك بوضوح بدون crash وبدون صوت وهمي.
+- إذا الخدمة مفعّلة لاحقاً (بعد Benchmark Gate = PASS)، التطبيق جاهز للتكامل بدون تغيير بنية الكود.
 
-Phase 0.4 فقط: endpoint جديد + زر تحميل واحد في الواجهة — لا TTS، لا صور، لا فيديو، لا dependencies جديدة.
+## Implemented in Phase 1.1
 
-## Implemented in Phase 0.4
-
-- `ProjectStorage.build_export_zip()` يبني ZIP في الذاكرة (io.BytesIO + zipfile) من المكتبة القياسية فقط.
-- `GET /api/projects/{project_id}/export.zip` — يرجع ZIP صالح أو 404 بنفس نمط الأخطاء الحالي.
-- زر "تحميل حزمة المشروع ZIP" في الواجهة، فعّال فقط بعد حفظ المشروع (وجود project_id).
-- لا تغيير في endpoints أو schemas القديمة.
-- لا تغيير في تصميم الواجهة العام.
+- `backend/app/config.py`: `TTS_ENABLED` (default `false`), `TTS_SERVICE_URL`, `TTS_TIMEOUT_SECONDS`، وخاصية `tts_configured`.
+- `backend/app/ai_providers/tts_worker.py`: `TtsWorkerClient` — health check + proxy لإنشاء/جلب job.
+- `backend/app/routers/tts.py`:
+  - `GET /api/tts/health` — يرجع 200 دائماً مع `configured: false/true`.
+  - `POST /api/projects/{project_id}/tts/jobs` — 503 إذا غير مفعّل، 404 لمشروع/مشهد غير موجود، 502 إذا تعذّر الوصول للـ worker.
+  - `GET /api/tts/jobs/{job_id}` — نفس منطق 503/502.
+- Frontend: قسم "استوديو الصوت" (badge "تجريبي") بعد المشاهد — فحص الحالة تلقائياً عند التحميل، أزرار توليد صوت للمشهد الأول/للمشروع معطّلة إذا الخدمة غير مفعّلة، بطاقة job_id/status مع زر تحديث، بدون أي audio player وهمي.
+- `scripts/smoke_phase0_workspace.py` — فحص سريع لـ health/projects CRUD/scenes.json/export.zip.
+- لا SILMA، لا AllTalk، لا ComfyUI، لا WanGP، لا GPU، لا تحميل موديلات.
 
 ## Next Action
 
-1. حمزة يشغّل الفحوصات ويتحقق يدوياً من محتوى ZIP.
+1. حمزة يشغّل الفحوصات ويتحقق يدوياً من ظهور لوحة الصوت وحالتها (غير مفعّلة بدون env).
 2. حمزة يوافق على commit وpush.
 
 ## Do Not Do Yet
 
-- لا TTS كامل.
-- لا فيديو AI.
-- لا ComfyUI.
-- لا WanGP.
-- لا production deploy.
-- لا database/auth.
+- لا تشغيل فعلي لـ TTS Worker — لم يُبنَ بعد، ولم يمرّ بـ Benchmark Gate.
+- لا صور، لا فيديو، لا ComfyUI، لا WanGP.
+- لا production deploy، لا database/auth.

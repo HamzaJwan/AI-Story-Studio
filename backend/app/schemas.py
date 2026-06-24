@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -92,3 +92,11 @@ class ProjectListItem(BaseModel):
     scene_count: int = 0
     created_at: datetime
     updated_at: datetime
+
+
+class TtsJobRequest(BaseModel):
+    mode: Literal["scene", "project"] = "project"
+    scene_id: str | None = None
+    voice_id: str | None = None
+    speed: float | None = None
+    format: Literal["wav", "mp3"] = "wav"

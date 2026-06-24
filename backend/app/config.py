@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     data_dir: str = "./data"
     max_story_chars: int = 25000
+    tts_enabled: bool = False
+    tts_service_url: str = ""
+    tts_timeout_seconds: int = 30
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -30,6 +33,11 @@ class Settings(BaseSettings):
     def ollama_configured(self) -> bool:
         value = self.ollama_base_url.strip()
         return bool(value) and "AI_SERVER_LAN_IP" not in value and "YOUR_" not in value
+
+    @property
+    def tts_configured(self) -> bool:
+        value = self.tts_service_url.strip()
+        return self.tts_enabled and bool(value) and "AI_SERVER_LAN_IP" not in value and "YOUR_" not in value
 
 
 @lru_cache

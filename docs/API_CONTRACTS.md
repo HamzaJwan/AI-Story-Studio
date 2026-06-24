@@ -227,3 +227,67 @@ Returns a downloadable ZIP archive (`application/zip`) containing the full proje
 ```
 
 Returns 404 with the standard error envelope if `project_id` does not exist.
+
+---
+
+## Phase 1.1 Audio Bridge MVP
+
+This phase adds a backend connector to a future external `tts-worker` service. **No TTS engine runs inside this app.** If `TTS_ENABLED` is not `true` or `TTS_SERVICE_URL` is not set, every endpoint below reports `configured: false` (health) or returns `503` (job endpoints) — the app never crashes and never fabricates audio.
+
+### GET /api/tts/health
+
+Always returns `200`.
+
+```json
+{
+  "data": {
+    "enabled": false,
+    "configured": false,
+    "service_url_configured": false,
+    "remote_ok": null
+  },
+  "meta": { "provider": "tts-worker" },
+  "errors": []
+}
+```
+
+When `configured: true`, the response also includes `remote_ok` (`true`/`false`, from a live `GET {TTS_SERVICE_URL}/health`) and `latency_ms`. If `remote_ok` is `false`, `errors` includes `"TTS worker is not reachable."`.
+
+### POST /api/projects/{project_id}/tts/jobs
+
+Request:
+
+```json
+{
+  "mode": "scene",
+  "scene_id": "01",
+  "voice_id": null,
+  "speed": null,
+  "format": "wav"
+}
+```
+
+- `mode`: `"scene"` or `"project"` (default `"project"`).
+- `scene_id`: required when `mode` is `"scene"`; must exist in the project.
+- Returns `503` with `{"detail": "TTS service is not configured."}` if TTS is not enabled/configured.
+- Returns `404` if `project_id` or `scene_id` does not exist.
+- Returns `502` if the configured `tts-worker` is unreachable or errors.
+- If configured and reachable, proxies the request body to `{TTS_SERVICE_URL}/api/tts/jobs` and returns its JSON response as `data`.
+
+### GET /api/tts/jobs/{job_id}
+
+- Returns `503` with `{"detail": "TTS service is not configured."}` if TTS is not enabled/configured.
+- Otherwise proxies to `{TTS_SERVICE_URL}/api/tts/jobs/{job_id}` and returns its JSON response as `data`.
+
+### TTS Worker Contract (external service — not implemented yet)
+
+The future `tts-worker` service (deployed separately on the AI Server, only after it passes the Benchmark Gate in `docs/BENCHMARK_PROTOCOL.md`) is expected to expose:
+
+```text
+GET  /health
+POST /api/tts/jobs
+GET  /api/tts/jobs/{job_id}
+GET  /api/tts/jobs/{job_id}/files
+```
+
+This app's backend only proxies to these endpoints via `TTS_SERVICE_URL`. The worker itself is out of scope for Phase 1.1.

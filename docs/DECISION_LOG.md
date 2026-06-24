@@ -1,5 +1,27 @@
 # Decision Log
 
+## 2026-06-24 — Start Phase 1.1: Audio Bridge MVP
+
+**Decision:** ننتقل إلى Phase 1.1 بعد Phase 0.5، كجسر اتصال فقط — لا تشغيل أي TTS engine داخل التطبيق.
+
+**Reason:**
+- Phase 0.5 وضعت Benchmark Gate رسمي، ولم يصدر `PASS` بعد لأي TTS worker فعلي (SILMA لا يزال isolated lab، AllTalk لا يزال candidate).
+- لكن المنتج يحتاج البنية الجاهزة (connector + UI state) الآن، بحيث لو نجح worker لاحقاً على AI Server، التكامل يكون فورياً بدون إعادة هيكلة.
+- هذا لا يكسر قاعدة Phase 0.5 لأن لا engine حقيقي يُشغَّل أو يُدمَج — فقط استجابة `configured: false` افتراضية.
+
+**Scope:**
+- Backend: `TTS_ENABLED`/`TTS_SERVICE_URL`/`TTS_TIMEOUT_SECONDS` (افتراضياً معطّلة)، `TtsWorkerClient`، 3 endpoints جديدة (`/api/tts/health`, `POST .../tts/jobs`, `GET /api/tts/jobs/{id}`).
+- Frontend: لوحة "استوديو الصوت" (تجريبي) بعد المشاهد، فحص حالة + توليد + تحديث job، بدون audio وهمي.
+- `scripts/smoke_phase0_workspace.py` لحماية CRUD/export.zip من الانكسار الصامت.
+
+**What Phase 1.1 is NOT:**
+- لا تشغيل SILMA/AllTalk/أي TTS فعلي.
+- لا GPU، لا تحميل موديلات.
+- لا صور، لا فيديو، لا database/auth/Redis/Celery.
+- لا فتح Phase 1.1 الكامل (pipeline صوت متزامن) — هذا جسر اتصال أولي فقط.
+
+---
+
 ## 2026-06-24 — Start Phase 0.4: Story Package Export
 
 **Decision:** ننتقل إلى Phase 0.4 بعد إتمام Phase 0.3 وقبل أي عمل على TTS.

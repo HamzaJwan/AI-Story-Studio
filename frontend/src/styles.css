@@ -576,6 +576,70 @@ pre {
   text-align: left;
 }
 
+/* ── Audio panel (Phase 1.1 — TTS bridge) ────────────────────────────────── */
+
+.audio-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.badge-experimental {
+  margin-right: 8px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  vertical-align: middle;
+  background: rgba(249, 210, 138, 0.16);
+  border: 1px solid rgba(249, 210, 138, 0.32);
+  color: #f9d28a;
+}
+
+.tts-status-chip {
+  white-space: nowrap;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #a7b3c8;
+}
+
+.tts-status--ready {
+  color: #b9fff6;
+  border-color: rgba(45, 212, 191, 0.32);
+  background: rgba(45, 212, 191, 0.12);
+}
+
+.tts-status--error {
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.32);
+  background: rgba(190, 48, 78, 0.16);
+}
+
+.tts-job-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.52);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+}
+
+.tts-job-card code {
+  direction: ltr;
+  color: #f9d28a;
+}
+
+.tts-audio-player {
+  width: 100%;
+}
+
 /* ── Animations ───────────────────────────────────────────────────────────── */
 
 @keyframes rise-in {
