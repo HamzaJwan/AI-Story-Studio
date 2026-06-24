@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import threading
 import uuid
@@ -10,6 +11,8 @@ from pathlib import Path
 ROOT = Path("/workspace")
 DATA_DIR = ROOT / "data" / "jobs"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+ENGINE = os.environ.get("ENGINE", "piper").strip().lower()
 
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -23,6 +26,7 @@ from tools.tts.silma_benchmark import (  # noqa: E402
     install_official_silma_reference,
     instantiate_tts,
 )
+from worker_app import engine_piper  # noqa: E402
 
 _lock = threading.Lock()
 _jobs: dict[str, dict] = {}
@@ -52,6 +56,7 @@ def create_job(text: str, voice_id: str | None, speed: float | None, fmt: str) -
         "error": None,
         "files": [],
         "reference_voice_note": None,
+        "engine": ENGINE,
         "created_at": now,
         "updated_at": now,
     }
@@ -84,6 +89,50 @@ def _update(job_id: str, **fields) -> None:
     _save(snapshot)
 
 
+def _run_silma(job: dict, output_dir: Path, output_wav: Path, output_mp3: Path) -> tuple[list[dict], str | None]:
+    reference_audio = find_reference_audio(output_dir)
+    ref_text = find_reference_text(reference_audio)
+    reference_note = None
+
+    if not reference_audio:
+        official = install_official_silma_reference(output_dir)
+        if official:
+            reference_audio, ref_text = official
+            reference_note = (
+                "Used SILMA's bundled official benchmark sample — testing only, "
+                "not an approved product voice. Set REF_AUDIO/REF_TEXT for a real run."
+            )
+        else:
+            raise RuntimeError(
+                "NEEDS_REFERENCE: no permitted reference audio with matching text was found."
+            )
+    if reference_audio and not ref_text:
+        raise RuntimeError(
+            "NEEDS_REFERENCE: reference audio exists but no permitted reference text was found."
+        )
+
+    from silma_tts.api import SilmaTTS
+
+    tts = instantiate_tts(SilmaTTS)
+    call_silma(tts, job["text"], output_wav, reference_audio, ref_text, float(job["speed"]))
+
+    files = [{"format": "wav", "path": str(output_wav), "bytes": output_wav.stat().st_size}]
+    if job["format"] == "mp3" and convert_to_mp3(output_wav, output_mp3):
+        files.append({"format": "mp3", "path": str(output_mp3), "bytes": output_mp3.stat().st_size})
+    return files, reference_note
+
+
+def _run_piper(job: dict, output_wav: Path) -> tuple[list[dict], str | None]:
+    engine_piper.synthesize_to_wav(job["text"], output_wav, speed=float(job["speed"]))
+    files = [{"format": "wav", "path": str(output_wav), "bytes": output_wav.stat().st_size}]
+    note = (
+        f"Engine: Piper ({engine_piper.VOICE_NAME}) — MIT-licensed community voice, "
+        "not Hamza's voice, not a celebrity/real-person clone. SILMA is BLOCKED on this "
+        "deployment due to a stalled model download (see docs/DECISION_LOG.md)."
+    )
+    return files, note
+
+
 def _run_job(job_id: str) -> None:
     job = get_job(job_id)
     if job is None:
@@ -95,36 +144,10 @@ def _run_job(job_id: str) -> None:
     output_mp3 = output_dir / "audio.mp3"
 
     try:
-        reference_audio = find_reference_audio(output_dir)
-        ref_text = find_reference_text(reference_audio)
-        reference_note = None
-
-        if not reference_audio:
-            official = install_official_silma_reference(output_dir)
-            if official:
-                reference_audio, ref_text = official
-                reference_note = (
-                    "Used SILMA's bundled official benchmark sample — testing only, "
-                    "not an approved product voice. Set REF_AUDIO/REF_TEXT for a real run."
-                )
-            else:
-                raise RuntimeError(
-                    "NEEDS_REFERENCE: no permitted reference audio with matching text was found."
-                )
-        if reference_audio and not ref_text:
-            raise RuntimeError(
-                "NEEDS_REFERENCE: reference audio exists but no permitted reference text was found."
-            )
-
-        from silma_tts.api import SilmaTTS
-
-        tts = instantiate_tts(SilmaTTS)
-        call_silma(tts, job["text"], output_wav, reference_audio, ref_text, float(job["speed"]))
-
-        files = [{"format": "wav", "path": str(output_wav), "bytes": output_wav.stat().st_size}]
-        if job["format"] == "mp3" and convert_to_mp3(output_wav, output_mp3):
-            files.append({"format": "mp3", "path": str(output_mp3), "bytes": output_mp3.stat().st_size})
-
-        _update(job_id, status="done", files=files, reference_voice_note=reference_note)
+        if ENGINE == "silma":
+            files, note = _run_silma(job, output_dir, output_wav, output_mp3)
+        else:
+            files, note = _run_piper(job, output_wav)
+        _update(job_id, status="done", files=files, reference_voice_note=note, engine=ENGINE)
     except Exception as exc:  # noqa: BLE001
-        _update(job_id, status="failed", error=str(exc))
+        _update(job_id, status="failed", error=str(exc), engine=ENGINE)

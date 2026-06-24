@@ -20,7 +20,7 @@ class TtsJobRequest(BaseModel):
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "device": jobs.detect_device()}
+    return {"status": "ok", "device": jobs.detect_device(), "engine": jobs.ENGINE}
 
 
 @app.post("/api/tts/jobs")

@@ -58,4 +58,6 @@ RUN python -m pip install --no-cache-dir --upgrade pip \
         "uvicorn[standard]>=0.30" \
         "pydantic>=2.6"
 
+RUN python -m pip install --no-cache-dir "piper-tts>=1.4"
+
 CMD ["uvicorn", "worker_app.main:app", "--host", "0.0.0.0", "--port", "8851"]

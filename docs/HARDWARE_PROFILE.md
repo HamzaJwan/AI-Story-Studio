@@ -47,37 +47,28 @@
 | Storage driver | overlayfs |
 | cgroup driver | systemd |
 
-### ⚠️ Pending Verification (غير مؤكد بدقة بعد)
+### ✅ Verified 2026-06-24 (عبر SSH alias `ai-story-server`, بدون password)
 
-الحقول التالية **غير موجودة** بدقة في أي وثيقة سابقة ويجب تأكيدها بأمر حقيقي قبل أي benchmark جديد، لأن القرار لا يُبنى على افتراض:
+| الحقل | القيمة |
+| --- | --- |
+| VRAM الفعلية | **8,188 MiB (~8GB variant)** — مؤكَّد عبر `nvidia-smi` |
+| Docker Engine (محدَّث) | 29.6.0 |
+| Docker Compose (محدَّث) | v5.2.0 |
+| مساحة القرص | 1.9 TB إجمالي، 116GB مستخدم، **1.7TB متاح** — لا قيد حالياً |
+| الشبكة الخارجية (HuggingFace/PyPI) | **متقطعة/غير مستقرة في جلسة 2026-06-24 المسائية** — راجع `docs/DECISION_LOG.md` لتفاصيل تجمّد تحميل SILMA وتذبذب سرعة pip/HF بين ~200 B/s و~530 KB/s لنفس المسار. هذا تذبذب لحظي وليس قيداً دائماً — أعد الفحص عند أي عملية تحميل كبيرة قادمة. |
+| خدمات Docker العاملة فعلياً | `tts-worker` (الجديدة، 8851)، `alltalk_tts-main-alltalk-tts-1` (image `erew123/alltalk_tts:cuda`, **يعمل فعلياً** على 7851 — لم يُلمس، read-only فقط)، `openwebui` (3000)، `ollama` (11434)، `portainer` (9000/9443)، `netdata` |
 
-- **VRAM الفعلية بالـ GB** لكرت RTX 4060 Ti المثبت فعلياً (الكرت متوفر بنسختين 8GB و16GB — لا نفترض أيهما).
-- **مساحة القرص الفعلية المتاحة** (`df -h`) على السيرفر الآن.
-- **القيود الحالية على الشبكة** (LAN bandwidth, latency من جهاز التطوير إلى السيرفر).
-- **الخدمات الحالية الفعلية تحت Docker** (`docker ps`) لحظة كتابة هذا الملف — حتى لا نتعارض مع Ollama/Open WebUI/Portainer/Netdata العاملة.
+**ملاحظة مهمة:** يوجد AllTalk حاوية فعلية شغّالة بالفعل على AI Server (`erew123/alltalk_tts:cuda`, port 7851) — لم تُختبر بعد كـ Benchmark Gate حقيقي، لكنها موجودة وجاهزة للفحص لاحقاً (تُحدِّث حالتها في `docs/TTS_ENGINE_BENCHMARK_MATRIX.md` من `CANDIDATE` فقط بعد اختبار فعلي بنفس منطق Phase 1.2).
 
-### أمر التحديث الموصى به (يُشغَّل من قِبل حمزة، read-only فقط)
-
-استخدم نفس `AI_SERVER_LAN_IP` ومستخدم SSH الموجودين محلياً عندك (لا تُكتب هنا):
+### أمر التحديث المستخدَم (مرجع — read-only فقط)
 
 ```bash
-ssh <user>@<AI_SERVER_LAN_IP> '
-echo "--- hostname/whoami ---"; hostname; whoami
-echo "--- uname ---"; uname -a
-echo "--- os-release ---"; cat /etc/os-release
-echo "--- lscpu ---"; lscpu
-echo "--- mem ---"; free -h
-echo "--- disk ---"; df -h
-echo "--- blocks ---"; lsblk
-echo "--- gpu ---"; nvidia-smi
-echo "--- docker version ---"; docker --version
-echo "--- compose version ---"; docker compose version
-echo "--- containers ---"; docker ps
-echo "--- docker disk usage ---"; docker system df
-'
+ssh ai-story-server "nvidia-smi --query-gpu=name,memory.total,memory.used,memory.free --format=csv,noheader"
+ssh ai-story-server "df -h /"
+ssh ai-story-server "docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}'"
 ```
 
-نتيجة هذا الأمر تُستخدم لتحديث هذا الملف فقط — **لا تُلصق فيه أي password أو token**.
+لم يُستخدم أي password — SSH key-based فقط عبر alias `ai-story-server` المُعرَّف محلياً.
 
 ---
 

@@ -1,6 +1,25 @@
 # Decision Log
 
-## 2026-06-24 — Phase 1.2 scaffolded but BLOCKED on AI Server access
+## 2026-06-24 — Phase 1.2 PASSED on AI Server via Piper; SILMA BLOCKED on network
+
+**Decision:** SSH access to the AI Server was resolved (key-based alias `ai-story-server`, no password ever used). Built and ran `deploy/ai-server/tts-worker/` for real. SILMA's model download stalled twice on HuggingFace's CDN — diagnosed as a real network condition, not a code defect — so pivoted to Piper as the fallback engine, per the project's own rule ("SILMA blocked → جرّب Piper").
+
+**Evidence (no claim without real output):**
+- GPU confirmed inside the container: `nvidia-smi` → RTX 4060 Ti, 8188 MiB.
+- SILMA stall diagnosis: identical byte count on the partial download across multiple 15-30s windows (confirmed twice, after a container restart), TCP retransmission counters confirmed via `/proc/net/tcp`, and a direct `curl` range request to the *same* CDN URL succeeded at 200-530 KB/s in isolation — the path works, a single long-lived download to it does not, reliably, tonight.
+- Piper produced two real WAV files: short text (221,740 bytes, 5.03s, cold run ~6 min including a ~63MB voice download under degraded network) and a longer sentence with punctuation and a number (756,268 bytes, 17.15s, warm run **~3.8s**). Both verified as real non-silent audio (max amplitude 32767, RMS ≈ 4051/≈ similar, ~98.6% non-zero samples) and downloaded successfully via `GET /api/tts/jobs/{id}/download/wav`.
+- Voice used: `ar_JO-kareem-medium` from `rhasspy/piper-voices` (HF repo tagged `license:mit`; voice card shows dataset from an open community Arabic TTS training repo, finetuned from the English `lessac` voice) — not Hamza's voice, not a celebrity, not a real-person clone without consent.
+- Along the way, fixed a self-inflicted Docker layer-caching mistake: adding `piper-tts` to the *same* RUN instruction as the heavy SILMA/torch install invalidated that layer's cache and forced a ~95-minute reinstall; split it into its own RUN layer so the expensive layer stays cached for future builds.
+- Resolved Phase 0.5's "pending verification" hardware fields using the same SSH access (exact VRAM, disk space, actual running Docker services) — see `docs/HARDWARE_PROFILE.md`. Also discovered an already-running `alltalk_tts` container (port 7851) on the AI Server, untouched, noted for a future real benchmark.
+
+**Impact:**
+- Phase 1.2 is `PASS` in `docs/ROADMAP.md` and `docs/TTS_ENGINE_BENCHMARK_MATRIX.md` (Piper). SILMA stays `BLOCKED` (network), code kept behind `ENGINE=silma` for a later retry — not deleted, not marked `REJECTED` (the engine itself isn't the problem).
+- `TTS_ENGINE_BENCHMARK_MATRIX.md` updated with full Benchmark Gate fields (engine, version, hardware, command, output, timing, quality notes, limitations, verdict) for both attempts.
+- Proceeding directly to Phase 1.3 (Connect App to TTS Worker) per the standing Controlled Autopilot instruction — no new stop condition was hit.
+
+---
+
+## 2026-06-24 — Phase 1.2 scaffolded but BLOCKED on AI Server access (superseded above)
 
 **Decision:** كتابة كود TTS Worker (`deploy/ai-server/tts-worker/`) كاملاً الآن، بدون تشغيله، وتسجيل الحالة كـ `BLOCKED` بدل `DONE` أو `PASS`.
 

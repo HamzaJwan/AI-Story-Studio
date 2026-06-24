@@ -279,9 +279,9 @@ Request:
 - Returns `503` with `{"detail": "TTS service is not configured."}` if TTS is not enabled/configured.
 - Otherwise proxies to `{TTS_SERVICE_URL}/api/tts/jobs/{job_id}` and returns its JSON response as `data`.
 
-### TTS Worker Contract (external service — code-complete, not yet run on real hardware)
+### TTS Worker Contract (external service — `PASS`, running on AI Server)
 
-The `tts-worker` service is implemented at `deploy/ai-server/tts-worker/` (Phase 1.2), deployed separately on the AI Server. It is **not yet built or executed** there (blocked on AI Server access — see `docs/DECISION_LOG.md`), so it must not be marked `PASS` in `docs/BENCHMARK_PROTOCOL.md` yet. It exposes:
+The `tts-worker` service is implemented at `deploy/ai-server/tts-worker/` (Phase 1.2), deployed separately on the AI Server (`docker compose up -d`, port 8851). Verified 2026-06-24 with real generated WAV files via the default `ENGINE=piper` (`ar_JO-kareem-medium`, MIT-licensed voice) — see `docs/TTS_ENGINE_BENCHMARK_MATRIX.md` for the full benchmark record. `ENGINE=silma` is also implemented but currently `BLOCKED` on this deployment (HuggingFace model download stalled due to network conditions, not a code defect). It exposes:
 
 ```text
 GET  /health

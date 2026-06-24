@@ -7,6 +7,7 @@ services:
     ports:
       - "${TTS_WORKER_PORT:-8851}:8851"
     environment:
+      ENGINE: ${ENGINE:-piper}
       REF_AUDIO: ${REF_AUDIO:-}
       REF_TEXT: ${REF_TEXT:-}
     volumes:
