@@ -1,5 +1,29 @@
 # Decision Log
 
+## 2026-06-24 — Start Phase 0.3: Scene Editing UX Polish (frontend-only)
+
+**Decision:** ننتقل إلى Phase 0.3 بعد إتمام Phase 0.2 وقبل أي تطوير TTS.
+
+**Reason:**
+- Phase 0.2 منجزة ومدفوعة وتعمل.
+- TTS لا تزال تجارب isolated labs (SILMA/AllTalk) — لم يُتخذ قرار بعد.
+- تحسين UX تعديل المشاهد يضيف قيمة فورية للمستخدم.
+
+**Scope:**
+- Frontend-only — لا تغيير في backend أو API contracts.
+- Collapsed/expanded scene cards.
+- أزرار: ↑ ↓ نسخ إضافة حذف لكل مشهد.
+- Validation warnings داخل الكرت.
+- Scene stats bar.
+- Download scenes.json من النسخة المعدلة + confirm عند وجود تحذيرات.
+
+**What Phase 0.3 is NOT:**
+- لا TTS، لا SILMA integration، لا AllTalk integration.
+- لا صور، لا فيديو، لا ComfyUI.
+- لا refactor جذري، لا تغيير API.
+
+---
+
 ## 2026-06-22 — Start with Benchmark, not full video
 
 **Decision:** نبدأ بـ Phase 0 + Phase 1، ونؤجل فيديو AI الكامل.

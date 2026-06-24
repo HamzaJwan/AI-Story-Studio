@@ -39,11 +39,15 @@ button:disabled {
   opacity: 0.55;
 }
 
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+
 .app-shell {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
   padding: 34px 0 48px;
 }
+
+/* ── Hero ─────────────────────────────────────────────────────────────────── */
 
 .hero-section {
   min-height: 245px;
@@ -142,6 +146,8 @@ h1 {
   text-align: right;
 }
 
+/* ── Banners ─────────────────────────────────────────────────────────────── */
+
 .error-banner {
   margin: 18px 0;
   padding: 15px 18px;
@@ -159,6 +165,8 @@ h1 {
   border: 1px solid rgba(45, 212, 191, 0.28);
   color: #b9fff6;
 }
+
+/* ── Project panel ───────────────────────────────────────────────────────── */
 
 .project-panel {
   margin-top: 22px;
@@ -225,6 +233,8 @@ h1 {
   background: rgba(249, 210, 138, 0.1);
   border: 1px solid rgba(249, 210, 138, 0.18);
 }
+
+/* ── Workspace grid ──────────────────────────────────────────────────────── */
 
 .workspace-grid {
   display: grid;
@@ -336,61 +346,205 @@ textarea {
   border: 1px dashed rgba(255, 255, 255, 0.16);
 }
 
-.output-card,
-.scene-card {
-  border-radius: 20px;
-  padding: 18px;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.output-card p,
-.scene-card p {
-  color: #dbe6f6;
-  line-height: 1.9;
-  white-space: pre-wrap;
-}
+/* ── Scene list ──────────────────────────────────────────────────────────── */
 
 .scene-list {
   display: grid;
-  gap: 14px;
-  margin-top: 18px;
+  gap: 12px;
+  margin-top: 4px;
 }
 
-.scene-list-title {
+/* ── Scene stats bar ─────────────────────────────────────────────────────── */
+
+.scene-stats-bar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 4px;
 }
 
-.scene-list-title h3 {
-  margin-bottom: 0;
+.scene-stat {
+  font-size: 0.8rem;
+  color: #a7b3c8;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.scene-list-title span,
-.duration {
-  color: #f9d28a;
+.scene-stat--warn {
+  color: #fdba74;
+  background: rgba(249, 115, 22, 0.1);
+  border-color: rgba(249, 115, 22, 0.22);
 }
+
+/* ── Scene card ──────────────────────────────────────────────────────────── */
 
 .scene-card {
-  display: grid;
-  grid-template-columns: 54px minmax(0, 1fr);
-  gap: 16px;
-  animation: rise-in 500ms ease both;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  animation: rise-in 400ms ease both;
+  transition: border-color 0.2s;
 }
 
-.editable-scene {
-  align-items: start;
+.scene-card--open {
+  border-color: rgba(249, 210, 138, 0.28);
 }
 
-.scene-fields {
-  display: grid;
+/* Clickable header */
+.scene-card-header {
+  display: flex;
+  align-items: center;
   gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  background: transparent;
+  transition: background 0.15s;
+  user-select: none;
 }
 
-.scene-fields label {
-  margin-bottom: 0;
+.scene-card-header:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.scene-card-header:focus-visible {
+  outline: 2px solid rgba(249, 210, 138, 0.5);
+  outline-offset: -2px;
+}
+
+.scene-number {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(249, 210, 138, 0.14);
+  color: #f9d28a;
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.scene-header-info {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  text-align: right;
+}
+
+.scene-card-title {
+  display: block;
+  color: #ffffff;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scene-summary-text {
+  display: block;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.5;
+}
+
+.scene-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.duration {
+  color: #f9d28a;
+  font-size: 0.82rem;
+}
+
+.scene-toggle-icon {
+  font-size: 0.65rem;
+  color: #64748b;
+}
+
+/* Action buttons */
+.scene-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 14px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.scene-action-btn {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 0.76rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.scene-action-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.scene-action-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.scene-action-btn--danger {
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.22);
+}
+
+.scene-action-btn--danger:hover:not(:disabled) {
+  background: rgba(190, 48, 78, 0.22);
+}
+
+/* Validation warnings */
+.scene-warnings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(249, 115, 22, 0.06);
+  border-top: 1px solid rgba(249, 115, 22, 0.14);
+}
+
+.scene-warning-item {
+  font-size: 0.76rem;
+  color: #fdba74;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(249, 115, 22, 0.1);
+  border: 1px solid rgba(249, 115, 22, 0.18);
+}
+
+/* Expanded body */
+.scene-card-body {
+  padding: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  display: grid;
+  gap: 4px;
+}
+
+.scene-card-body label {
+  margin-bottom: 8px;
 }
 
 .scene-textarea {
@@ -402,39 +556,7 @@ textarea {
   text-align: left;
 }
 
-.scene-number {
-  width: 48px;
-  height: 48px;
-  display: grid;
-  place-items: center;
-  border-radius: 16px;
-  background: rgba(249, 210, 138, 0.14);
-  color: #f9d28a;
-  font-weight: 800;
-}
-
-.scene-card h4 {
-  margin-bottom: 8px;
-  color: #ffffff;
-}
-
-.scene-card small {
-  display: block;
-  color: #aebbd1;
-  line-height: 1.7;
-}
-
-.scene-card code {
-  display: block;
-  direction: ltr;
-  text-align: left;
-  margin: 12px 0;
-  padding: 12px;
-  border-radius: 12px;
-  color: #c4d8ff;
-  background: rgba(2, 6, 23, 0.55);
-  white-space: pre-wrap;
-}
+/* ── JSON preview ─────────────────────────────────────────────────────────── */
 
 .json-preview {
   display: grid;
@@ -453,6 +575,8 @@ pre {
   color: #c4d8ff;
   text-align: left;
 }
+
+/* ── Animations ───────────────────────────────────────────────────────────── */
 
 @keyframes rise-in {
   from {
@@ -478,6 +602,8 @@ pre {
   }
 }
 
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+
 @media (max-width: 900px) {
   .hero-section,
   .workspace-grid {
@@ -501,8 +627,7 @@ pre {
     padding: 18px;
   }
 
-  .panel-header,
-  .scene-list-title {
+  .panel-header {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -511,5 +636,15 @@ pre {
   .tone,
   .ghost-button {
     width: 100%;
+  }
+
+  .scene-actions {
+    gap: 5px;
+  }
+
+  .scene-action-btn {
+    flex: 1;
+    min-width: 52px;
+    text-align: center;
   }
 }
