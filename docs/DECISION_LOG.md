@@ -1,5 +1,24 @@
 # Decision Log
 
+## 2026-06-24 — Phase 1.3: Connect App to TTS Worker (real audio end-to-end)
+
+**Decision:** Wire the existing Audio Bridge (Phase 1.1) to the real worker (Phase 1.2) for a single scene first, per the project's own rule ("لا توليد كل المشروع قبل نجاح مشهد واحد").
+
+**What changed:**
+- `backend/app/routers/tts.py`: job creation now reads the real scene/project narration text from storage and sends it to the worker (previously sent no `text` at all — a gap Phase 1.2's docs explicitly flagged for this phase).
+- New `GET /api/tts/jobs/{job_id}/download/{format}` on our own backend, proxying the worker's audio bytes — the browser/frontend never talks to `TTS_SERVICE_URL` directly, preserving the LAN-only boundary from `docs/AI_SERVER_SERVICES_ARCHITECTURE.md`.
+- Frontend Audio panel renders a real `<audio>` player + download link only after `status: "done"`, built from `${API_BASE_URL}/api/tts/jobs/{id}/download/{format}` — no fake success.
+
+**Evidence:**
+- Real saved project (`cb005fd1...`), scene `01` narration ("في ليلة هادئة...") → real job → real Piper WAV (435,756 bytes, 9.88s) in ~3s warm.
+- Repeated for scene `02` *after* rebuilding the AI Server's worker image from the corrected, persisted Dockerfile (not the earlier live-patched container) — confirms the committed code actually works, not just a manual fix.
+- Downloaded both ways were verified: backend's own connectivity test (`remote_ok: true`, ~10ms LAN) and a full WAV download through the new backend proxy endpoint (valid headers, valid WAV content).
+- Full regression suite (`check_utf8`, `compileall`, `npm run build`, `smoke_phase0_workspace.py`, all Phase 0.x endpoints) passes — nothing broke.
+
+**Impact:** Phase 1.3 is implemented and verified. Proceeding to Phase 1.4 (scene audio into `export.zip`) automatically per the Controlled Autopilot instruction — no stop condition was hit.
+
+---
+
 ## 2026-06-24 — Phase 1.2 PASSED on AI Server via Piper; SILMA BLOCKED on network
 
 **Decision:** SSH access to the AI Server was resolved (key-based alias `ai-story-server`, no password ever used). Built and ran `deploy/ai-server/tts-worker/` for real. SILMA's model download stalled twice on HuggingFace's CDN — diagnosed as a real network condition, not a code defect — so pivoted to Piper as the fallback engine, per the project's own rule ("SILMA blocked → جرّب Piper").

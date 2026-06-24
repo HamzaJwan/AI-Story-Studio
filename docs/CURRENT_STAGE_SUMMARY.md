@@ -3,33 +3,34 @@
 ## Current Stage
 
 **Stage:** Phase 1.3 — Connect App to TTS Worker
-**Status:** Starting — Phase 1.2 passed with real verified audio on AI Server
+**Status:** Implemented and verified end-to-end with real scene audio
 **Owner:** Hamza
 **Executor:** Claude
 **Reviewer:** Hamza
 
-## Phase 1.2 Result (closed out)
+## Implemented in Phase 1.3
 
-**PASS** via Piper, **BLOCKED** via SILMA (network, not code) — full detail in `docs/TTS_ENGINE_BENCHMARK_MATRIX.md`.
+- `backend/app/routers/tts.py`: `POST /api/projects/{id}/tts/jobs` now derives real `text` from the stored project (`scene.narration_ar` for `mode="scene"`, all scenes joined for `mode="project"`) instead of sending an empty payload. Returns `422` for empty narration or a scene-less project.
+- `backend/app/ai_providers/tts_worker.py`: new `download_file()` method proxying raw audio bytes from the worker.
+- New endpoint `GET /api/tts/jobs/{job_id}/download/{format}` — proxies audio bytes + correct `Content-Type` from the worker. The browser never talks to `TTS_SERVICE_URL` directly.
+- Frontend Audio panel: job status now shown in Arabic (`queued`/`running`/`done`/`failed`), and once `status: "done"`, a real `<audio>` player and a "تحميل الصوت" download link appear, both pointing at the new backend proxy endpoint. No fake audio rendered before a real file exists.
+- `.env` (local only) wired with `TTS_ENABLED=true` and `TTS_SERVICE_URL` pointing at the AI Server's worker (LAN, port 8851).
 
-- SSH access to the AI Server was resolved with a key-based alias (`ssh ai-story-server`), no password ever touched by the agent.
-- `deploy/ai-server/tts-worker/` built and ran on the real AI Server (RTX 4060 Ti, 8188 MiB VRAM confirmed). The repo checkout there was fast-forwarded to the latest `main`.
-- SILMA's ~2GB model download stalled twice on HuggingFace's CDN (confirmed via byte-for-byte stagnation and TCP retransmissions) — a real network condition on the AI Server that night, not a SILMA defect. Kept the code behind `ENGINE=silma` for a future retry.
-- Pivoted to Piper (`ENGINE=piper`, now the default) per the project's own fallback rule. Produced two real WAV files (short + long text with punctuation/numbers), both verified as genuine non-silent audio (waveform statistics), both downloadable via the worker's `/download/wav` endpoint. Warm-run latency ~3.8s.
-- Fixed a packaging mistake along the way: `piper-tts` was first added to the same Docker layer as the heavy SILMA/torch install, invalidating that cache and forcing a ~95-minute reinstall; split into its own layer so the expensive layer stays cached.
-- Also resolved Phase 0.5's "pending verification" hardware fields (exact VRAM, disk space, running Docker services) using the same SSH access — `docs/HARDWARE_PROFILE.md` updated.
-- Discovered an already-running `alltalk_tts` container (`erew123/alltalk_tts:cuda`, port 7851) on the AI Server — not touched, noted as a future real-benchmark candidate.
+## Verified end-to-end (real, not simulated)
 
-## Current Goal (Phase 1.3)
+- `GET /api/tts/health` → `remote_ok: true`, ~10ms LAN latency.
+- `POST /api/projects/{id}/tts/jobs` with `mode=scene, scene_id=01` on a real saved project → real narration text flowed through → Piper generated a real WAV (435,756 bytes, 9.88s) in ~3s (warm voice cache).
+- Repeated for `scene_id=02` after the AI Server's worker image was rebuilt from the *persisted* Dockerfile (not just the live-patched container) — same result, confirming the committed code path works, not just a manual patch.
+- Downloaded the audio through **our own backend's** new proxy endpoint (not the worker directly) — `HTTP 200`, `audio/wav`, valid WAV verified locally.
+- Full regression: `check_utf8`, backend `compileall`, frontend `npm run build` (no type errors), `smoke_phase0_workspace.py`, and all Phase 0.x endpoints (`/health`, `/api/config`, `/api/ai/ollama/health`, `scenes.json`, `export.zip`) — all still pass.
 
-ربط Audio panel الموجود (Phase 1.1) بـ `tts-worker` الحقيقي (Phase 1.2) لمشهد واحد فقط أولاً:
-- توسيع `backend/app/routers/tts.py` ليرسل نص المشهد الفعلي (`narration_ar`) كحقل `text` للـ worker.
-- زر "توليد صوت للمشهد الأول" في الواجهة يستدعي job حقيقياً، يعرض job_id/status حقيقي.
-- عند اكتمال الملف فعلياً، تظهر `<audio>` حقيقية قابلة للتشغيل والتحميل.
-- لا توليد لكل المشروع قبل نجاح مشهد واحد. لا fake audio.
+## Next Action
+
+1. Commit and push Phase 1.3.
+2. Proceed to Phase 1.4 (Project Audio Export — scene audio into `export.zip`) per the standing Controlled Autopilot instruction.
 
 ## Do Not Do Yet
 
-- لا تشغيل SILMA فعلياً حتى تتحسن الشبكة (أو قرار بمحاولة جديدة).
-- لا اختبار AllTalk الآن (موجود لكن غير ضمن نطاق هذه المرحلة).
+- لا توليد صوت لكل المشروع كاختبار قبل أن يثبت Phase 1.4 الحاجة لذلك (المسار موجود ويعمل، لكن التركيز الحالي مشهد واحد).
+- لا SILMA فعلياً (لا يزال BLOCKED بسبب الشبكة).
 - لا صور، لا فيديو، لا database/auth.

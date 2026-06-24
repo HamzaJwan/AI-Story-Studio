@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 
 from app.ai_providers.tts_worker import TtsWorkerClient, TtsWorkerError
 from app.config import Settings, get_settings
@@ -45,13 +46,23 @@ def create_tts_job(
             raise HTTPException(
                 status_code=422, detail="scene_id is required when mode is 'scene'."
             )
-        if not any(scene.scene_id == request.scene_id for scene in project.scenes):
+        scene = next((s for s in project.scenes if s.scene_id == request.scene_id), None)
+        if scene is None:
             raise HTTPException(status_code=404, detail="Scene not found in project.")
+        text = scene.narration_ar
+    else:
+        if not project.scenes:
+            raise HTTPException(status_code=422, detail="Project has no scenes to narrate.")
+        text = "\n".join(scene.narration_ar for scene in project.scenes)
+
+    if not text.strip():
+        raise HTTPException(status_code=422, detail="Scene narration is empty.")
 
     payload = {
         "project_id": project.project_id,
         "mode": request.mode,
         "scene_id": request.scene_id,
+        "text": text,
         "voice_id": request.voice_id,
         "speed": request.speed,
         "format": request.format,
@@ -76,3 +87,18 @@ def get_tts_job(
     except TtsWorkerError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return ApiEnvelope(data=result, meta={"provider": "tts-worker"})
+
+
+@router.get("/api/tts/jobs/{job_id}/download/{fmt}")
+def download_tts_job_file(
+    job_id: str,
+    fmt: str,
+    client: TtsWorkerClient = Depends(get_tts_client),
+) -> Response:
+    if not client.is_configured():
+        raise HTTPException(status_code=503, detail="TTS service is not configured.")
+    try:
+        content, content_type = client.download_file(job_id, fmt)
+    except TtsWorkerError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return Response(content=content, media_type=content_type)

@@ -68,3 +68,17 @@ class TtsWorkerClient:
         except requests.RequestException as exc:
             raise TtsWorkerError("TTS worker request failed.") from exc
         return response.json()
+
+    def download_file(self, job_id: str, fmt: str) -> tuple[bytes, str]:
+        if not self.is_configured():
+            raise TtsWorkerError("TTS service is not configured.")
+        try:
+            response = requests.get(
+                f"{self.service_url}/api/tts/jobs/{job_id}/download/{fmt}",
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            raise TtsWorkerError("TTS worker request failed.") from exc
+        content_type = response.headers.get("content-type", "application/octet-stream")
+        return response.content, content_type

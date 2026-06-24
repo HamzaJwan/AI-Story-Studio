@@ -571,6 +571,21 @@ export default function App() {
     return "مفعّلة (بانتظار فحص الاتصال)";
   }
 
+  function ttsStatusText(status: string): string {
+    switch (status) {
+      case "queued":
+        return "في الانتظار";
+      case "running":
+        return "جاري التوليد";
+      case "done":
+        return "تم بنجاح";
+      case "failed":
+        return "فشل";
+      default:
+        return status;
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
@@ -950,17 +965,25 @@ export default function App() {
                     Job ID: <code dir="ltr">{ttsJob.job_id}</code>
                   </span>
                 )}
-                {ttsJob.status && <span>الحالة: {ttsJob.status}</span>}
+                {ttsJob.status && <span>الحالة: {ttsStatusText(ttsJob.status)}</span>}
                 {ttsJob.job_id && (
                   <button className="ghost-button" onClick={handleRefreshTtsJob} disabled={ttsBusy !== null}>
                     {ttsBusy === "refresh" ? "جاري التحديث..." : "تحديث الحالة"}
                   </button>
                 )}
-                {ttsJob.files?.map((file, idx) =>
-                  file.url ? (
-                    <audio key={idx} controls src={file.url} className="tts-audio-player" />
-                  ) : null,
-                )}
+                {ttsJob.status === "done" &&
+                  ttsJob.job_id &&
+                  ttsJob.files?.map((file, idx) => {
+                    const fileUrl = `${API_BASE_URL}/api/tts/jobs/${ttsJob.job_id}/download/${file.format}`;
+                    return (
+                      <span key={idx} className="tts-audio-result">
+                        <audio controls src={fileUrl} className="tts-audio-player" />
+                        <a className="ghost-button" href={fileUrl} download>
+                          تحميل الصوت ({file.format})
+                        </a>
+                      </span>
+                    );
+                  })}
               </div>
             )}
           </section>

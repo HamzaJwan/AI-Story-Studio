@@ -640,6 +640,12 @@ pre {
   width: 100%;
 }
 
+.tts-audio-result {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
 /* ── Animations ───────────────────────────────────────────────────────────── */
 
 @keyframes rise-in {

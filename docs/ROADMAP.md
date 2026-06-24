@@ -8,8 +8,8 @@
 
 | الحقل | القيمة |
 |---|---|
-| **Current Phase** | Phase 1.3 — Connect App to TTS Worker |
-| **Current Status** | ⏳ STARTING — Phase 1.2 نجحت فعلياً على AI Server (Piper engine، WAV حقيقي) |
+| **Current Phase** | Phase 1.4 — Project Audio Export |
+| **Current Status** | ⏳ STARTING — Phase 1.3 نجحت فعلياً (صوت حقيقي لمشهد واحد عبر الواجهة) |
 | **Current Owner** | Hamza |
 | **Current Executor** | Claude |
 | **Current Reviewer** | Hamza |
@@ -65,8 +65,8 @@
 | **1.0** | TTS Benchmark | اختبار SILMA TTS كـ isolated lab | ✅ DONE (isolated lab) | WAV/MP3 ناجح على AI Server GPU | نجاح Phase 0.5 |
 | **1.1** | Audio Bridge MVP | جسر اتصال backend/frontend لـ TTS Worker خارجي (بدون engine حقيقي) | ✅ DONE | `/api/tts/*` endpoints + لوحة "استوديو الصوت" | commit `668af46`، push تم — **توليد صوت فعلي يبقى ممنوعاً حتى Benchmark Gate = PASS** |
 | **1.2** | TTS Worker Lab API | worker حقيقي منفصل (Piper، SILMA معطّل مؤقتاً) في `deploy/ai-server/tts-worker/` | ✅ PASS (Piper) | FastAPI worker شغّال + WAV حقيقي على AI Server | تحقق حمزة + git push |
-| **1.3** | Connect App to TTS Worker | ربط Audio panel بمشهد واحد فعلياً | ⏳ STARTING | job حقيقي + audio player حقيقي | نجاح Phase 1.2 ✅ |
-| **1.4** | Project Audio Export | صوت لكل المشاهد + إضافته لـ export.zip | ⬜ LATER | audio/*.wav داخل ZIP | نجاح Phase 1.3 لمشهد واحد |
+| **1.3** | Connect App to TTS Worker | ربط Audio panel بمشهد واحد فعلياً | ✅ PASS | job حقيقي + audio player حقيقي يعملان | تحقق حمزة + git push |
+| **1.4** | Project Audio Export | صوت لكل المشاهد + إضافته لـ export.zip | ⏳ STARTING | audio/*.wav داخل ZIP | نجاح Phase 1.3 ✅ |
 | **2.0** | Cinematic Images + MP4 | SDXL/ComfyUI + FFmpeg | ⬜ LATER — **يحتاج Benchmark Gate = PASS** | 3 صور + MP4 أولي | Benchmark Gate PASS لـ Images |
 | **3.0** | AI Video POC | WanGP/Wan2.1 مشهدين | ⬜ LATER — **يحتاج Benchmark Gate = PASS** | كليب 3-5 ثوانٍ | Benchmark Gate PASS لـ Video + نجاح Phase 2.0 |
 | **4.0** | Staging/Production | Portainer + Security | ⬜ LATER | نشر آمن ومستقر | نجاح Phase 3.0 أو قرار تجاري |
@@ -180,16 +180,19 @@
 ---
 
 ### Phase 1.3 — Connect App to TTS Worker
-**الحالة:** ⏳ STARTING
+**الحالة:** ✅ PASS
 
-**الأهداف:**
-- توسيع `backend/app/routers/tts.py` ليرسل نص المشهد الفعلي (`narration_ar`) كحقل `text` للـ worker (غير موجود في Phase 1.1 الحالي — يحتاج تعديل صغير).
-- Audio panel يطلب صوت مشهد واحد فقط أولاً، يعرض job_id/status حقيقي، وعند اكتمال الملف يظهر `<audio>` حقيقي — بدون توليد كامل المشروع قبل نجاح مشهد واحد.
+**ما تم:**
+- `backend/app/routers/tts.py` يرسل نص المشهد الفعلي (`narration_ar`) أو نص المشروع كاملاً كحقل `text` للـ worker — كان غائباً في Phase 1.1/1.2.
+- `GET /api/tts/jobs/{id}/download/{format}` endpoint جديد على backend الرئيسي يُمرّر الصوت من الـ worker — المتصفح لا يتصل بـ `TTS_SERVICE_URL` مباشرة أبداً.
+- Audio panel: حالة Job بالعربي، `<audio>` حقيقي + زر تحميل يظهران فقط بعد `status: "done"` فعلي.
+- **تحقق فعلي:** مشهدان حقيقيان من مشروع محفوظ ولّدا صوتاً حقيقياً (435,756 bytes / 404,012 bytes) عبر السلسلة الكاملة (frontend route → backend → AI Server worker → Piper → تحميل عبر backend). أعيد التحقق بعد إعادة بناء صورة الـ worker من Dockerfile المُصحَّح (لا فقط container مُرقَّع يدوياً).
+- لا كسر لأي endpoint قديم (فحص كامل: scenes.json, export.zip, projects CRUD, health, config, ollama health).
 
 ---
 
 ### Phase 1.4 — Project Audio Export
-**الحالة:** ⬜ LATER — تحتاج نجاح Phase 1.3 لمشهد واحد أولاً
+**الحالة:** ⏳ STARTING
 
 **الأهداف:**
 - توليد صوت لكل مشاهد المشروع وحفظ metadata داخل project JSON.
@@ -299,8 +302,8 @@
 | ✅ DONE (isolated lab) | SILMA TTS Benchmark — Phase 1.0 | Claude | WAV/MP3 ناجح على AI Server GPU |
 | ✅ DONE | Phase 1.1 — Audio Bridge MVP (`/api/tts/*` + لوحة الصوت) | Claude | commit: `668af46`, push تم |
 | ✅ PASS (Piper) | Phase 1.2 — TTS Worker Lab API (`deploy/ai-server/tts-worker/`) | Claude | WAV حقيقي على AI Server؛ SILMA BLOCKED بسبب الشبكة، الكود محفوظ |
-| ⏳ NEXT | Phase 1.3 — Connect App to TTS Worker | Claude | يبدأ الآن |
-| 🔵 LATER | Phase 1.4 — Project Audio Export | — | يحتاج Phase 1.3 لمشهد واحد |
+| ✅ PASS | Phase 1.3 — Connect App to TTS Worker | Claude | صوت حقيقي لمشهدين عبر الواجهة الكاملة |
+| ⏳ NEXT | Phase 1.4 — Project Audio Export | Claude | يبدأ الآن |
 | 🔵 LATER | SDXL Image Benchmark — Phase 2.0 | — | يحتاج Benchmark Gate = PASS + AI Server access |
 | 🔵 LATER | WanGP Video POC — Phase 3.0 | — | يحتاج Benchmark Gate = PASS + AI Server access |
 | 🔵 LATER | Portainer Production Deploy | Hamza | بعد اكتمال MVP |

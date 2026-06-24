@@ -269,15 +269,20 @@ Request:
 
 - `mode`: `"scene"` or `"project"` (default `"project"`).
 - `scene_id`: required when `mode` is `"scene"`; must exist in the project.
+- **Phase 1.3:** the backend derives `text` itself from storage (`scene.narration_ar` for `mode="scene"`, or all scenes' `narration_ar` joined with newlines for `mode="project"`) and sends it to the worker — the frontend never sends raw text. Returns `422` if the resulting text is empty, or if `mode="project"` and the project has no scenes.
 - Returns `503` with `{"detail": "TTS service is not configured."}` if TTS is not enabled/configured.
 - Returns `404` if `project_id` or `scene_id` does not exist.
 - Returns `502` if the configured `tts-worker` is unreachable or errors.
-- If configured and reachable, proxies the request body to `{TTS_SERVICE_URL}/api/tts/jobs` and returns its JSON response as `data`.
+- If configured and reachable, proxies the request body (including the derived `text`) to `{TTS_SERVICE_URL}/api/tts/jobs` and returns its JSON response as `data`.
 
 ### GET /api/tts/jobs/{job_id}
 
 - Returns `503` with `{"detail": "TTS service is not configured."}` if TTS is not enabled/configured.
 - Otherwise proxies to `{TTS_SERVICE_URL}/api/tts/jobs/{job_id}` and returns its JSON response as `data`.
+
+### GET /api/tts/jobs/{job_id}/download/{format}
+
+Phase 1.3. Proxies the raw audio bytes from `{TTS_SERVICE_URL}/api/tts/jobs/{job_id}/download/{format}` with the worker's `Content-Type` (`audio/wav` or `audio/mpeg`) preserved. Returns `503` if not configured, `502` if the worker errors. The frontend's `<audio>` player and download link point directly at this backend URL — the browser never talks to `TTS_SERVICE_URL` or the AI Server directly.
 
 ### TTS Worker Contract (external service — `PASS`, running on AI Server)
 
@@ -291,6 +296,6 @@ GET  /api/tts/jobs/{job_id}/files
 GET  /api/tts/jobs/{job_id}/download/{format}
 ```
 
-Note: this worker's job body takes raw `text` directly — it has no concept of `project_id`/`scene_id`. Wiring real scene text through from `backend/app/routers/tts.py` (currently sent without `text`) is Phase 1.3's job, not Phase 1.2's.
+Note: this worker's job body takes raw `text` directly — it has no concept of `project_id`/`scene_id`. The backend (`backend/app/routers/tts.py`, Phase 1.3) derives `text` from the project/scene before calling it.
 
 This app's backend only proxies to these endpoints via `TTS_SERVICE_URL`. The worker itself is out of scope for Phase 1.1.
