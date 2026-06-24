@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import re
+import wave
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,6 +20,27 @@ from app.schemas import (
 
 
 PROJECT_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{8,80}$")
+
+
+def _concatenate_wavs(paths: list[Path]) -> bytes | None:
+    """Concatenate same-format WAV files in order. No ffmpeg/MP3 dependency."""
+    try:
+        with wave.open(str(paths[0]), "rb") as first:
+            params = first.getparams()
+        frames: list[bytes] = []
+        for path in paths:
+            with wave.open(str(path), "rb") as wav_file:
+                if wav_file.getparams()[:3] != params[:3]:
+                    return None
+                frames.append(wav_file.readframes(wav_file.getnframes()))
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as out:
+            out.setparams(params)
+            for chunk in frames:
+                out.writeframes(chunk)
+        return buffer.getvalue()
+    except (OSError, wave.Error):
+        return None
 
 
 class ProjectStorage:
@@ -105,18 +127,53 @@ class ProjectStorage:
             raise FileNotFoundError("Project not found.")
         path.unlink()
 
+    def project_audio_dir(self, project_id: str) -> Path:
+        safe_id = self._project_path(project_id).stem
+        path = self.root / safe_id / "audio"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def save_scene_audio(
+        self,
+        project_id: str,
+        scene_id: str,
+        audio_bytes: bytes,
+        fmt: str,
+    ) -> ProjectResponse:
+        project = self.get_project(project_id)
+        scene = next((s for s in project.scenes if s.scene_id == scene_id), None)
+        if scene is None:
+            raise FileNotFoundError("Scene not found in project.")
+
+        audio_dir = self.project_audio_dir(project_id)
+        audio_path = audio_dir / f"scene_{scene_id}.{fmt}"
+        audio_path.write_bytes(audio_bytes)
+
+        scene.audio_generated_at = datetime.now(timezone.utc)
+        scene.audio_bytes = len(audio_bytes)
+        scene.audio_format = fmt
+        project.updated_at = datetime.now(timezone.utc)
+        self._write_project(project)
+        return project
+
     def scenes_export(self, project_id: str) -> dict[str, object]:
         project = self.get_project(project_id)
         return {
             "project_id": project.project_id,
             "story_title": project.title,
-            "scenes": [scene.model_dump() for scene in project.scenes],
+            "scenes": [scene.model_dump(mode="json") for scene in project.scenes],
         }
 
     def build_export_zip(self, project_id: str) -> bytes:
         project = self.get_project(project_id)
         scenes_payload = self.scenes_export(project_id)
         total_duration = sum(scene.duration_seconds for scene in project.scenes)
+        audio_dir = self.project_audio_dir(project_id)
+        scenes_with_audio = [
+            scene
+            for scene in project.scenes
+            if scene.audio_format and (audio_dir / f"scene_{scene.scene_id}.{scene.audio_format}").exists()
+        ]
         metadata = {
             "project_id": project.project_id,
             "title": project.title,
@@ -126,7 +183,14 @@ class ProjectStorage:
             "total_duration_seconds": total_duration,
             "exported_at": datetime.now(timezone.utc).isoformat(),
             "app": "AI Story Studio",
-            "phase": "0.4",
+            "phase": "1.4",
+            "audio_scene_count": len(scenes_with_audio),
+            "audio_limitations": [
+                "final_story.wav is a raw WAV concatenation of available scene audio in scene order "
+                "(no ffmpeg/MP3 in the backend image); convert externally if MP3 is needed.",
+            ]
+            if scenes_with_audio
+            else [],
         }
 
         buffer = io.BytesIO()
@@ -141,6 +205,18 @@ class ProjectStorage:
                 "metadata.json",
                 json.dumps(metadata, ensure_ascii=False, indent=2),
             )
+            for scene in scenes_with_audio:
+                audio_path = audio_dir / f"scene_{scene.scene_id}.{scene.audio_format}"
+                archive.writestr(f"audio/scene_{scene.scene_id}.{scene.audio_format}", audio_path.read_bytes())
+            wav_paths = [
+                audio_dir / f"scene_{scene.scene_id}.wav"
+                for scene in scenes_with_audio
+                if scene.audio_format == "wav"
+            ]
+            if len(wav_paths) > 1:
+                final_wav = _concatenate_wavs(wav_paths)
+                if final_wav is not None:
+                    archive.writestr("audio/final_story.wav", final_wav)
         return buffer.getvalue()
 
     def _new_project_id(self) -> str:

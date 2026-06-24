@@ -44,6 +44,9 @@ class Scene(BaseModel):
     visual_description_ar: str
     image_prompt_en: str
     duration_seconds: int = Field(ge=3, le=180)
+    audio_generated_at: datetime | None = None
+    audio_bytes: int | None = None
+    audio_format: str | None = None
 
 
 class SplitScenesData(BaseModel):

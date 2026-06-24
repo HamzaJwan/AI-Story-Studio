@@ -1,5 +1,27 @@
 # Decision Log
 
+## 2026-06-24 — Phase 1.4: Project Audio Export (real audio in export.zip)
+
+**Decision:** Generate audio for every scene in a project, persist metadata, and add it to `export.zip` — without breaking the existing ZIP shape for projects with no audio.
+
+**What changed:**
+- New `POST /api/projects/{project_id}/tts/generate-all`: sequential per-scene jobs against the real worker, each polled to completion, downloaded, and saved to `data/projects/{project_id}/audio/scene_{id}.wav`.
+- `Scene` schema gained optional audio metadata fields (additive — doesn't break existing stored projects missing them).
+- `build_export_zip()` now includes per-scene WAVs plus a `final_story.wav` (raw WAV concatenation via stdlib `wave`, since the backend image has no ffmpeg). Documented as a known limitation in the exported `metadata.json` rather than silently shipping something that looks like a finished MP3.
+- Frontend's existing "توليد صوت للمشروع" button now calls this batch endpoint instead of the old single concatenated-text job (which generated audio but never saved or exposed it for export) — a behavior upgrade to the same button, not a new UI element.
+
+**Bug found and fixed before commit:** `scenes_export()` called `Scene.model_dump()` without `mode="json"`, so once a scene had `audio_generated_at` (a `datetime`) set, `export.zip` crashed with a 500 (`TypeError: Object of type datetime is not JSON serializable`). Caught by testing against the real 6-scene project before considering this done, fixed, retested.
+
+**Evidence:**
+- Real 6-scene project → `generate-all` → `{"generated": ["01".."06"], "failed": []}`, each scene's audio metadata persisted.
+- Downloaded `export.zip` → 6 real WAVs + `final_story.wav` (2,050,092 bytes, verified valid WAV, 46.49s).
+- Confirmed `export.zip` for a zero-scene project still returns `200` (no regression).
+- Full regression suite passes.
+
+**Impact:** Phase 1.4 is `PASS`. Per the standing Controlled Autopilot instruction, the next step is Phase 2.0 (Image Benchmark Lab) — pausing briefly to scope that properly (new engine, new AI Server service, Benchmark Gate) rather than rushing in.
+
+---
+
 ## 2026-06-24 — Phase 1.3: Connect App to TTS Worker (real audio end-to-end)
 
 **Decision:** Wire the existing Audio Bridge (Phase 1.1) to the real worker (Phase 1.2) for a single scene first, per the project's own rule ("لا توليد كل المشروع قبل نجاح مشهد واحد").

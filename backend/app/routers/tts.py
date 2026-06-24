@@ -1,3 +1,5 @@
+import time
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
@@ -7,6 +9,9 @@ from app.schemas import ApiEnvelope, TtsJobRequest
 from app.storage import ProjectStorage
 
 router = APIRouter(tags=["tts"])
+
+POLL_INTERVAL_SECONDS = 1.5
+POLL_MAX_ATTEMPTS = 80  # ~2 minutes per scene at the interval above
 
 
 def get_tts_client(settings: Settings = Depends(get_settings)) -> TtsWorkerClient:
@@ -73,6 +78,55 @@ def create_tts_job(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return ApiEnvelope(data=result, meta={"provider": "tts-worker"})
+
+
+@router.post("/api/projects/{project_id}/tts/generate-all", response_model=ApiEnvelope)
+def generate_all_scene_audio(
+    project_id: str,
+    client: TtsWorkerClient = Depends(get_tts_client),
+    storage: ProjectStorage = Depends(get_storage),
+) -> ApiEnvelope:
+    if not client.is_configured():
+        raise HTTPException(status_code=503, detail="TTS service is not configured.")
+
+    try:
+        project = storage.get_project(project_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    if not project.scenes:
+        raise HTTPException(status_code=422, detail="Project has no scenes to narrate.")
+
+    generated: list[str] = []
+    failed: list[dict[str, str]] = []
+
+    for scene in project.scenes:
+        if not scene.narration_ar.strip():
+            failed.append({"scene_id": scene.scene_id, "error": "Empty narration."})
+            continue
+        try:
+            job = client.create_job(
+                {"text": scene.narration_ar, "voice_id": None, "speed": None, "format": "wav"}
+            )
+            job_id = job["job_id"]
+            for _ in range(POLL_MAX_ATTEMPTS):
+                if job.get("status") in ("done", "failed"):
+                    break
+                time.sleep(POLL_INTERVAL_SECONDS)
+                job = client.get_job(job_id)
+            if job.get("status") != "done":
+                failed.append({"scene_id": scene.scene_id, "error": job.get("error") or "Timed out."})
+                continue
+            audio_bytes, _ = client.download_file(job_id, "wav")
+            storage.save_scene_audio(project_id, scene.scene_id, audio_bytes, "wav")
+            generated.append(scene.scene_id)
+        except TtsWorkerError as exc:
+            failed.append({"scene_id": scene.scene_id, "error": str(exc)})
+
+    return ApiEnvelope(
+        data={"generated": generated, "failed": failed, "total_scenes": len(project.scenes)},
+        meta={"provider": "tts-worker"},
+    )
 
 
 @router.get("/api/tts/jobs/{job_id}", response_model=ApiEnvelope)

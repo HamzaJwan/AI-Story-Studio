@@ -201,7 +201,7 @@ Exports the latest edited scenes as downloadable `scenes.json`.
 
 ---
 
-## Phase 0.4 Story Package Export
+## Phase 0.4 Story Package Export (extended in Phase 1.4)
 
 ### GET /api/projects/{project_id}/export.zip
 
@@ -209,7 +209,9 @@ Returns a downloadable ZIP archive (`application/zip`) containing the full proje
 
 - `story.txt` — `original_story`, UTF-8 plain text.
 - `improved_story.txt` — `improved_story`, UTF-8 plain text. May be empty.
-- `scenes.json` — identical payload to `GET /api/projects/{project_id}/scenes.json`.
+- `scenes.json` — identical payload to `GET /api/projects/{project_id}/scenes.json` (now includes each scene's `audio_generated_at`/`audio_bytes`/`audio_format` if audio exists).
+- `audio/scene_{scene_id}.wav` — one file per scene that has generated audio (Phase 1.4). Omitted entirely for scenes/projects with no audio yet — does not break the original ZIP shape.
+- `audio/final_story.wav` — raw WAV concatenation (scene order) of all scene audio, **only when 2+ scenes have `wav` audio**. No MP3/ffmpeg dependency in the backend image; convert externally if MP3 is needed (documented in `metadata.json.audio_limitations`).
 - `metadata.json`:
 
 ```json
@@ -222,7 +224,9 @@ Returns a downloadable ZIP archive (`application/zip`) containing the full proje
   "total_duration_seconds": 48,
   "exported_at": "2026-06-24T00:10:00+00:00",
   "app": "AI Story Studio",
-  "phase": "0.4"
+  "phase": "1.4",
+  "audio_scene_count": 6,
+  "audio_limitations": ["final_story.wav is a raw WAV concatenation ... convert externally if MP3 is needed."]
 }
 ```
 
@@ -283,6 +287,28 @@ Request:
 ### GET /api/tts/jobs/{job_id}/download/{format}
 
 Phase 1.3. Proxies the raw audio bytes from `{TTS_SERVICE_URL}/api/tts/jobs/{job_id}/download/{format}` with the worker's `Content-Type` (`audio/wav` or `audio/mpeg`) preserved. Returns `503` if not configured, `502` if the worker errors. The frontend's `<audio>` player and download link point directly at this backend URL — the browser never talks to `TTS_SERVICE_URL` or the AI Server directly.
+
+### POST /api/projects/{project_id}/tts/generate-all
+
+Phase 1.4. Synchronously generates real audio for **every scene** in the project (one worker job per scene, polled to completion in sequence — up to ~2 minutes per scene before giving up on that scene and moving to the next). Each successful scene's WAV is downloaded and saved under `data/projects/{project_id}/audio/scene_{scene_id}.wav`, and the scene's `audio_generated_at`/`audio_bytes`/`audio_format` fields are persisted to the project JSON.
+
+- Returns `503` if not configured, `404` if the project doesn't exist, `422` if the project has no scenes.
+- Scenes with empty narration are skipped (reported in `failed`, not a hard error for the whole batch).
+- A single scene's worker failure or timeout does not stop the rest of the batch.
+
+Response:
+
+```json
+{
+  "data": {
+    "generated": ["01", "02", "03", "04", "05", "06"],
+    "failed": [],
+    "total_scenes": 6
+  },
+  "meta": { "provider": "tts-worker" },
+  "errors": []
+}
+```
 
 ### TTS Worker Contract (external service — `PASS`, running on AI Server)
 

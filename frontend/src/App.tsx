@@ -522,12 +522,12 @@ export default function App() {
     }
   }
 
-  async function handleGenerateAudio(mode: "scene" | "project") {
+  async function handleGenerateAudio(mode: "scene") {
     if (!projectId) {
       setTtsMessage("احفظ المشروع أولاً قبل توليد الصوت.");
       return;
     }
-    if (mode === "scene" && !scenes.length) {
+    if (!scenes.length) {
       setTtsMessage("لا توجد مشاهد لتوليد صوت لها.");
       return;
     }
@@ -535,14 +535,44 @@ export default function App() {
     setTtsMessage("");
     setTtsJob(null);
     try {
-      const body: Record<string, unknown> = { mode, format: "wav" };
-      if (mode === "scene") body.scene_id = scenes[0].scene_id;
+      const body = { mode, scene_id: scenes[0].scene_id, format: "wav" };
       const r = await postJson<TtsJobData>(`/api/projects/${projectId}/tts/jobs`, body);
       setTtsJob(r.data);
       if (r.errors.length) setTtsMessage(r.errors.join(" "));
       else setTtsMessage("تم إرسال طلب التوليد.");
     } catch (exc) {
       setTtsMessage(exc instanceof Error ? exc.message : "تعذر إرسال طلب توليد الصوت.");
+    } finally {
+      setTtsBusy(null);
+    }
+  }
+
+  async function handleGenerateAllAudio() {
+    if (!projectId) {
+      setTtsMessage("احفظ المشروع أولاً قبل توليد الصوت.");
+      return;
+    }
+    if (!scenes.length) {
+      setTtsMessage("لا توجد مشاهد لتوليد صوت لها.");
+      return;
+    }
+    setTtsBusy("project");
+    setTtsMessage("جاري توليد الصوت لكل المشاهد، قد يستغرق دقائق...");
+    setTtsJob(null);
+    try {
+      const r = await postJson<{ generated: string[]; failed: { scene_id: string; error: string }[]; total_scenes: number }>(
+        `/api/projects/${projectId}/tts/generate-all`,
+      );
+      if (r.errors.length) {
+        setTtsMessage(r.errors.join(" "));
+      } else {
+        const { generated, failed, total_scenes } = r.data;
+        let msg = `تم توليد الصوت لـ ${generated.length} من ${total_scenes} مشهد. حمّل حزمة المشروع ZIP لرؤية الصوت.`;
+        if (failed.length) msg += ` فشل: ${failed.map((f) => f.scene_id).join(", ")}.`;
+        setTtsMessage(msg);
+      }
+    } catch (exc) {
+      setTtsMessage(exc instanceof Error ? exc.message : "تعذر توليد صوت المشروع.");
     } finally {
       setTtsBusy(null);
     }
@@ -950,8 +980,8 @@ export default function App() {
                 {ttsBusy === "scene" ? "جاري التوليد..." : "توليد صوت للمشهد الأول"}
               </button>
               <button
-                onClick={() => handleGenerateAudio("project")}
-                disabled={!projectId || !ttsHealth?.configured || ttsBusy !== null}
+                onClick={handleGenerateAllAudio}
+                disabled={!projectId || !scenes.length || !ttsHealth?.configured || ttsBusy !== null}
                 title={!ttsHealth?.configured ? "خدمة الصوت غير مفعّلة" : undefined}
               >
                 {ttsBusy === "project" ? "جاري التوليد..." : "توليد صوت للمشروع"}

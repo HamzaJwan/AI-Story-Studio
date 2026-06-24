@@ -8,13 +8,13 @@
 
 | الحقل | القيمة |
 |---|---|
-| **Current Phase** | Phase 1.4 — Project Audio Export |
-| **Current Status** | ⏳ STARTING — Phase 1.3 نجحت فعلياً (صوت حقيقي لمشهد واحد عبر الواجهة) |
+| **Current Phase** | Phase 2.0 — Image Benchmark Lab |
+| **Current Status** | ⏳ ASSESSING SCOPE — Phase 1.4 نجحت فعلياً (صوت حقيقي لمشروع كامل داخل export.zip) |
 | **Current Owner** | Hamza |
 | **Current Executor** | Claude |
 | **Current Reviewer** | Hamza |
 | **Last Updated** | 2026-06-24 |
-| **Current Decision** | SSH alias `ai-story-server` يعمل (key-based، بدون password) — كل مراحل AI Server مفتوحة الآن. SILMA لا يزال BLOCKED بسبب شبكة AI Server المتقطعة الليلة (راجع DECISION_LOG)؛ Piper هو المحرك الافتراضي حالياً |
+| **Current Decision** | Phase 1.x (الصوت) منتهية بنجاح بالكامل. SSH alias `ai-story-server` يعمل لكل مراحل AI Server. SILMA لا يزال BLOCKED بسبب شبكة AI Server (راجع DECISION_LOG)؛ Piper هو المحرك الصوتي الافتراضي. Phase 2.0 تحتاج تقييم محرك صور حقيقي قبل أي كود |
 
 ---
 
@@ -66,7 +66,7 @@
 | **1.1** | Audio Bridge MVP | جسر اتصال backend/frontend لـ TTS Worker خارجي (بدون engine حقيقي) | ✅ DONE | `/api/tts/*` endpoints + لوحة "استوديو الصوت" | commit `668af46`، push تم — **توليد صوت فعلي يبقى ممنوعاً حتى Benchmark Gate = PASS** |
 | **1.2** | TTS Worker Lab API | worker حقيقي منفصل (Piper، SILMA معطّل مؤقتاً) في `deploy/ai-server/tts-worker/` | ✅ PASS (Piper) | FastAPI worker شغّال + WAV حقيقي على AI Server | تحقق حمزة + git push |
 | **1.3** | Connect App to TTS Worker | ربط Audio panel بمشهد واحد فعلياً | ✅ PASS | job حقيقي + audio player حقيقي يعملان | تحقق حمزة + git push |
-| **1.4** | Project Audio Export | صوت لكل المشاهد + إضافته لـ export.zip | ⏳ STARTING | audio/*.wav داخل ZIP | نجاح Phase 1.3 ✅ |
+| **1.4** | Project Audio Export | صوت لكل المشاهد + إضافته لـ export.zip | ✅ PASS | `audio/*.wav` + `final_story.wav` داخل ZIP | تحقق حمزة + git push |
 | **2.0** | Cinematic Images + MP4 | SDXL/ComfyUI + FFmpeg | ⬜ LATER — **يحتاج Benchmark Gate = PASS** | 3 صور + MP4 أولي | Benchmark Gate PASS لـ Images |
 | **3.0** | AI Video POC | WanGP/Wan2.1 مشهدين | ⬜ LATER — **يحتاج Benchmark Gate = PASS** | كليب 3-5 ثوانٍ | Benchmark Gate PASS لـ Video + نجاح Phase 2.0 |
 | **4.0** | Staging/Production | Portainer + Security | ⬜ LATER | نشر آمن ومستقر | نجاح Phase 3.0 أو قرار تجاري |
@@ -192,11 +192,14 @@
 ---
 
 ### Phase 1.4 — Project Audio Export
-**الحالة:** ⏳ STARTING
+**الحالة:** ✅ PASS
 
-**الأهداف:**
-- توليد صوت لكل مشاهد المشروع وحفظ metadata داخل project JSON.
-- إضافة `audio/scene_XX.wav` (و`final_story.mp3` إن أمكن) إلى `export.zip` بدون كسر بنية ZIP الحالية من Phase 0.4.
+**ما تم:**
+- `POST /api/projects/{id}/tts/generate-all` يولّد صوتاً حقيقياً لكل مشاهد المشروع (job منفصل لكل مشهد، sequential، لا يتوقف عند فشل مشهد واحد).
+- audio metadata (`audio_generated_at`, `audio_bytes`, `audio_format`) محفوظة داخل project JSON فعلياً.
+- `export.zip` يحتوي الآن `audio/scene_XX.wav` لكل مشهد له صوت + `audio/final_story.wav` (دمج WAV خام بدون ffmpeg، لا MP3 — موثَّق كـ limitation صريح في `metadata.json`)، بدون كسر بنية ZIP للمشاريع بلا صوت.
+- **تحقق فعلي:** مشروع حقيقي بـ 6 مشاهد → توليد صوت لكل المشاهد بنجاح (0 فشل) → export.zip يحتوي 6 ملفات WAV + final_story.wav (2,050,092 bytes، 46.49 ثانية، صالح فعلياً).
+- اكتُشف وأُصلح bug حقيقي أثناء الاختبار (`scenes_export()` كان يفشل عند وجود `datetime` في بيانات الصوت) قبل اعتبار المرحلة منجزة.
 
 ---
 
@@ -303,8 +306,8 @@
 | ✅ DONE | Phase 1.1 — Audio Bridge MVP (`/api/tts/*` + لوحة الصوت) | Claude | commit: `668af46`, push تم |
 | ✅ PASS (Piper) | Phase 1.2 — TTS Worker Lab API (`deploy/ai-server/tts-worker/`) | Claude | WAV حقيقي على AI Server؛ SILMA BLOCKED بسبب الشبكة، الكود محفوظ |
 | ✅ PASS | Phase 1.3 — Connect App to TTS Worker | Claude | صوت حقيقي لمشهدين عبر الواجهة الكاملة |
-| ⏳ NEXT | Phase 1.4 — Project Audio Export | Claude | يبدأ الآن |
-| 🔵 LATER | SDXL Image Benchmark — Phase 2.0 | — | يحتاج Benchmark Gate = PASS + AI Server access |
+| ✅ PASS | Phase 1.4 — Project Audio Export | Claude | export.zip بصوت حقيقي لمشروع 6 مشاهد كامل |
+| ⏳ NEXT (تقييم نطاق) | SDXL Image Benchmark — Phase 2.0 | Claude | يحتاج اختيار محرك + Benchmark Gate — تقييم قبل أي كود |
 | 🔵 LATER | WanGP Video POC — Phase 3.0 | — | يحتاج Benchmark Gate = PASS + AI Server access |
 | 🔵 LATER | Portainer Production Deploy | Hamza | بعد اكتمال MVP |
 
