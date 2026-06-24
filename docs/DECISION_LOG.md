@@ -1,5 +1,22 @@
 # Decision Log
 
+## 2026-06-24 — Phase 1.2 scaffolded but BLOCKED on AI Server access
+
+**Decision:** كتابة كود TTS Worker (`deploy/ai-server/tts-worker/`) كاملاً الآن، بدون تشغيله، وتسجيل الحالة كـ `BLOCKED` بدل `DONE` أو `PASS`.
+
+**Reason:**
+- المرحلة المطلوبة (Phase 1.2) تحتاج Docker + GPU فعلي على AI Server.
+- لا يوجد SSH key/session متاحة. كلمة مرور SSH أُرسلت سابقاً في المحادثة، لكن harness الأمان يمنع تمرير أي password داخل أوامر shell (sshpass أو غيره) بشكل قاطع — هذا حاجز تقني صلب، ليس قرار حذر قابلاً للتجاوز بالاجتهاد.
+- كتابة الكود الآن (بإعادة استخدام دوال `tools/tts/silma_benchmark.py` المُثبَتة فعلياً على GPU سابقاً) يجهّز المشروع للتشغيل الفوري بمجرد توفر الوصول، بدون انتظار جلسة جديدة لإعادة تصميم نفس الشيء.
+
+**Impact:**
+- Phase 1.2 مسجَّلة `BLOCKED` في `docs/ROADMAP.md`، لا `DONE`.
+- كل من Phase 1.3, 1.4, 2.0, 2.1, 3.0, 3.1, 3.2 محجوبة بنفس الحاجز لأنها تعتمد على AI Server.
+- الحل الوحيد الدائم: حمزة يضيف SSH key (بدون password) إلى AI Server، أو يشغّل worker بنفسه يدوياً ويؤكد النتيجة.
+- لا PASS في `docs/BENCHMARK_PROTOCOL.md` لهذا الـ worker حتى يُنتِج WAV حقيقي مؤكَّد على العتاد الفعلي.
+
+---
+
 ## 2026-06-24 — Start Phase 1.1: Audio Bridge MVP
 
 **Decision:** ننتقل إلى Phase 1.1 بعد Phase 0.5، كجسر اتصال فقط — لا تشغيل أي TTS engine داخل التطبيق.

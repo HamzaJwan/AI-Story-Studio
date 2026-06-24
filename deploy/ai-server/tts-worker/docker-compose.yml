@@ -1,0 +1,17 @@
+services:
+  tts-worker:
+    build:
+      context: ../../..
+      dockerfile: deploy/ai-server/tts-worker/Dockerfile
+    gpus: all
+    ports:
+      - "${TTS_WORKER_PORT:-8851}:8851"
+    environment:
+      REF_AUDIO: ${REF_AUDIO:-}
+      REF_TEXT: ${REF_TEXT:-}
+    volumes:
+      - ./data:/workspace/data
+      - ../../../tools:/workspace/tools
+      - ./app:/workspace/worker_app
+    working_dir: /workspace
+    restart: unless-stopped

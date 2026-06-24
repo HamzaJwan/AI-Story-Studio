@@ -279,15 +279,18 @@ Request:
 - Returns `503` with `{"detail": "TTS service is not configured."}` if TTS is not enabled/configured.
 - Otherwise proxies to `{TTS_SERVICE_URL}/api/tts/jobs/{job_id}` and returns its JSON response as `data`.
 
-### TTS Worker Contract (external service — not implemented yet)
+### TTS Worker Contract (external service — code-complete, not yet run on real hardware)
 
-The future `tts-worker` service (deployed separately on the AI Server, only after it passes the Benchmark Gate in `docs/BENCHMARK_PROTOCOL.md`) is expected to expose:
+The `tts-worker` service is implemented at `deploy/ai-server/tts-worker/` (Phase 1.2), deployed separately on the AI Server. It is **not yet built or executed** there (blocked on AI Server access — see `docs/DECISION_LOG.md`), so it must not be marked `PASS` in `docs/BENCHMARK_PROTOCOL.md` yet. It exposes:
 
 ```text
 GET  /health
-POST /api/tts/jobs
+POST /api/tts/jobs                       {"text": "...", "voice_id": null, "speed": 1.0, "format": "wav"}
 GET  /api/tts/jobs/{job_id}
 GET  /api/tts/jobs/{job_id}/files
+GET  /api/tts/jobs/{job_id}/download/{format}
 ```
+
+Note: this worker's job body takes raw `text` directly — it has no concept of `project_id`/`scene_id`. Wiring real scene text through from `backend/app/routers/tts.py` (currently sent without `text`) is Phase 1.3's job, not Phase 1.2's.
 
 This app's backend only proxies to these endpoints via `TTS_SERVICE_URL`. The worker itself is out of scope for Phase 1.1.

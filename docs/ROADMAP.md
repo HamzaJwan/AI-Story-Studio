@@ -8,13 +8,13 @@
 
 | الحقل | القيمة |
 |---|---|
-| **Current Phase** | Phase 1.1 — Audio Bridge MVP |
-| **Current Status** | IMPLEMENTED LOCALLY — Pending Hamza verification and push approval |
+| **Current Phase** | Phase 1.2 — TTS Worker Lab API |
+| **Current Status** | 🟡 BLOCKED — كود الـ worker جاهز ومُراجَع، لكن لم يُشغَّل أبداً على عتاد حقيقي |
 | **Current Owner** | Hamza |
 | **Current Executor** | Claude |
 | **Current Reviewer** | Hamza |
 | **Last Updated** | 2026-06-24 |
-| **Current Decision** | Phase 1.1 هي جسر اتصال فقط (لا engine حقيقي). لا تشغيل صوت فعلي أو Phase 2.0/3.0 قبل Benchmark Gate = PASS لكل engine على حدة، وموافقة حمزة |
+| **Current Decision** | كل المراحل من 1.2 إلى 3.2 تحتاج تنفيذ Docker على AI Server. لا يوجد SSH key/session متاح للتنفيذ التلقائي — هذا يحجب كل المراحل القادمة حتى يُحل |
 
 ---
 
@@ -63,8 +63,11 @@
 | **0.4** | Story Package Export | تصدير حزمة المشروع كـ ZIP | ✅ DONE | export.zip endpoint + زر تحميل | تحقق حمزة + git push |
 | **0.5** | Hardware-Aware Benchmark Foundation | توثيق العتاد + Benchmark Gate رسمي | ✅ DONE | HARDWARE_PROFILE.md, BENCHMARK_PROTOCOL.md | تحقق حمزة + git push |
 | **1.0** | TTS Benchmark | اختبار SILMA TTS كـ isolated lab | ✅ DONE (isolated lab) | WAV/MP3 ناجح على AI Server GPU | نجاح Phase 0.5 |
-| **1.1** | Audio Bridge MVP | جسر اتصال backend/frontend لـ TTS Worker خارجي (بدون engine حقيقي) | ✅ IMPLEMENTED LOCALLY | `/api/tts/*` endpoints + لوحة "استوديو الصوت" | تحقق حمزة + git push — **توليد صوت فعلي يبقى ممنوعاً حتى Benchmark Gate = PASS** |
-| **2.0** | Cinematic Images + MP4 | SDXL/ComfyUI + FFmpeg | ⬜ LATER — **يحتاج Benchmark Gate = PASS** | 3 صور + MP4 أولي | Benchmark Gate PASS لـ Images + نجاح Phase 1.1 |
+| **1.1** | Audio Bridge MVP | جسر اتصال backend/frontend لـ TTS Worker خارجي (بدون engine حقيقي) | ✅ DONE | `/api/tts/*` endpoints + لوحة "استوديو الصوت" | commit `668af46`، push تم — **توليد صوت فعلي يبقى ممنوعاً حتى Benchmark Gate = PASS** |
+| **1.2** | TTS Worker Lab API | worker حقيقي منفصل (SILMA) في `deploy/ai-server/tts-worker/` | 🟡 BLOCKED — كود جاهز، لم يُشغَّل | FastAPI worker + Dockerfile + README | **يحتاج وصول SSH/Docker فعلي على AI Server** — لا بديل محلي |
+| **1.3** | Connect App to TTS Worker | ربط Audio panel بمشهد واحد فعلياً | ⬜ LATER | job حقيقي + audio player حقيقي | نجاح Phase 1.2 (worker شغّال فعلاً) |
+| **1.4** | Project Audio Export | صوت لكل المشاهد + إضافته لـ export.zip | ⬜ LATER | audio/*.wav داخل ZIP | نجاح Phase 1.3 لمشهد واحد |
+| **2.0** | Cinematic Images + MP4 | SDXL/ComfyUI + FFmpeg | ⬜ LATER — **يحتاج Benchmark Gate = PASS** | 3 صور + MP4 أولي | Benchmark Gate PASS لـ Images |
 | **3.0** | AI Video POC | WanGP/Wan2.1 مشهدين | ⬜ LATER — **يحتاج Benchmark Gate = PASS** | كليب 3-5 ثوانٍ | Benchmark Gate PASS لـ Video + نجاح Phase 2.0 |
 | **4.0** | Staging/Production | Portainer + Security | ⬜ LATER | نشر آمن ومستقر | نجاح Phase 3.0 أو قرار تجاري |
 
@@ -154,14 +157,47 @@
 ---
 
 ### Phase 1.1 — Audio Bridge MVP
-**الحالة:** ✅ IMPLEMENTED LOCALLY — Pending Hamza verification and push
+**الحالة:** ✅ DONE
 
 **الأهداف:**
 - Backend connector (`TtsWorkerClient`) يتصل بخدمة `tts-worker` خارجية مستقبلية عبر `TTS_SERVICE_URL` فقط — لا دمج مباشر للموديلات، لا SILMA/AllTalk فعلي.
 - `TTS_ENABLED` معطّل افتراضياً (`false`) — أي بيئة بدون env إضافية تستمر بالعمل بدون أي تغيير ظاهر.
 - 3 endpoints: `GET /api/tts/health` (يرجع 200 دائماً)، `POST /api/projects/{id}/tts/jobs` و`GET /api/tts/jobs/{id}` (يرجعان 503 إذا غير مفعّل).
 - لوحة "استوديو الصوت" (badge تجريبي) في الواجهة — تعرض الحالة بوضوح، أزرار التوليد معطّلة إذا الخدمة غير مفعّلة، بدون أي صوت وهمي.
-- **هذا جسر اتصال فقط وليس "TTS Worker API" فعلياً** — لا تشغيل فعلي لأي صوت حتى يُبنى `tts-worker` نفسه ويمرّ بـ Benchmark Gate = PASS حسب `docs/BENCHMARK_PROTOCOL.md`.
+
+---
+
+### Phase 1.2 — TTS Worker Lab API
+**الحالة:** 🟡 BLOCKED — كود جاهز ومُراجَع، لم يُبنَ أو يُشغَّل على أي عتاد حقيقي
+
+**ما تم:**
+- `deploy/ai-server/tts-worker/` — FastAPI worker كامل (`/health`, `POST /api/tts/jobs`, `GET /api/tts/jobs/{id}`, `GET /api/tts/jobs/{id}/files`, `GET .../download/{format}`).
+- يعيد استخدام دوال SILMA المُثبَتة فعلياً من `tools/tts/silma_benchmark.py` (نفس الـ Dockerfile/recipe الناجح في `silma-lab`) بدون تكرار منطق هش جديد.
+- Job يعمل في thread خلفي (لا Redis/Celery) — `POST` يرجع `job_id` فوراً بحالة `queued`، التوليد الفعلي قد يأخذ دقائق (SILMA الأول استغرق ~257s في benchmark سابق).
+- قاعدة الصوت المرجعي نفسها من `silma-lab`: العينة الرسمية المرفقة لاختبار فقط، وكل job استخدمها يُعلَّم بـ `reference_voice_note` صراحة.
+
+**سبب BLOCKED:**
+- بناء/تشغيل هذا الـ worker يحتاج Docker + GPU على AI Server فعلياً (نفس بيئة `silma-lab` المُثبَتة). لا يوجد SSH key/session متاحة للتنفيذ التلقائي، وتمرير password داخل أي أمر ممنوع من الـ harness نفسه (credential-leakage guard) — هذا ليس قرار حذر، بل عدم قدرة فعلية على التنفيذ.
+- **لا يُعتبر Phase 1.2 ناجحاً ولا يُسجَّل PASS في `docs/BENCHMARK_PROTOCOL.md` حتى يُبنى الـ image فعلياً على AI Server وينتج WAV حقيقي قابل للتشغيل.**
+- كل ما بعدها (1.3, 1.4, 2.0, 2.1, 3.0, 3.1, 3.2) محجوب بهذا الحاجز لأنها كلها تحتاج تنفيذاً على AI Server.
+
+---
+
+### Phase 1.3 — Connect App to TTS Worker
+**الحالة:** ⬜ LATER — تحتاج نجاح Phase 1.2 فعلياً أولاً
+
+**الأهداف:**
+- توسيع `backend/app/routers/tts.py` ليرسل نص المشهد الفعلي (`narration_ar`) كحقل `text` للـ worker (غير موجود في Phase 1.1 الحالي — يحتاج تعديل صغير).
+- Audio panel يطلب صوت مشهد واحد فقط أولاً، يعرض job_id/status حقيقي، وعند اكتمال الملف يظهر `<audio>` حقيقي — بدون توليد كامل المشروع قبل نجاح مشهد واحد.
+
+---
+
+### Phase 1.4 — Project Audio Export
+**الحالة:** ⬜ LATER — تحتاج نجاح Phase 1.3 لمشهد واحد أولاً
+
+**الأهداف:**
+- توليد صوت لكل مشاهد المشروع وحفظ metadata داخل project JSON.
+- إضافة `audio/scene_XX.wav` (و`final_story.mp3` إن أمكن) إلى `export.zip` بدون كسر بنية ZIP الحالية من Phase 0.4.
 
 ---
 
@@ -232,6 +268,11 @@
 
 > توليد صوت فعلي كامل (MP3/WAV حقيقي من `tts-worker` مبني فعلياً) يبقى خطوة لاحقة منفصلة، ولا تبدأ إلا بعد Benchmark Gate = PASS حسب `docs/BENCHMARK_PROTOCOL.md`.
 
+### Phase 1.2 — TTS Worker Lab API
+- ✅ **Done when:** الـ worker مبني فعلياً على AI Server، `nvidia-smi` يظهر داخل الـ container، job حقيقي ينتج `audio.wav` قابل للتشغيل والتحميل عبر `GET .../download/wav`.
+- ❌ **Failed if:** الـ container لا يرى GPU، أو لا يوجد WAV حقيقي بعد التشغيل، أو استُخدمت reference voice غير مسموحة.
+- 🛑 **Stop if:** لا يوجد وصول SSH/Docker فعلي على AI Server (هذا هو الحاجز الحالي بتاريخ 2026-06-24).
+
 ### Phase 2.0
 - ✅ **Done when:** Benchmark Gate يسجّل `PASS` لمحرك الصور على AI Server، ثم 3 صور سينمائية + MP4 أولي يعمل.
 - ❌ **Failed if:** Benchmark Gate لم يصدر PASS، أو SDXL/ComfyUI تستهلك VRAM أكثر مما هو متاح فعلياً.
@@ -260,10 +301,12 @@
 | ✅ DONE | Phase 0.4 — Story Package Export (export.zip) | Claude | commit: `528a0f6`, push تم |
 | ✅ DONE | Phase 0.5 — Hardware-Aware Benchmark Foundation | Claude | commit: `eee692f`, push تم |
 | ✅ DONE (isolated lab) | SILMA TTS Benchmark — Phase 1.0 | Claude | WAV/MP3 ناجح على AI Server GPU |
-| ✅ IMPLEMENTED LOCALLY | Phase 1.1 — Audio Bridge MVP (`/api/tts/*` + لوحة الصوت) | Claude | بانتظار تحقق حمزة + push — جسر اتصال فقط |
-| 🔵 LATER | بناء `tts-worker` فعلي + Benchmark Gate = PASS | — | شرط لأي توليد صوت حقيقي |
-| 🔵 LATER | SDXL Image Benchmark — Phase 2.0 | — | يحتاج Benchmark Gate = PASS أولاً |
-| 🔵 LATER | WanGP Video POC — Phase 3.0 | — | يحتاج Benchmark Gate = PASS أولاً |
+| ✅ DONE | Phase 1.1 — Audio Bridge MVP (`/api/tts/*` + لوحة الصوت) | Claude | commit: `668af46`, push تم |
+| 🟡 BLOCKED | Phase 1.2 — TTS Worker Lab API (`deploy/ai-server/tts-worker/`) | Claude | كود جاهز محلياً، **يحتاج SSH/Docker access على AI Server لحمزة** |
+| ⏳ NEXT (بعد فك الحاجز) | Phase 1.3 — Connect App to TTS Worker | — | يحتاج Phase 1.2 ناجحة فعلياً |
+| 🔵 LATER | Phase 1.4 — Project Audio Export | — | يحتاج Phase 1.3 لمشهد واحد |
+| 🔵 LATER | SDXL Image Benchmark — Phase 2.0 | — | يحتاج Benchmark Gate = PASS + AI Server access |
+| 🔵 LATER | WanGP Video POC — Phase 3.0 | — | يحتاج Benchmark Gate = PASS + AI Server access |
 | 🔵 LATER | Portainer Production Deploy | Hamza | بعد اكتمال MVP |
 
 ---
@@ -332,6 +375,7 @@
 | 🛑 Production change بدون موافقة | ممنوع مطلقاً |
 | 🛑 API مدفوع (OpenAI/Gemini) | ممنوع في Phase 0 |
 | 🛑 Codex يقترح refactor كبير | اكتب المقترح فقط، لا تنفذه |
+| 🛑 لا يوجد SSH key/session لـ AI Server (password وحده لا يكفي — الـ harness يمنع تمريره داخل أوامر) | أوقف تنفيذ أي مرحلة تحتاج AI Server، اكتب الكود/التوثيق الممكن محلياً فقط، وأبلغ حمزة بالحاجز بدل افتراض نجاح |
 
 ---
 

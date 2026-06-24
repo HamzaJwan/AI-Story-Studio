@@ -1,0 +1,61 @@
+FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
+
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/opt/silma_stubs
+
+WORKDIR /workspace
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ffmpeg \
+        git \
+        libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /opt/silma_stubs/nemo_text_processing/text_normalization \
+    && mkdir -p /opt/silma_stubs/catt_tashkeel \
+    && touch /opt/silma_stubs/nemo_text_processing/__init__.py \
+    && touch /opt/silma_stubs/nemo_text_processing/text_normalization/__init__.py \
+    && printf '%s\n' \
+        'class Normalizer:' \
+        '    def __init__(self, *args, **kwargs):' \
+        '        pass' \
+        '    def normalize(self, text, *args, **kwargs):' \
+        '        return text' \
+        > /opt/silma_stubs/nemo_text_processing/text_normalization/normalize.py \
+    && printf '%s\n' \
+        'class CATTEncoderOnly:' \
+        '    def __init__(self, *args, **kwargs):' \
+        '        pass' \
+        '    def do_tashkeel(self, text, *args, **kwargs):' \
+        '        return text' \
+        > /opt/silma_stubs/catt_tashkeel/__init__.py
+
+RUN python -m pip install --no-cache-dir --upgrade pip \
+    && python -m pip install --no-cache-dir \
+        "numpy<=1.26.4" \
+        cached_path \
+        click \
+        "ema_pytorch>=0.5.2" \
+        "hydra-core>=1.3.0" \
+        librosa \
+        matplotlib \
+        pydub \
+        safetensors \
+        soundfile \
+        tomli \
+        torchcodec \
+        torchdiffeq \
+        "tqdm>=4.65.0" \
+        transformers \
+        transformers_stream_generator \
+        unidecode \
+        vocos \
+        "x_transformers>=1.31.14" \
+    && python -m pip install --no-cache-dir --no-deps silma-tts \
+    && python -m pip install --no-cache-dir \
+        "fastapi>=0.115" \
+        "uvicorn[standard]>=0.30" \
+        "pydantic>=2.6"
+
+CMD ["uvicorn", "worker_app.main:app", "--host", "0.0.0.0", "--port", "8851"]
