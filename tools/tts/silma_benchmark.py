@@ -12,6 +12,9 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_DIR = ROOT / "data" / "benchmarks" / "tts" / "silma"
+OFFICIAL_SILMA_AR_REF_TEXT = (
+    "ويدقق النظر في القرآن الكريم وسائر الكتب السماوية ويتبع مسالك الرسل العظام عليهم الصلاة والسلام."
+)
 DEFAULT_TEXT = (
     "لم يكن صباحاً عادياً، بل كانت تسبقه ليلة طويلة من المعارك الخفية مع الذات.\n"
     "كنت أعرف أن وقود هذا اليوم لن يكون النوم، بل اليقين."
@@ -56,6 +59,27 @@ def find_reference_text(reference_audio: Path | None) -> str | None:
             if text:
                 return text
     return None
+
+
+def install_official_silma_reference(output_dir: Path) -> tuple[Path, str] | None:
+    try:
+        from importlib.resources import files
+
+        reference = files("silma_tts").joinpath("infer/ref_audio_samples/ar.ref.24k.wav")
+        if not reference.is_file():
+            return None
+
+        output_reference = output_dir / "official_silma_ar.ref.24k.wav"
+        with reference.open("rb") as source, output_reference.open("wb") as target:
+            shutil.copyfileobj(source, target)
+        (output_dir / "official_silma_ar.ref.24k.txt").write_text(
+            OFFICIAL_SILMA_AR_REF_TEXT,
+            encoding="utf-8",
+        )
+        return output_reference, OFFICIAL_SILMA_AR_REF_TEXT
+    except Exception as exc:
+        print(f"[WARN] Could not load official SILMA reference sample: {exc}")
+        return None
 
 
 def detect_device() -> str:
@@ -183,18 +207,27 @@ def main() -> int:
         print(f"[WARN] Put a permitted reference_voice.wav at: {output_dir / 'reference_voice.wav'}")
         print("[WARN] Continuing without reference audio if the installed SILMA API supports it.")
 
-    ref_text = find_reference_text(reference_audio)
-    if reference_audio and not ref_text:
-        print("[FAIL] Reference audio exists but no permitted REF_TEXT was provided or found next to it.")
-        print("[HINT] Set REF_TEXT explicitly or provide ref_text.txt beside reference_voice.wav.")
-        return 2
-
     try:
         from silma_tts.api import SilmaTTS
     except Exception as exc:
         print(f"[FAIL] Could not import SilmaTTS: {exc}")
         print("[HINT] Install with: pip install silma-tts soundfile")
         return 1
+
+    ref_text = find_reference_text(reference_audio)
+    if not reference_audio:
+        official_reference = install_official_silma_reference(output_dir)
+        if official_reference:
+            reference_audio, ref_text = official_reference
+            print(f"[INFO] Official SILMA reference audio found: {reference_audio}")
+        else:
+            print("[FAIL] NEEDS_REFERENCE: no permitted reference audio with REF_TEXT was found.")
+            return 2
+
+    if reference_audio and not ref_text:
+        print("[FAIL] NEEDS_REFERENCE: reference audio exists but no permitted REF_TEXT was provided or found next to it.")
+        print("[HINT] Set REF_TEXT explicitly or provide ref_text.txt beside reference_voice.wav.")
+        return 2
 
     started = time.perf_counter()
     try:
