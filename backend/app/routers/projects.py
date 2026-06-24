@@ -84,3 +84,19 @@ def export_scenes_json(
         media_type="application/json; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="scenes.json"'},
     )
+
+
+@router.get("/{project_id}/export.zip")
+def export_project_zip(
+    project_id: str,
+    storage: ProjectStorage = Depends(get_storage),
+) -> Response:
+    try:
+        zip_bytes = storage.build_export_zip(project_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="project-{project_id[:8]}.zip"'},
+    )

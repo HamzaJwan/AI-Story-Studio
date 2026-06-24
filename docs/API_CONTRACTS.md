@@ -198,3 +198,32 @@ Deletes one local project JSON file.
 ### GET /api/projects/{project_id}/scenes.json
 
 Exports the latest edited scenes as downloadable `scenes.json`.
+
+---
+
+## Phase 0.4 Story Package Export
+
+### GET /api/projects/{project_id}/export.zip
+
+Returns a downloadable ZIP archive (`application/zip`) containing the full project package:
+
+- `story.txt` — `original_story`, UTF-8 plain text.
+- `improved_story.txt` — `improved_story`, UTF-8 plain text. May be empty.
+- `scenes.json` — identical payload to `GET /api/projects/{project_id}/scenes.json`.
+- `metadata.json`:
+
+```json
+{
+  "project_id": "uuid",
+  "title": "قصة جديدة",
+  "created_at": "2026-06-24T00:00:00+00:00",
+  "updated_at": "2026-06-24T00:00:00+00:00",
+  "scene_count": 6,
+  "total_duration_seconds": 48,
+  "exported_at": "2026-06-24T00:10:00+00:00",
+  "app": "AI Story Studio",
+  "phase": "0.4"
+}
+```
+
+Returns 404 with the standard error envelope if `project_id` does not exist.

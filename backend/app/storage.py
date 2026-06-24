@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import io
 import json
 import re
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -110,6 +112,36 @@ class ProjectStorage:
             "story_title": project.title,
             "scenes": [scene.model_dump() for scene in project.scenes],
         }
+
+    def build_export_zip(self, project_id: str) -> bytes:
+        project = self.get_project(project_id)
+        scenes_payload = self.scenes_export(project_id)
+        total_duration = sum(scene.duration_seconds for scene in project.scenes)
+        metadata = {
+            "project_id": project.project_id,
+            "title": project.title,
+            "created_at": project.created_at.isoformat(),
+            "updated_at": project.updated_at.isoformat(),
+            "scene_count": len(project.scenes),
+            "total_duration_seconds": total_duration,
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "app": "AI Story Studio",
+            "phase": "0.4",
+        }
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("story.txt", project.original_story)
+            archive.writestr("improved_story.txt", project.improved_story)
+            archive.writestr(
+                "scenes.json",
+                json.dumps(scenes_payload, ensure_ascii=False, indent=2),
+            )
+            archive.writestr(
+                "metadata.json",
+                json.dumps(metadata, ensure_ascii=False, indent=2),
+            )
+        return buffer.getvalue()
 
     def _new_project_id(self) -> str:
         return str(uuid4())

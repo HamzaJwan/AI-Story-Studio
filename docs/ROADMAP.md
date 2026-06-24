@@ -1,6 +1,6 @@
 # AI Story Studio — Roadmap
 
-<!-- آخر تحديث: 2026-06-22 | المراجع: Antigravity -->
+<!-- آخر تحديث: 2026-06-24 | المراجع: Hamza -->
 
 ---
 
@@ -8,13 +8,13 @@
 
 | الحقل | القيمة |
 |---|---|
-| **Current Phase** | Phase 0.1 — Ollama Story Workspace |
-| **Current Status** | IMPLEMENTED LOCALLY — Pending verification, Gemini review, and Hamza commit approval |
+| **Current Phase** | Phase 0.4 — Story Package Export |
+| **Current Status** | IMPLEMENTED LOCALLY — Pending Hamza verification and push approval |
 | **Current Owner** | Hamza |
-| **Current Executor** | Codex |
-| **Current Reviewer** | Gemini / Antigravity |
-| **Last Updated** | 2026-06-22 |
-| **Current Decision** | لا تبدأ Phase 0.2 أو أي commit/push قبل مراجعة Phase 0.1 |
+| **Current Executor** | Claude |
+| **Current Reviewer** | Hamza |
+| **Last Updated** | 2026-06-24 |
+| **Current Decision** | لا تبدأ Phase 1.1 (TTS Worker API) قبل تحقق حمزة من Phase 0.4 وموافقته على push |
 
 ---
 
@@ -56,11 +56,13 @@
 
 | Phase | الاسم | الهدف | الحالة | المخرجات | شرط الانتقال |
 |---|---|---|---|---|---|
-| **0.0** | Preflight & Foundation | هيكل + Docker + UTF-8 + docs | ✅ DONE LOCALLY | Git ✓, Dockerfiles ✓, requirements.txt ✓, UTF-8 ✓ | موافقة حمزة + Gemini review |
-| **0.1** | Ollama Story Workspace | Backend + Frontend + Ollama + Split Scenes | ✅ IMPLEMENTED LOCALLY | scenes.json, UI عربي جميل وحركي | Gemini review + check_utf8 pass + حمزة |
-| **0.2** | Review & Stabilization | مراجعة + إصلاح + commit/push | ⏳ LATER | نظام مستقر وموثّق، git push | Gemini Approved + git push نظيف |
-| **1.0** | MP3 Narrator Benchmark | اختبار SILMA TTS | ⬜ LATER | test_audio.wav قصير | نجاح Phase 0.2 |
-| **1.1** | MP3 Narrator MVP | Pipeline صوت كامل | ⬜ LATER | MP3 قابل للتحميل | نجاح Phase 1.0 Benchmark |
+| **0.0** | Preflight & Foundation | هيكل + Docker + UTF-8 + docs | ✅ DONE | Git ✓, Dockerfiles ✓, requirements.txt ✓, UTF-8 ✓ | موافقة حمزة |
+| **0.1** | Ollama Story Workspace | Backend + Frontend + Ollama + Split Scenes | ✅ DONE | scenes.json, UI عربي RTL | check_utf8 pass + حمزة |
+| **0.2** | Project Workspace | حفظ/تحميل/تعديل مشاريع محلية (JSON) | ✅ DONE | Project CRUD endpoints, scene editing | تحقق يدوي + حمزة |
+| **0.3** | Scene Editing UX Polish | تحسين واجهة تعديل المشاهد (frontend-only) | ✅ DONE | scene cards, validation, stats bar | تحقق يدوي + حمزة |
+| **0.4** | Story Package Export | تصدير حزمة المشروع كـ ZIP | ✅ IMPLEMENTED LOCALLY | export.zip endpoint + زر تحميل | تحقق حمزة + git push |
+| **1.0** | TTS Benchmark | اختبار SILMA TTS كـ isolated lab | ✅ DONE (isolated lab) | WAV/MP3 ناجح على AI Server GPU | نجاح Phase 0.4 |
+| **1.1** | TTS Worker API | خدمة TTS منفصلة عبر LAN API | ⬜ LATER | tts-worker + TTS_SERVICE_URL | نجاح Phase 0.4 + قرار حمزة |
 | **2.0** | Cinematic Images + MP4 | SDXL/ComfyUI + FFmpeg | ⬜ LATER | 3 صور + MP4 أولي | نجاح Phase 1.1 |
 | **3.0** | AI Video POC | WanGP/Wan2.1 مشهدين | ⬜ LATER | كليب 3-5 ثوانٍ | نجاح Phase 2.0 + VRAM كافٍ |
 | **4.0** | Staging/Production | Portainer + Security | ⬜ LATER | نشر آمن ومستقر | نجاح Phase 3.0 أو قرار تجاري |
@@ -84,7 +86,7 @@
 ---
 
 ### Phase 0.1 — Ollama Story Workspace
-**الحالة:** ✅ IMPLEMENTED LOCALLY — Pending verification/review
+**الحالة:** ✅ DONE
 
 **الأهداف:**
 - `backend/app/main.py` — FastAPI entry point
@@ -99,37 +101,53 @@
 
 ---
 
-### Phase 0.2 — Review & Stabilization
-**الحالة:** ⏳ LATER
+### Phase 0.2 — Project Workspace
+**الحالة:** ✅ DONE
 
 **الأهداف:**
-- Gemini يراجع كل تغييرات Phase 0.1
-- إصلاح أي Mojibake أو مشاكل encoding
-- `docker compose up --build` يعمل كاملاً
-- `check_utf8.py` ينجح
-- Git commit نظيف + push لـ GitHub
-- تحديث `CURRENT_STAGE_SUMMARY.md` و `DECISION_LOG.md`
+- Project CRUD محلي (JSON files تحت `data/projects/`)
+- إنشاء/حفظ/تحميل/تعديل مشروع
+- تصدير `scenes.json` للنسخة المحفوظة
 
 ---
 
-### Phase 1.0 — MP3 Narrator Benchmark
-**الحالة:** ⬜ LATER
+### Phase 0.3 — Scene Editing UX Polish
+**الحالة:** ✅ DONE
 
 **الأهداف:**
-- اختبار SILMA TTS على مقطع قصير (30-60 ثانية)
-- مقارنة XTTS إذا احتجنا
-- قياس الجودة والوقت والـ VRAM
-- **لا نبني واجهة كبيرة قبل نجاح هذا الاختبار**
+- Scene cards قابلة للطي والنشر + أزرار تحريك/نسخ/إضافة/حذف
+- Validation warnings + scene stats bar
+- Frontend-only، لا تغيير في backend
 
 ---
 
-### Phase 1.1 — MP3 Narrator MVP
+### Phase 0.4 — Story Package Export
+**الحالة:** ✅ IMPLEMENTED LOCALLY — Pending Hamza verification and push
+
+**الأهداف:**
+- `GET /api/projects/{project_id}/export.zip` يرجع ZIP يحتوي story.txt + improved_story.txt + scenes.json + metadata.json
+- زر تحميل واحد في الواجهة، فعّال فقط بعد حفظ المشروع
+- لا dependencies جديدة (Python standard library فقط)
+
+---
+
+### Phase 1.0 — TTS Benchmark
+**الحالة:** ✅ DONE (isolated lab benchmark)
+
+**الأهداف:**
+- اختبار SILMA TTS على مقطع قصير — ناجح على AI Server GPU (WAV + MP3، ~256.95s لأول توليد)
+- يبقى isolated lab تحت `deploy/ai-server/silma-lab/` — لا دمج داخل التطبيق
+- AllTalk scaffold مضاف كـ candidate إضافي، بدون integration
+
+---
+
+### Phase 1.1 — TTS Worker API
 **الحالة:** ⬜ LATER
 
 **الأهداف:**
-- Pipeline: Story → Narration Script → Scenes → Voice Segments → Final MP3
-- TTS adapter (SILMA أو البديل المختار في Phase 1.0)
-- واجهة توليد صوت بسيطة + تحميل MP3
+- خدمة `tts-worker` منفصلة على AI Server (Docker + LAN API)، حسب `docs/AI_SERVER_SERVICES_ARCHITECTURE.md`
+- Backend يتصل بها عبر `TTS_SERVICE_URL` فقط — لا دمج مباشر للموديلات داخل backend
+- **لا نبني واجهة كبيرة قبل تثبيت هذه الخدمة**
 
 ---
 
@@ -214,15 +232,15 @@
 
 | الحالة | المهمة | المسؤول | ملاحظات |
 |---|---|---|---|
-| ✅ DONE LOCALLY | Phase 0.0 Preflight — Git + Dockerfiles + requirements + UTF-8 | Codex | commit: `67d78a1` |
-| 🔍 IN REVIEW | Gemini يراجع Preflight ويُضيف ROADMAP.md | Gemini/Antigravity | الآن |
-| ⏳ NEXT | حمزة يوافق على تقرير Preflight ويقرر push أو Phase 0.1 | Hamza | قرار إلزامي |
-| ✅ DONE LOCALLY | Codex ينفذ Phase 0.1 — Backend + Frontend + Ollama | Codex | بانتظار التحقق والمراجعة |
-| ⏳ NEXT | Gemini يراجع Phase 0.1 | Gemini/Antigravity | بعد تقرير Codex |
-| ⏳ NEXT | Git commit + push لـ Phase 0.1 | Hamza | بعد Gemini Approved |
-| 🔵 LATER | SILMA TTS Benchmark — Phase 1.0 | Codex | بعد نجاح Phase 0.2 |
-| 🔵 LATER | SDXL Image Benchmark — Phase 2.0 | Codex | بعد نجاح Phase 1.1 |
-| 🔵 LATER | WanGP Video POC — Phase 3.0 | Codex | بعد نجاح Phase 2.0 |
+| ✅ DONE | Phase 0.0 Preflight — Git + Dockerfiles + requirements + UTF-8 | Claude | commit: `67d78a1` |
+| ✅ DONE | Phase 0.1 — Backend + Frontend + Ollama | Claude | scenes.json يعمل |
+| ✅ DONE | Phase 0.2 — Project Workspace (Project CRUD) | Claude | git push تم |
+| ✅ DONE | Phase 0.3 — Scene Editing UX Polish | Claude | commit: `360ed62` |
+| ✅ IMPLEMENTED LOCALLY | Phase 0.4 — Story Package Export (export.zip) | Claude | بانتظار تحقق حمزة + push |
+| ✅ DONE (isolated lab) | SILMA TTS Benchmark — Phase 1.0 | Claude | WAV/MP3 ناجح على AI Server GPU |
+| ⏳ NEXT (بعد قرار حمزة) | TTS Worker API — Phase 1.1 | Claude | بعد نجاح Phase 0.4 |
+| 🔵 LATER | SDXL Image Benchmark — Phase 2.0 | — | بعد نجاح Phase 1.1 |
+| 🔵 LATER | WanGP Video POC — Phase 3.0 | — | بعد نجاح Phase 2.0 |
 | 🔵 LATER | Portainer Production Deploy | Hamza | بعد اكتمال MVP |
 
 ---
@@ -233,7 +251,7 @@
 |---|---|
 | React + Vite + TypeScript للواجهة | تصميم احترافي، ليس Gradio demo |
 | FastAPI للـ backend | خفيف، Pydantic built-in، async-ready |
-| Tailwind CSS + Framer Motion للـ UI | تصميم جميل وحركي عربي RTL |
+| CSS عادي (`styles.css`) بدون مكتبات UI خارجية | يبقي الفرونت خفيفاً بدون dependencies إضافية |
 | Ollama provider في Phase 0 | لا API مدفوع، محلي |
 | `.env` للإعدادات (لا Admin page) | الأبسط والأأمن في Phase 0 |
 | Adapter Pattern للـ AI providers | يسمح بإضافة OpenAI/Gemini لاحقاً بدون إعادة بناء |

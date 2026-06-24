@@ -55,7 +55,16 @@ type ProjectListData = {
   projects: ProjectListItem[];
 };
 
-type LoadingAction = "test" | "improve" | "split" | "new" | "save" | "load" | "delete" | null;
+type LoadingAction =
+  | "test"
+  | "improve"
+  | "split"
+  | "new"
+  | "save"
+  | "load"
+  | "delete"
+  | "package"
+  | null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -437,6 +446,28 @@ export default function App() {
     );
   }
 
+  async function handleDownloadPackage() {
+    if (!projectId) {
+      setError("احفظ المشروع أولاً قبل تحميل حزمة ZIP.");
+      return;
+    }
+    setLoading("package");
+    setError("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/export.zip`);
+      if (!response.ok) {
+        throw new Error("تعذر تجهيز حزمة المشروع.");
+      }
+      const blob = await response.blob();
+      downloadBlob(blob, `project-${projectId.slice(0, 8)}.zip`);
+      showNotice("تم تحميل حزمة المشروع.");
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : "تعذر تحميل حزمة المشروع.");
+    } finally {
+      setLoading(null);
+    }
+  }
+
   function downloadBlob(blob: Blob, filename: string) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -453,7 +484,7 @@ export default function App() {
       {/* Hero */}
       <section className="hero-section">
         <div className="hero-copy">
-          <span className="phase-pill">Phase 0.3</span>
+          <span className="phase-pill">Phase 0.4</span>
           <h1>AI Story Studio</h1>
           <p>حوّل قصتك إلى مشروع محفوظ، سكريبت راوي، ومشاهد قابلة للتعديل والتصدير.</p>
         </div>
@@ -576,6 +607,14 @@ export default function App() {
               disabled={!scenes.length}
             >
               تحميل scenes.json
+            </button>
+            <button
+              className="download-button"
+              onClick={handleDownloadPackage}
+              disabled={!projectId || loading !== null}
+              title={!projectId ? "احفظ المشروع أولاً" : undefined}
+            >
+              {loading === "package" ? "جاري التجهيز..." : "تحميل حزمة المشروع ZIP"}
             </button>
           </div>
         </div>

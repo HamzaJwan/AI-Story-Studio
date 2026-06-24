@@ -1,5 +1,26 @@
 # Decision Log
 
+## 2026-06-24 — Start Phase 0.4: Story Package Export
+
+**Decision:** ننتقل إلى Phase 0.4 بعد إتمام Phase 0.3 وقبل أي عمل على TTS.
+
+**Reason:**
+- Phase 0.3 منجزة ومدفوعة وتعمل.
+- المشروع يحتاج صيغة أرشفة/نقل واحدة (ZIP) تجمع القصة والمشاهد والبيانات الوصفية قبل أي عمل على الصوت.
+- لا حاجة لأي مكتبة جديدة — zipfile/io من المكتبة القياسية تكفي.
+
+**Scope:**
+- Backend: endpoint جديد واحد `GET /api/projects/{project_id}/export.zip`.
+- Frontend: زر تحميل واحد فقط، يعتمد على وجود project_id محفوظ.
+- لا تغيير في أي endpoint أو schema قديم.
+
+**What Phase 0.4 is NOT:**
+- لا TTS، لا SILMA integration، لا AllTalk integration.
+- لا صور، لا فيديو، لا ComfyUI.
+- لا refactor لـ App.tsx، لا مكتبات جديدة.
+
+---
+
 ## 2026-06-24 — Start Phase 0.3: Scene Editing UX Polish (frontend-only)
 
 **Decision:** ننتقل إلى Phase 0.3 بعد إتمام Phase 0.2 وقبل أي تطوير TTS.

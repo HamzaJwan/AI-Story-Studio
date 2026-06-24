@@ -2,39 +2,34 @@
 
 ## Current Stage
 
-**Stage:** Phase 0.3 — Scene Editing UX Polish  
-**Status:** Implemented locally — pending Gemini review and Hamza approval  
-**Owner:** Hamza  
-**Executor:** Codex  
-**Reviewer:** Gemini / Antigravity
+**Stage:** Phase 0.4 — Story Package Export
+**Status:** Implemented locally — pending Hamza verification and push approval
+**Owner:** Hamza
+**Executor:** Claude
+**Reviewer:** Hamza
 
 ## Current Goal
 
-تحسين تجربة تعديل المشاهد داخل التطبيق (frontend-only):
-- Scene cards قابلة للطي والنشر.
-- أزرار تحريك / نسخ / حذف / إضافة لكل مشهد.
-- Validation بسيط مرئي داخل الكرت.
-- Scene stats bar: عدد المشاهد، مجموع المدة، عدد التحذيرات.
-- Download يستخدم النسخة المعدلة الحالية مع confirm عند وجود تحذيرات.
+إضافة تصدير حزمة مشروع كاملة كملف ZIP واحد:
+- story.txt (original_story)
+- improved_story.txt (improved_story)
+- scenes.json (مطابق لـ GET /api/projects/{project_id}/scenes.json)
+- metadata.json (project_id, title, created_at, updated_at, scene_count, total_duration_seconds, exported_at, app, phase)
 
-Phase 0.3 فقط: frontend UX polish — لا TTS، لا صور، لا فيديو.
+Phase 0.4 فقط: endpoint جديد + زر تحميل واحد في الواجهة — لا TTS، لا صور، لا فيديو، لا dependencies جديدة.
 
-## Implemented in Phase 0.3
+## Implemented in Phase 0.4
 
-- Scene cards collapsed/expanded — الأول مفتوح افتراضياً.
-- ملخص مشهد مغلق: رقم + عنوان + أول 80 حرف من narration + duration.
-- أزرار لكل مشهد: ↑ أعلى · ↓ أسفل · نسخ · + إضافة · حذف.
-- Validation warnings داخل الكرت: عنوان فارغ / راوي فارغ / مدة غير صالحة.
-- Scene stats bar: عدد المشاهد · مجموع المدة بالثواني · عدد التحذيرات.
-- Download scenes.json من النسخة المعدلة + confirm إذا كان هناك تحذيرات.
-- تجديد scene_id تلقائياً بعد كل عملية هيكلية (إضافة/حذف/نسخ).
-- Phase pill محدثة: Phase 0.3.
-- لا تغيير في backend أو API contracts.
+- `ProjectStorage.build_export_zip()` يبني ZIP في الذاكرة (io.BytesIO + zipfile) من المكتبة القياسية فقط.
+- `GET /api/projects/{project_id}/export.zip` — يرجع ZIP صالح أو 404 بنفس نمط الأخطاء الحالي.
+- زر "تحميل حزمة المشروع ZIP" في الواجهة، فعّال فقط بعد حفظ المشروع (وجود project_id).
+- لا تغيير في endpoints أو schemas القديمة.
+- لا تغيير في تصميم الواجهة العام.
 
 ## Next Action
 
-1. Gemini / Antigravity يراجع Phase 0.3.
-2. Hamza يوافق على commit وpush.
+1. حمزة يشغّل الفحوصات ويتحقق يدوياً من محتوى ZIP.
+2. حمزة يوافق على commit وpush.
 
 ## Do Not Do Yet
 
