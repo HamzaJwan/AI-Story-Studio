@@ -93,7 +93,13 @@ def detect_device() -> str:
 
 def instantiate_tts(silma_cls: type[Any]) -> Any:
     try:
-        return silma_cls()
+        signature = inspect.signature(silma_cls)
+        kwargs = {}
+        if "enable_normalizer" in signature.parameters:
+            kwargs["enable_normalizer"] = False
+        if "force_tashkeel" in signature.parameters:
+            kwargs["force_tashkeel"] = False
+        return silma_cls(**kwargs)
     except TypeError as exc:
         raise RuntimeError(f"Could not instantiate SilmaTTS with no arguments: {exc}") from exc
 
@@ -124,6 +130,8 @@ def call_silma(tts: Any, text: str, output_wav: Path, reference_audio: Path | No
         "gen_text": text,
         "file_wave": str(output_wav),
         "seed": None,
+        "normalize_numbers": False,
+        "force_tashkeel": False,
         "speed": speed,
     }
 

@@ -1,6 +1,7 @@
 FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
 
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/opt/silma_stubs
 
 WORKDIR /workspace
 
@@ -10,6 +11,17 @@ RUN apt-get update \
         git \
         libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /opt/silma_stubs/nemo_text_processing/text_normalization \
+    && touch /opt/silma_stubs/nemo_text_processing/__init__.py \
+    && touch /opt/silma_stubs/nemo_text_processing/text_normalization/__init__.py \
+    && printf '%s\n' \
+        'class Normalizer:' \
+        '    def __init__(self, *args, **kwargs):' \
+        '        pass' \
+        '    def normalize(self, text, *args, **kwargs):' \
+        '        return text' \
+        > /opt/silma_stubs/nemo_text_processing/text_normalization/normalize.py
 
 RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir \
@@ -22,7 +34,6 @@ RUN python -m pip install --no-cache-dir --upgrade pip \
         "hydra-core>=1.3.0" \
         librosa \
         matplotlib \
-        nemo_text_processing==1.1.0 \
         pydub \
         safetensors \
         soundfile \
