@@ -80,3 +80,22 @@
 - Add project CRUD endpoints.
 - Add editable scene cards and `scenes.json` export after edits.
 - No TTS/audio/image/video integration in Phase 0.2.
+
+---
+
+## 2026-06-24 — Phase 0.2 passed manual review
+
+**Decision:** Phase 0.2 Project Workspace is accepted as implemented and manually verified.
+
+**Reason:**
+- Creating a new project works.
+- Saving and loading local projects works.
+- Editing generated scenes works.
+- Saving scene edits works.
+- Downloading `scenes.json` after edits works.
+- Exported scenes include valid narration, visual prompt, and duration.
+
+**Impact:**
+- Phase 0.2 is ready as the current product baseline.
+- TTS/SILMA/AllTalk remain isolated labs and are not part of the app UI.
+- Next step is Phase 0.3 — Scene Editing UX Polish before any TTS UI.
