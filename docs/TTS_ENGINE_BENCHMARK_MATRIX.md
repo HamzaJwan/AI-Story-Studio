@@ -2,11 +2,13 @@
 
 Phase 1.0 is a benchmark matrix, not an application integration.
 
-| Engine | Status | Where to run | Pros | Risks | Decision |
+Every row below must follow the Benchmark Gate fields defined in `docs/BENCHMARK_PROTOCOL.md` (engine, version, hardware, command, output sample, cold/warm time, VRAM, quality notes, limitations, verdict). No engine here is integrated into the product (`backend/` or `frontend/`) regardless of verdict — integration is a separate, explicitly-approved phase (Phase 1.1 TTS Worker API), and only after a row reaches `PASS`.
+
+| Engine | Verdict (Benchmark Gate) | Where to run | Pros | Risks | Decision |
 | --- | --- | --- | --- | --- | --- |
-| SILMA | PASS on AI Server GPU benchmark | AI Server Docker lab | Arabic-focused, generated WAV/MP3 | heavy first bootstrap/build cost | PASS, keep isolated |
-| AllTalk/XTTS | Candidate, pending service-based test | AI Server external service | Existing API/Docker service possible | voice licensing, quality/size | test as fallback service |
-| Piper Arabic | not tested | App or AI Server | light/fast | lower narration quality | emergency fallback |
+| SILMA | `PASS` (isolated lab only, not integrated) | AI Server Docker lab | Arabic-focused, generated WAV/MP3 | heavy first bootstrap/build cost | PASS as lab, keep isolated until Phase 1.1 |
+| AllTalk/XTTS | `CANDIDATE` — pending real service-based test | AI Server external service | Existing API/Docker service possible | voice licensing, quality/size | must run real Benchmark Gate before any further status change |
+| Piper Arabic | not tested (`BLOCKED` — no run yet) | App or AI Server | light/fast | lower narration quality | emergency fallback, needs real test first |
 
 ## Current SILMA Status
 

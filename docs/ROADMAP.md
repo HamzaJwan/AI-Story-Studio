@@ -8,13 +8,13 @@
 
 | الحقل | القيمة |
 |---|---|
-| **Current Phase** | Phase 0.4 — Story Package Export |
+| **Current Phase** | Phase 0.5 — Hardware-Aware Benchmark Foundation |
 | **Current Status** | IMPLEMENTED LOCALLY — Pending Hamza verification and push approval |
 | **Current Owner** | Hamza |
 | **Current Executor** | Claude |
 | **Current Reviewer** | Hamza |
 | **Last Updated** | 2026-06-24 |
-| **Current Decision** | لا تبدأ Phase 1.1 (TTS Worker API) قبل تحقق حمزة من Phase 0.4 وموافقته على push |
+| **Current Decision** | لا تبدأ Phase 1.1 (TTS Worker API) أو أي Phase 2.0/3.0 قبل Benchmark Gate = PASS لكل engine على حدة، وموافقة حمزة |
 
 ---
 
@@ -60,11 +60,12 @@
 | **0.1** | Ollama Story Workspace | Backend + Frontend + Ollama + Split Scenes | ✅ DONE | scenes.json, UI عربي RTL | check_utf8 pass + حمزة |
 | **0.2** | Project Workspace | حفظ/تحميل/تعديل مشاريع محلية (JSON) | ✅ DONE | Project CRUD endpoints, scene editing | تحقق يدوي + حمزة |
 | **0.3** | Scene Editing UX Polish | تحسين واجهة تعديل المشاهد (frontend-only) | ✅ DONE | scene cards, validation, stats bar | تحقق يدوي + حمزة |
-| **0.4** | Story Package Export | تصدير حزمة المشروع كـ ZIP | ✅ IMPLEMENTED LOCALLY | export.zip endpoint + زر تحميل | تحقق حمزة + git push |
-| **1.0** | TTS Benchmark | اختبار SILMA TTS كـ isolated lab | ✅ DONE (isolated lab) | WAV/MP3 ناجح على AI Server GPU | نجاح Phase 0.4 |
-| **1.1** | TTS Worker API | خدمة TTS منفصلة عبر LAN API | ⬜ LATER | tts-worker + TTS_SERVICE_URL | نجاح Phase 0.4 + قرار حمزة |
-| **2.0** | Cinematic Images + MP4 | SDXL/ComfyUI + FFmpeg | ⬜ LATER | 3 صور + MP4 أولي | نجاح Phase 1.1 |
-| **3.0** | AI Video POC | WanGP/Wan2.1 مشهدين | ⬜ LATER | كليب 3-5 ثوانٍ | نجاح Phase 2.0 + VRAM كافٍ |
+| **0.4** | Story Package Export | تصدير حزمة المشروع كـ ZIP | ✅ DONE | export.zip endpoint + زر تحميل | تحقق حمزة + git push |
+| **0.5** | Hardware-Aware Benchmark Foundation | توثيق العتاد + Benchmark Gate رسمي | ✅ IMPLEMENTED LOCALLY | HARDWARE_PROFILE.md, BENCHMARK_PROTOCOL.md | تحقق حمزة + git push |
+| **1.0** | TTS Benchmark | اختبار SILMA TTS كـ isolated lab | ✅ DONE (isolated lab) | WAV/MP3 ناجح على AI Server GPU | نجاح Phase 0.5 |
+| **1.1** | TTS Worker API | خدمة TTS منفصلة عبر LAN API | ⬜ LATER — **يحتاج Benchmark Gate = PASS** | tts-worker + TTS_SERVICE_URL | Benchmark Gate PASS لـ TTS + قرار حمزة |
+| **2.0** | Cinematic Images + MP4 | SDXL/ComfyUI + FFmpeg | ⬜ LATER — **يحتاج Benchmark Gate = PASS** | 3 صور + MP4 أولي | Benchmark Gate PASS لـ Images + نجاح Phase 1.1 |
+| **3.0** | AI Video POC | WanGP/Wan2.1 مشهدين | ⬜ LATER — **يحتاج Benchmark Gate = PASS** | كليب 3-5 ثوانٍ | Benchmark Gate PASS لـ Video + نجاح Phase 2.0 |
 | **4.0** | Staging/Production | Portainer + Security | ⬜ LATER | نشر آمن ومستقر | نجاح Phase 3.0 أو قرار تجاري |
 
 ---
@@ -96,7 +97,7 @@
 - `POST /api/story/split-scenes` — تقسيم القصة إلى مشاهد
 - استخراج JSON صالح من رد Ollama + validation
 - حفظ `data/projects/{project_id}/story.txt` و `scenes.json`
-- Frontend: React + Vite + TypeScript + Tailwind + Framer Motion
+- Frontend: React + Vite + TypeScript + CSS عادي (بدون Tailwind/Framer Motion)
 - UI عربي RTL، شاشة واحدة، scene cards، download button
 
 ---
@@ -128,6 +129,17 @@
 - `GET /api/projects/{project_id}/export.zip` يرجع ZIP يحتوي story.txt + improved_story.txt + scenes.json + metadata.json
 - زر تحميل واحد في الواجهة، فعّال فقط بعد حفظ المشروع
 - لا dependencies جديدة (Python standard library فقط)
+
+---
+
+### Phase 0.5 — Hardware-Aware Benchmark Foundation
+**الحالة:** ✅ IMPLEMENTED LOCALLY — Pending Hamza verification and push
+
+**الأهداف:**
+- `docs/HARDWARE_PROFILE.md` — توثيق العتاد الحقيقي (Local Dev Machine + AI Server) بدون أسرار.
+- `docs/BENCHMARK_PROTOCOL.md` — قاعدة رسمية: لا TTS/Image/Video engine يدخل المنتج إلا بعد Benchmark Gate (PASS/CANDIDATE/BLOCKED/REJECTED) مسجَّل بحقول واضحة (زمن، VRAM، جودة، ناتج فعلي).
+- توثيق فقط — لا تنفيذ TTS/Image/Video في هذه المرحلة.
+- Phase 1.1 (TTS Worker API) وPhase 2.0 (Images) وPhase 3.0 (Video) لا تبدأ إلا بعد Benchmark Gate = PASS لكل منها.
 
 ---
 
@@ -201,25 +213,30 @@
 - ❌ **Failed if:** لا يزال هناك CORS مفتوح أو أسرار في الكود.
 - 🛑 **Stop if:** اكتُشفت مشكلة معمارية كبيرة تحتاج إعادة تصميم.
 
+### Phase 0.5
+- ✅ **Done when:** `HARDWARE_PROFILE.md` و`BENCHMARK_PROTOCOL.md` موجودان وموثّقان بلا أسرار، حمزة يوافق على push.
+- ❌ **Failed if:** أي password/token/IP غير موجود مسبقاً في docs تسرّب إلى الملفات.
+- 🛑 **Stop if:** أي محاولة لدمج TTS/Image/Video فعلياً خلال هذه المرحلة.
+
 ### Phase 1.0
 - ✅ **Done when:** SILMA تنتج صوتاً عربياً مفهوماً خلال 60 ثانية.
 - ❌ **Failed if:** SILMA لا تعمل والجودة غير مقبولة بعد تجربة XTTS.
 - 🛑 **Stop if:** لا يوجد TTS يعمل — ننتظر بديلاً قبل Phase 1.1.
 
 ### Phase 1.1
-- ✅ **Done when:** MP3 كامل للقصة قابل للتحميل من الواجهة.
-- ❌ **Failed if:** مقاطع الصوت غير متزامنة أو جودتها غير مقبولة.
-- 🛑 **Stop if:** وقت التوليد يتجاوز 10 دقائق لقصة قصيرة.
+- ✅ **Done when:** Benchmark Gate (`docs/BENCHMARK_PROTOCOL.md`) يسجّل `PASS` لـ TTS على AI Server، ثم MP3/WAV كامل للقصة قابل للتحميل من الواجهة عبر `tts-worker` منفصل.
+- ❌ **Failed if:** Benchmark Gate لم يصدر PASS، أو مقاطع الصوت غير متزامنة، أو جودتها غير مقبولة.
+- 🛑 **Stop if:** وقت التوليد يتجاوز 10 دقائق لقصة قصيرة، أو لم يصدر Benchmark Gate PASS بعد.
 
 ### Phase 2.0
-- ✅ **Done when:** 3 صور سينمائية + MP4 أولي يعمل.
-- ❌ **Failed if:** SDXL/ComfyUI تستهلك VRAM أكثر مما هو متاح.
-- 🛑 **Stop if:** الجودة المرئية أقل من مستوى النشر.
+- ✅ **Done when:** Benchmark Gate يسجّل `PASS` لمحرك الصور على AI Server، ثم 3 صور سينمائية + MP4 أولي يعمل.
+- ❌ **Failed if:** Benchmark Gate لم يصدر PASS، أو SDXL/ComfyUI تستهلك VRAM أكثر مما هو متاح فعلياً.
+- 🛑 **Stop if:** الجودة المرئية أقل من مستوى النشر، أو لم يصدر Benchmark Gate PASS بعد.
 
 ### Phase 3.0
-- ✅ **Done when:** كليب 3-5 ثوانٍ قابل للمراجعة البشرية.
-- ❌ **Failed if:** WanGP يفشل على VRAM المتاح.
-- 🛑 **Stop if:** يستهلك أكثر من 24 ساعة لمشهد واحد.
+- ✅ **Done when:** Benchmark Gate يسجّل `PASS` لمحرك الفيديو على AI Server، ثم كليب 3-5 ثوانٍ قابل للمراجعة البشرية.
+- ❌ **Failed if:** Benchmark Gate لم يصدر PASS، أو WanGP يفشل على VRAM المتاح فعلياً.
+- 🛑 **Stop if:** يستهلك أكثر من 24 ساعة لمشهد واحد، أو لم يصدر Benchmark Gate PASS بعد.
 
 ### Phase 4.0
 - ✅ **Done when:** التطبيق على Portainer بدون تدخل يدوي، environment variables مفصولة.
@@ -236,11 +253,12 @@
 | ✅ DONE | Phase 0.1 — Backend + Frontend + Ollama | Claude | scenes.json يعمل |
 | ✅ DONE | Phase 0.2 — Project Workspace (Project CRUD) | Claude | git push تم |
 | ✅ DONE | Phase 0.3 — Scene Editing UX Polish | Claude | commit: `360ed62` |
-| ✅ IMPLEMENTED LOCALLY | Phase 0.4 — Story Package Export (export.zip) | Claude | بانتظار تحقق حمزة + push |
+| ✅ DONE | Phase 0.4 — Story Package Export (export.zip) | Claude | commit: `528a0f6`, push تم |
+| ✅ IMPLEMENTED LOCALLY | Phase 0.5 — Hardware-Aware Benchmark Foundation | Claude | بانتظار تحقق حمزة + push |
 | ✅ DONE (isolated lab) | SILMA TTS Benchmark — Phase 1.0 | Claude | WAV/MP3 ناجح على AI Server GPU |
-| ⏳ NEXT (بعد قرار حمزة) | TTS Worker API — Phase 1.1 | Claude | بعد نجاح Phase 0.4 |
-| 🔵 LATER | SDXL Image Benchmark — Phase 2.0 | — | بعد نجاح Phase 1.1 |
-| 🔵 LATER | WanGP Video POC — Phase 3.0 | — | بعد نجاح Phase 2.0 |
+| ⏳ NEXT (بعد قرار حمزة) | TTS Worker API — Phase 1.1 | — | **يحتاج Benchmark Gate = PASS أولاً** |
+| 🔵 LATER | SDXL Image Benchmark — Phase 2.0 | — | يحتاج Benchmark Gate = PASS أولاً |
+| 🔵 LATER | WanGP Video POC — Phase 3.0 | — | يحتاج Benchmark Gate = PASS أولاً |
 | 🔵 LATER | Portainer Production Deploy | Hamza | بعد اكتمال MVP |
 
 ---
