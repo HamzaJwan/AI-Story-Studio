@@ -24,6 +24,8 @@ The AI Server is the expected home for:
 
 Do not run direct GPU workloads on the Production/App Server.
 
+SILMA has passed as an isolated AI Server Docker lab benchmark and should remain outside the App Server until a dedicated TTS worker API is designed.
+
 ## LAN API Boundaries
 
 Use placeholders in documentation and code samples:

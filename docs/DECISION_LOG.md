@@ -47,3 +47,20 @@
 - لا DB/Auth/Redis/Celery.
 - لا OpenAI/Gemini API.
 - `scenes.json` هو مخرج Phase 0.1 الأساسي.
+
+---
+
+## 2026-06-24 — SILMA benchmark passed as isolated AI Server lab
+
+**Decision:** SILMA TTS passed the AI Server GPU benchmark, but remains isolated from the main app.
+
+**Reason:**
+- SILMA generated both WAV and MP3 on the AI Server GPU/CUDA path.
+- First generation completed in `256.95s`.
+- First bootstrap/build was heavy due to PyPI/HuggingFace dependency downloads.
+- The successful benchmark used SILMA's bundled official Arabic reference sample for testing only.
+
+**Impact:**
+- SILMA stays in `deploy/ai-server/silma-lab/`.
+- No backend/frontend TTS integration yet.
+- Future product integration should use a separate LAN `tts-worker` API.
