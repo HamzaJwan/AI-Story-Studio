@@ -727,6 +727,29 @@ pre {
   }
 }
 
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.inline-spinner {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  margin-inline-end: 0.5em;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  vertical-align: -0.15em;
+  animation: spin 0.8s linear infinite;
+}
+
+.notice-banner--busy {
+  display: flex;
+  align-items: center;
+}
+
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 
 @media (max-width: 900px) {
@@ -872,6 +895,20 @@ pre {
   border-radius: 999px;
   background: rgba(2, 6, 23, 0.24);
   font-weight: 800;
+}
+
+.step-index--done {
+  background: rgba(74, 222, 128, 0.85);
+  color: #07111f;
+}
+
+.save-state--dirty {
+  color: #fbbf24;
+  font-weight: 700;
+}
+
+.save-state--saved {
+  color: #4ade80;
 }
 
 .workspace-grid {

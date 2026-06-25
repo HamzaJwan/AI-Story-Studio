@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8810";
 
@@ -117,6 +117,19 @@ type ProjectAudioData = {
   final_story: { has_audio: boolean; url: string | null };
 };
 
+const STYLE_PRESET_LABELS: Record<string, string> = {
+  cinematic_realistic: "سينمائي واقعي",
+  warm_storybook: "كتاب قصص دافئ",
+  anime_cartoon: "أنيمي/كارتون",
+  military_documentary: "وثائقي عسكري",
+  horror_suspense: "رعب وتشويق",
+  marketing_poster: "بوستر تسويقي",
+};
+
+function presetLabel(key: string): string {
+  return STYLE_PRESET_LABELS[key] ?? key;
+}
+
 const FALLBACK_TTS_VOICES: TtsVoicesData = {
   voices: [
     { voice_id: "ar_JO-kareem-medium", label: "Arabic Kareem", language: "ar", engine: "piper", default: true },
@@ -191,8 +204,18 @@ function getSceneWarnings(scene: Scene): string[] {
   const w: string[] = [];
   if (!scene.title_ar.trim()) w.push("العنوان فارغ");
   if (!scene.narration_ar.trim()) w.push("نص الراوي فارغ");
-  if (!scene.duration_seconds || scene.duration_seconds <= 0) w.push("المدة غير صالحة");
+  if (!scene.duration_seconds || scene.duration_seconds < 3) w.push("المدة أقل من 3 ثوانٍ (الحد الأدنى المسموح)");
   return w;
+}
+
+function BusyNotice({ busy, message }: { busy: boolean; message: string }) {
+  if (!message) return null;
+  return (
+    <div className={busy ? "notice-banner notice-banner--busy" : "notice-banner"}>
+      {busy && <span className="inline-spinner" aria-hidden="true" />}
+      {message}
+    </div>
+  );
 }
 
 function renumberScenes(list: Scene[]): Scene[] {
@@ -258,6 +281,8 @@ export default function App() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState<LoadingAction>(null);
   const [activeStep, setActiveStep] = useState<StudioStep>("story");
+  const [isDirty, setIsDirty] = useState(false);
+  const skipDirtyEffect = useRef(true);
 
   const [storyStyleBible, setStoryStyleBible] = useState("");
   const [characterBible, setCharacterBible] = useState("");
@@ -266,6 +291,14 @@ export default function App() {
   const [negativePrompt, setNegativePrompt] = useState("");
   const [stylePreset, setStylePreset] = useState("cinematic_realistic");
   const [stylePresets, setStylePresets] = useState<StylePreset[]>([]);
+
+  useEffect(() => {
+    if (skipDirtyEffect.current) {
+      skipDirtyEffect.current = false;
+      return;
+    }
+    setIsDirty(true);
+  }, [title, storyText, improvedText, scenes, storyStyleBible, characterBible, locationBible, objectBible, negativePrompt, stylePreset]);
 
   const [ttsHealth, setTtsHealth] = useState<TtsHealthData | null>(null);
   const [ttsMessage, setTtsMessage] = useState("");
@@ -309,14 +342,15 @@ export default function App() {
   const audioCount = projectAudio?.scenes.filter((scene) => scene.has_audio).length ?? 0;
   const imageCount = projectImages?.scenes.filter((scene) => scene.has_image).length ?? 0;
   const hasVideo = Boolean(projectVideo?.has_video);
+  const hasStoryText = Boolean(storyText.trim() || improvedText.trim());
 
-  const studioSteps: { key: StudioStep; label: string; hint: string }[] = [
-    { key: "story", label: "القصة", hint: "ابدأ بكتابة القصة" },
-    { key: "scenes", label: "المشاهد", hint: "حوّل القصة إلى مشاهد" },
-    { key: "audio", label: "الصوت", hint: "استمع إلى الصوت" },
-    { key: "images", label: "الصور", hint: "ولّد صور المشاهد" },
-    { key: "video", label: "الفيديو والترجمة", hint: "اصنع فيديو من الصور والصوت" },
-    { key: "export", label: "التصدير", hint: "حمّل المشروع كاملاً" },
+  const studioSteps: { key: StudioStep; label: string; hint: string; done: boolean }[] = [
+    { key: "story", label: "القصة", hint: "ابدأ بكتابة القصة", done: hasStoryText },
+    { key: "scenes", label: "المشاهد", hint: "حوّل القصة إلى مشاهد", done: scenes.length > 0 },
+    { key: "audio", label: "الصوت", hint: "استمع إلى الصوت", done: audioCount > 0 },
+    { key: "images", label: "الصور", hint: "ولّد صور المشاهد", done: imageCount > 0 },
+    { key: "video", label: "الفيديو والترجمة", hint: "اصنع فيديو من الصور والصوت", done: hasVideo },
+    { key: "export", label: "التصدير", hint: "حمّل المشروع كاملاً", done: false },
   ];
 
   useEffect(() => {
@@ -420,6 +454,8 @@ export default function App() {
   }
 
   function applyProject(project: Project) {
+    skipDirtyEffect.current = true;
+    setIsDirty(false);
     setProjectId(project.project_id);
     setTitle(project.title);
     setStoryText(project.original_story || "");
@@ -484,8 +520,10 @@ export default function App() {
   async function handleSaveProject() {
     setLoading("save");
     setError("");
+    const safeTitle = title.trim() || "مشروع بدون عنوان";
+    if (safeTitle !== title) setTitle(safeTitle);
     const payload = {
-      title,
+      title: safeTitle,
       original_story: storyText,
       improved_story: improvedText,
       scenes,
@@ -517,6 +555,8 @@ export default function App() {
     setError("");
     try {
       await deleteJson(`/api/projects/${projectId}`);
+      skipDirtyEffect.current = true;
+      setIsDirty(false);
       setProjectId(null);
       setTitle("قصة جديدة");
       setStoryText("");
@@ -857,6 +897,13 @@ export default function App() {
     return "خدمة الصوت مفعّلة (بانتظار فحص الاتصال)";
   }
 
+  function audioActionDisabledReason(): string | undefined {
+    if (!projectId) return "احفظ المشروع أولاً";
+    if (!scenes.length) return "لا توجد مشاهد بعد";
+    if (!ttsHealth?.configured) return "خدمة الصوت غير مفعّلة";
+    return undefined;
+  }
+
   function ttsStatusText(status: string): string {
     switch (status) {
       case "queued":
@@ -950,6 +997,13 @@ export default function App() {
     return "خدمة الصور مفعّلة (بانتظار فحص الاتصال)";
   }
 
+  function imageActionDisabledReason(): string | undefined {
+    if (!projectId) return "احفظ المشروع أولاً";
+    if (!scenes.length) return "لا توجد مشاهد بعد";
+    if (!imageHealth?.configured) return "خدمة الصور غير مفعّلة";
+    return undefined;
+  }
+
   async function handleGenerateOrRegenerateImage(sceneId: string) {
     if (!projectId) {
       setImageMessage("احفظ المشروع أولاً قبل توليد الصور.");
@@ -1027,7 +1081,14 @@ export default function App() {
         <div className="studio-project-summary">
           <span className="eyebrow">Studio Workflow</span>
           <strong>{title || "مشروع بدون عنوان"}</strong>
-          <small>{projectId ? `ID: ${projectId.slice(0, 8)}` : "غير محفوظ بعد"}</small>
+          <small>
+            {projectId ? `ID: ${projectId.slice(0, 8)}` : "غير محفوظ بعد"}
+            {projectId && (
+              <span className={isDirty ? "save-state save-state--dirty" : "save-state save-state--saved"}>
+                {isDirty ? " · تغييرات غير محفوظة" : " · محفوظ"}
+              </span>
+            )}
+          </small>
         </div>
         <div className="studio-status-strip" aria-label="حالة المشروع">
           <span>{scenes.length} مشاهد</span>
@@ -1061,7 +1122,9 @@ export default function App() {
             className={activeStep === step.key ? "studio-step active" : "studio-step"}
             onClick={() => setActiveStep(step.key)}
           >
-            <span className="step-index">{index + 1}</span>
+            <span className={step.done ? "step-index step-index--done" : "step-index"}>
+              {step.done ? "✓" : index + 1}
+            </span>
             <strong>{step.label}</strong>
             <small>{step.hint}</small>
           </button>
@@ -1360,10 +1423,10 @@ export default function App() {
                           />
                         </label>
                         <label>
-                          المدة بالثواني
+                          المدة بالثواني (3-180)
                           <input
                             type="number"
-                            min="1"
+                            min="3"
                             max="180"
                             value={scene.duration_seconds}
                             onChange={(e) =>
@@ -1439,7 +1502,7 @@ export default function App() {
               متاح حالياً إلا للعربية.
             </p>
 
-            {ttsMessage && <div className="notice-banner">{ttsMessage}</div>}
+            <BusyNotice busy={ttsBusy === "scene" || ttsBusy === "project"} message={ttsMessage} />
 
             <div className="action-bar">
               <button onClick={checkTtsHealth} disabled={ttsBusy !== null}>
@@ -1448,14 +1511,14 @@ export default function App() {
               <button
                 onClick={() => handleGenerateAudio("scene")}
                 disabled={!projectId || !scenes.length || !ttsHealth?.configured || ttsBusy !== null}
-                title={!ttsHealth?.configured ? "خدمة الصوت غير مفعّلة" : undefined}
+                title={audioActionDisabledReason()}
               >
                 {ttsBusy === "scene" ? "جاري توليد صوت المشهد..." : "توليد صوت للمشهد الأول"}
               </button>
               <button
                 onClick={handleGenerateAllAudio}
                 disabled={!projectId || !scenes.length || !ttsHealth?.configured || ttsBusy !== null}
-                title={!ttsHealth?.configured ? "خدمة الصوت غير مفعّلة" : undefined}
+                title={audioActionDisabledReason()}
               >
                 {ttsBusy === "project" ? "جاري توليد صوت المشروع..." : "توليد صوت للمشروع"}
               </button>
@@ -1566,7 +1629,7 @@ export default function App() {
                     : [{ key: "cinematic_realistic", prompt_prefix: "" }]
                   ).map((p) => (
                     <option key={p.key} value={p.key}>
-                      {p.key}
+                      {presetLabel(p.key)}
                     </option>
                   ))}
                 </select>
@@ -1625,7 +1688,10 @@ export default function App() {
               </details>
             </div>
 
-            {imageMessage && <div className="notice-banner">{imageMessage}</div>}
+            <BusyNotice
+              busy={imageBusy === "scene" || imageBusy === "all" || generatingSceneId !== null}
+              message={imageMessage}
+            />
 
             <div className="action-bar">
               <button onClick={checkImageHealth} disabled={imageBusy !== null}>
@@ -1634,14 +1700,14 @@ export default function App() {
               <button
                 onClick={handleGenerateSceneImage}
                 disabled={!projectId || !scenes.length || !imageHealth?.configured || imageBusy !== null}
-                title={!imageHealth?.configured ? "خدمة الصور غير مفعّلة" : undefined}
+                title={imageActionDisabledReason()}
               >
                 {imageBusy === "scene" ? "جاري توليد صورة المشهد..." : "توليد صورة للمشهد الأول (معاينة)"}
               </button>
               <button
                 onClick={handleGenerateAllImages}
                 disabled={!projectId || !scenes.length || !imageHealth?.configured || imageBusy !== null}
-                title={!imageHealth?.configured ? "خدمة الصور غير مفعّلة" : undefined}
+                title={imageActionDisabledReason()}
               >
                 {imageBusy === "all" ? "جاري توليد صور المشروع..." : "توليد صور كل المشاهد"}
               </button>
@@ -1710,6 +1776,7 @@ export default function App() {
                         className="ghost-button"
                         onClick={() => handleGenerateOrRegenerateImage(s.scene_id)}
                         disabled={!imageHealth?.configured || generatingSceneId !== null || imageBusy !== null}
+                        title={!imageHealth?.configured ? "خدمة الصور غير مفعّلة" : undefined}
                       >
                         {isGenerating ? "جاري التوليد..." : s.has_image ? "إعادة توليد الصورة" : "توليد صورة لهذا المشهد"}
                       </button>
@@ -1738,10 +1805,14 @@ export default function App() {
               صورة محفوظة يتم تجاوزها.
             </p>
 
-            {videoMessage && <div className="notice-banner">{videoMessage}</div>}
+            <BusyNotice busy={videoBusy} message={videoMessage} />
 
             <div className="action-bar">
-              <button onClick={handleRenderVideo} disabled={!projectId || !scenes.length || videoBusy}>
+              <button
+                onClick={handleRenderVideo}
+                disabled={!projectId || !scenes.length || videoBusy}
+                title={!projectId ? "احفظ المشروع أولاً" : !scenes.length ? "لا توجد مشاهد بعد" : undefined}
+              >
                 {videoBusy ? "جاري تجميع الفيديو..." : "تجميع فيديو القصة"}
               </button>
               {projectId && (
@@ -1805,15 +1876,27 @@ export default function App() {
               >
                 {loading === "package" ? "جاري التجهيز..." : "تحميل ZIP كامل"}
               </button>
+              {scenes.length > 0 ? (
+                <button className="ghost-button" onClick={handleDownloadJson}>
+                  تحميل scenes.json
+                </button>
+              ) : (
+                <span className="asset-missing">لا توجد مشاهد لتصديرها بعد</span>
+              )}
+              {audioCount > 0 ? (
+                <span className="asset-ready">صوت {audioCount} من {scenes.length} مشهد محفوظ</span>
+              ) : (
+                <span className="asset-missing">لم يتم توليد صوت المشاهد بعد</span>
+              )}
               {projectAudio?.final_story.has_audio && projectAudio.final_story.url ? (
                 <a className="ghost-button" href={`${API_BASE_URL}${projectAudio.final_story.url}`} download>
-                  تحميل صوت القصة
+                  تحميل صوت القصة كاملة
                 </a>
               ) : (
-                <span className="asset-missing">لم يتم توليد صوت القصة بعد</span>
+                <span className="asset-missing">صوت القصة الكاملة يحتاج صوتاً لمشهدين على الأقل</span>
               )}
               {imageCount > 0 ? (
-                <span className="asset-ready">الصور موجودة داخل ZIP ({imageCount})</span>
+                <span className="asset-ready">صور {imageCount} من {scenes.length} مشهد محفوظة (داخل ZIP)</span>
               ) : (
                 <span className="asset-missing">لم يتم توليد الصور بعد</span>
               )}

@@ -37,6 +37,10 @@ outputs/
 *.mp4
 *.png
 *.jpg
+*.zip
+*.safetensors
+*.ckpt
+*.gguf
 
 # Logs
 *.log
