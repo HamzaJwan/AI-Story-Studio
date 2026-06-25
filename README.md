@@ -2,7 +2,7 @@
 
 تطبيق محلي (FastAPI + React/Vite) يحوّل قصة عربية إلى مشروع كامل: مشاهد قابلة للتعديل، صوت، صور، فيديو مركّب، وترجمة — عبر Ollama على الشبكة المحلية وworker اختياريين للصوت والصور على AI Server.
 
-**الحالة الحالية: Studio MVP — Release Candidate 1 (RC1)** — الخط الكامل (قصة → مشاهد → صوت → صور → استمرارية → فيديو → ترجمة → تصدير ZIP) منفّذ ومُتحقَّق منه بمعطيات حقيقية. التفاصيل والقيود في [`docs/CURRENT_STAGE_SUMMARY.md`](docs/CURRENT_STAGE_SUMMARY.md) و[`docs/FEATURE_INVENTORY.md`](docs/FEATURE_INVENTORY.md).
+**الحالة الحالية: AI Story Studio — Production MVP** — الخط الكامل (قصة → مشاهد → صوت → صور → استمرارية → فيديو → ترجمة → تصدير ZIP) منفّذ، مُتحقَّق منه بمعطيات حقيقية، ومرّ بجولة تحسين تجربة استخدام كاملة (حالة كل خطوة، مؤشر "محفوظ/تغييرات غير محفوظة"، رسائل تقدّم واضحة، أسباب تعطيل الأزرار). التفاصيل والقيود في [`docs/CURRENT_STAGE_SUMMARY.md`](docs/CURRENT_STAGE_SUMMARY.md) و[`docs/FEATURE_INVENTORY.md`](docs/FEATURE_INVENTORY.md).
 
 ## ما الذي يفعله التطبيق فعلاً
 

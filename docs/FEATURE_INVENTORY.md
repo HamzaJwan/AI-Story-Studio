@@ -31,6 +31,11 @@ Last updated: 2026-06-25
 | Video assembly | `POST .../video/render`, `GET .../video`, `.../video/download` (Phase 3.0) | Working — ffmpeg MP4, verified frame-by-frame |
 | Subtitle export | `GET .../subtitles.srt`, `.../subtitles.vtt` (Phase 3.0/3.1) | Working — timing matches the rendered video exactly |
 | Studio Workflow step navigation | `frontend/src/App.tsx` (`StudioStep`, `studio-stepper`) | Working — six steps (القصة، المشاهد، الصوت، الصور، الفيديو والترجمة، التصدير) instead of one long scroll; each step shows only its own panel |
+| Per-step completion indicator | `studioSteps[].done` in `App.tsx` | Working — each step shows ✓ once it has data (story text, scenes, audio, images, video) |
+| Unsaved-changes indicator | `isDirty` state in `App.tsx` | Working — project title shows "محفوظ" / "تغييرات غير محفوظة"; resets on load/save/delete |
+| Busy-action spinner | `BusyNotice` component in `App.tsx` | Working — audio/image/video generation banners show a spinner instead of static text while running |
+| Disabled-button explanations | `audioActionDisabledReason()`, `imageActionDisabledReason()` in `App.tsx` | Working — every disabled generate/export button explains why (no project saved, no scenes, service not configured) |
+| Export step asset checklist | Export step `export-grid` in `App.tsx` | Working — lists ZIP, scenes.json, per-scene audio count, final story audio, image count, video, subtitles, each shown as available or explicitly missing |
 
 ## Implemented But Needs UX Polish
 

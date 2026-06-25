@@ -2,13 +2,13 @@
 
 ## Current Stage
 
-**Stage:** Studio MVP — Release Candidate 1 (RC1)
+**Stage:** AI Story Studio — Production MVP
 
-**Status:** ✅ Studio MVP pipeline (story → scenes → audio → images → continuity → video → subtitles → export) is implemented, verified end-to-end with real data, has passed the engineer-side QA/cleanup pass, and the workflow UI is now organized into six clear steps (القصة، المشاهد، الصوت، الصور، الفيديو والترجمة، التصدير) instead of one long page. Hamza's manual hands-on QA pass (`docs/MANUAL_QA_CHECKLIST.md`) is the only remaining step before picking the next roadmap track.
+**Status:** ✅ Studio MVP pipeline (story → scenes → audio → images → continuity → video → subtitles → export) is implemented, verified end-to-end with real data, and has gone through a full hardening pass: real bugs fixed (duration-validation mismatch, empty-title save error, a duplicate-state field bug), the six-step workflow UI (القصة، المشاهد، الصوت، الصور، الفيديو والترجمة، التصدير) now shows per-step completion state and an explicit "محفوظ/تغييرات غير محفوظة" indicator, every disabled action button explains why, busy actions show a spinner instead of static text, and the export step lists every downloadable asset with clear available/missing state. Hamza's manual hands-on QA pass (`docs/MANUAL_QA_CHECKLIST.md`) is the only remaining step.
 
-**Recommendation:** No new engineering for Studio MVP scope. Next: Hamza's manual QA pass, then a product decision on the next track (Phase 2.7 Production Studio Foundations, Phase 3.1 video polish, or Phase 4.x assistant lab).
+**Recommendation:** No new engineering beyond this hardening pass for the current scope. Next: Hamza's manual QA pass, then a product decision on the next track (Phase 2.7 Production Studio Foundations, Phase 3.1 video polish, or Phase 4.x assistant lab).
 
-**Expected RC1 output, set expectations correctly:** a video composited from static scene images + generated narration audio + subtitle timing — hard cuts only, no AI-driven motion (no Veo/Runway/WanGP-style video). Image quality is `CANDIDATE`, not final production quality. See "Known Limitations" below.
+**Expected output, set expectations correctly:** a video composited from static scene images + generated narration audio + subtitle timing — hard cuts only, no AI-driven motion (no Veo/Runway/WanGP-style video). Image quality is `CANDIDATE`, not final production quality. See "Known Limitations" below.
 
 ## What Changed in This Phase
 

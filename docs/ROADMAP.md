@@ -6,6 +6,8 @@ Owner: Hamza
 
 Current recommendation: **Hamza's manual end-to-end review of the Studio MVP** (Milestone G QA pass) — the full story → continuity → audio → images → video → subtitles → export pipeline is implemented and verified with real data on a fresh project; what remains is Hamza's own hands-on test and product sign-off, not new engineering for the MVP scope.
 
+**2026-06-25 update — Production MVP hardening pass complete.** A full manual-QA hardening round fixed two real validation bugs (scene duration min mismatch, empty-title save error), added per-step completion indicators and an unsaved-changes indicator to the workflow UI, added spinners + clearer text to every long-running action, and made the export step list every downloadable asset with explicit available/missing state. No new features, no architecture change. See `docs/DECISION_LOG.md` for the full entry.
+
 ---
 
 ## 1. Current Verified State

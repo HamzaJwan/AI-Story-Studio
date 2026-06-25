@@ -1,10 +1,10 @@
-# Manual QA Checklist — Studio MVP RC1
+# Manual QA Checklist — AI Story Studio Production MVP
 
 Last updated: 2026-06-25
 
 This checklist is for Hamza to manually try the full Studio MVP pipeline in the browser. Every item below was already verified by the executor with real backend requests and real generated files (see `docs/DECISION_LOG.md` for evidence per phase) — this pass is about product feel and judgment calls, not technical correctness.
 
-Open the app at `http://localhost:5173` before starting (or your configured `FRONTEND_PORT`). The page top has a **"Studio Workflow"** step bar (القصة، المشاهد، الصوت، الصور، الفيديو والترجمة، التصدير) — click a step to jump to its panel; each section below corresponds to one step.
+Open the app at `http://localhost:5173` before starting (or your configured `FRONTEND_PORT`). The page top has a **"Studio Workflow"** step bar (القصة، المشاهد، الصوت، الصور، الفيديو والترجمة، التصدير) — click a step to jump to its panel; each section below corresponds to one step. Each step shows a ✓ once it has data (scenes/audio/images/video), and the project title shows **"محفوظ"** or **"تغييرات غير محفوظة"** so you always know whether your last edit was saved.
 
 ## 1. Story → Scenes
 

@@ -1,5 +1,28 @@
 # Decision Log
 
+## 2026-06-25 — AI Story Studio Production MVP: manual-QA hardening + UX polish pass
+
+**Decision:** Treat this as a no-new-features hardening pass on top of RC1 — find and fix real bugs via a manual QA walkthrough, polish workflow clarity, and document everything, without touching architecture, endpoints, or starting a new phase.
+
+**Bugs found and fixed (via a real manual QA walkthrough, not just code review):**
+- `Scene.duration_seconds` requires `ge=3` on the backend, but the duration input allowed `min="1"` with no warning below that — a user entering 1-2s would hit a confusing 422 only on save. Fixed both the input `min` and the scene-warning check to match the backend (`frontend/src/App.tsx`).
+- `ProjectCreateRequest`/`ProjectUpdateRequest` require `title` `min_length=1`, but the UI let `title` be cleared to an empty string before saving. Added a client-side fallback (`"مشروع بدون عنوان"`) so this round-trip error can no longer happen.
+- Verified the `/api/story/improve` and `/api/story/split-scenes` endpoints against a short test story (never printed the Arabic output to the terminal/transcript, per the operating instructions for this session — only structural checks: HTTP status, key presence, text length, scene count, error count).
+
+**UX polish (no logic changes beyond the above):**
+- Each of the six `studioSteps` now carries a `done` flag (story text present / scenes.length>0 / audioCount>0 / imageCount>0 / hasVideo) rendered as a ✓ in the stepper instead of a plain number.
+- Added a lightweight `isDirty` flag (ref-guarded `useEffect` watching the editable project fields, reset on load/save/delete) surfaced as "محفوظ" / "تغييرات غير محفوظة" next to the project title in the sticky header.
+- Style preset `<select>` now shows Arabic labels (`STYLE_PRESET_LABELS`) instead of raw backend keys like `cinematic_realistic` — frontend-only mapping, the backend API contract is unchanged.
+- Every disabled generate/render button now has a `title` explaining the actual reason (no project saved / no scenes / service not configured), via small `audioActionDisabledReason()`/`imageActionDisabledReason()` helpers, replacing tooltips that only covered the "service not configured" case.
+- Added a small `BusyNotice` component (spinner + text) used by the audio/image/video status banners instead of static text, so a long-running synchronous request doesn't look frozen. No fake ETA or percentage is shown — the backend genuinely doesn't expose incremental progress for these synchronous endpoints, which stays documented as a known limitation rather than faked.
+- Export step now also lists `scenes.json` and a per-scene audio count (previously only final-story audio, image count, video, and subtitles were shown there).
+
+**Verification:** rebuilt and recreated the frontend container three times (the Dockerfile has no source volume mount — `COPY . /app` then `npm install` in one image, so every source edit requires a full rebuild, each taking several minutes with no layer cache benefit since `COPY` always invalidates the `npm install` layer). Verified via `docker compose exec frontend grep` that the final running container's source matches the host before running `npm run build`. Full validation suite (`check_utf8`, `compileall`, `docker compose config`, frontend build, smoke test) passed on the rebuilt image.
+
+**Impact:** `fix: harden studio MVP manual QA flow` (commit `04f5485`) bundles Milestones 1-4 of the Production MVP plan into one commit, since all the changes landed in the same two frontend files (`App.tsx`, `styles.css`) and splitting them into separate commits would have required interactive `git add -p` staging, which is disallowed. No backend code, API contract, or architecture changed.
+
+---
+
 ## 2026-06-25 — Studio MVP Release Candidate 1 (RC1): UI bugfix + docs/Quick Start finalization
 
 **Decision:** Treat this session as release-candidate hardening only — no new features, no new phase. Reviewed the `refactor: organize studio workflow UI` commit (`8347e91`, six-step `StudioStep` navigation: القصة، المشاهد، الصوت، الصور، الفيديو والترجمة، التصدير), fixed one real bug it introduced, and finalized docs/README for manual QA handoff.
