@@ -47,6 +47,14 @@ class Scene(BaseModel):
     audio_generated_at: datetime | None = None
     audio_bytes: int | None = None
     audio_format: str | None = None
+    image_generated_at: datetime | None = None
+    image_bytes: int | None = None
+    image_format: str | None = None
+    image_width: int | None = None
+    image_height: int | None = None
+    image_engine: str | None = None
+    image_seed: int | None = None
+    image_prompt_used: str | None = None
 
 
 class SplitScenesData(BaseModel):

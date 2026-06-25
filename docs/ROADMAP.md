@@ -56,6 +56,7 @@ Phase 2.0 proves image generation can run on the AI Server. It does **not** yet 
 | 1.5 | Audio UX Polish | PASS | Voice/language selectors, per-scene + full-story browser playback, backend-proxied |
 | 2.0 | Image Benchmark Lab | TECHNICAL PASS | ComfyUI + SDXL PNG generated; quality `CANDIDATE`, MVP proceeding |
 | 2.1 | Image Worker Bridge | PASS | Backend-proxied job bridge to ComfyUI; real images verified for real scenes |
+| 2.2 | Story Scene Images MVP | PASS | Persisted generate/regenerate/generate-all, images in export.zip; real style-drift gap found |
 
 ---
 

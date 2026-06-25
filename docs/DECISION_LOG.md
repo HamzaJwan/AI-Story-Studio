@@ -1,5 +1,27 @@
 # Decision Log
 
+## 2026-06-25 — Phase 2.2: Story Scene Images MVP (persisted, exported, and a real continuity gap found)
+
+**Decision:** Add persisted per-scene image generation (generate/regenerate/generate-all), include images in `export.zip`, and surface per-scene image status in the UI — mirroring the audio Phase 1.4 pattern exactly.
+
+**What changed:**
+- `Scene` gained image metadata fields; `storage.py` gained `project_images_dir()`/`save_scene_image()`/`get_scenes_with_images()`/`get_scene_image_path()` (same shape and same path-traversal defense as the audio equivalents).
+- `POST /api/projects/{id}/images/scenes/{scene_id}/generate` is synchronous and doubles as "regenerate" (no separate endpoint — calling it again just overwrites). `POST .../images/generate-all` runs scenes **sequentially, not in parallel**, deliberately, because the AI Server's VRAM margin is tight (~812 MiB free at peak per the Phase 2.0 benchmark).
+- `build_export_zip()` now includes `images/scene_{id}.png` alongside the existing `audio/` files, without changing the ZIP shape for projects with neither.
+
+**Real finding (not hypothetical):** generating scene 03 alone produced a visibly different art style (illustrative/engraving) from scenes 01/02 (realistic/cinematic) on the very first multi-scene test, because no shared style is enforced across scenes — each scene's raw `image_prompt_en` goes straight to the model. This is precisely the Tier-1 "prompt-only, weak continuity" problem `docs/IMAGE_CONTINUITY_STRATEGY.md` already predicted. Documented here as evidence, not assumed.
+
+**Evidence:**
+- Single persisted scene generation → real PNG, metadata persisted, streamed back and confirmed valid.
+- `generate-all` on a real 6-scene project → `6/6`, `0` failed.
+- `export.zip` → 17 files (6 audio + `final_story.wav` + 6 images + originals), correct `image_scene_count` in `metadata.json`.
+- Persistence survives a backend container restart.
+- Path traversal → `404`; zero-scene project edge cases → still `200`. Full regression suite passes; audio unaffected.
+
+**Impact:** Phase 2.2 is `PASS`. The style-drift finding makes Milestone D (Continuity Foundation) the clear next step — not a "nice to have," a fix for something that already broke on the first real test.
+
+---
+
 ## 2026-06-25 — Phase 2.1: Image Worker Bridge (real generated images via backend proxy)
 
 **Decision:** Connect the backend to the AI Server's ComfyUI service for real, now that Phase 2.0's benchmark passed technically and the image quality checklist records a `CANDIDATE` verdict good enough to proceed with for MVP purposes (Hamza's explicit instruction for this round).

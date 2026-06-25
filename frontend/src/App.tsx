@@ -135,7 +135,23 @@ type ImageJobData = {
   files?: ImageJobFile[];
 };
 
-type ImageBusyAction = "health" | "scene" | "refresh" | null;
+type SceneImageInfo = {
+  scene_id: string;
+  has_image: boolean;
+  image_format: string | null;
+  image_bytes: number | null;
+  image_width: number | null;
+  image_height: number | null;
+  image_generated_at: string | null;
+  url: string | null;
+};
+
+type ProjectImagesData = {
+  project_id: string;
+  scenes: SceneImageInfo[];
+};
+
+type ImageBusyAction = "health" | "scene" | "refresh" | "all" | null;
 
 type LoadingAction =
   | "test"
@@ -235,6 +251,8 @@ export default function App() {
   const [imageMessage, setImageMessage] = useState("");
   const [imageJob, setImageJob] = useState<ImageJobData | null>(null);
   const [imageBusy, setImageBusy] = useState<ImageBusyAction>(null);
+  const [projectImages, setProjectImages] = useState<ProjectImagesData | null>(null);
+  const [generatingSceneId, setGeneratingSceneId] = useState<string | null>(null);
 
   const canRun = storyText.trim().length > 0 && loading === null;
 
@@ -288,6 +306,15 @@ export default function App() {
     }
   }
 
+  async function refreshProjectImages(id: string) {
+    try {
+      const r = await getJson<ProjectImagesData>(`/api/projects/${id}/images`);
+      setProjectImages(r.data);
+    } catch {
+      setProjectImages(null);
+    }
+  }
+
   async function refreshProjects() {
     try {
       const r = await getJson<ProjectListData>("/api/projects");
@@ -314,7 +341,9 @@ export default function App() {
     setTtsJob(null);
     setImageJob(null);
     setImageMessage("");
+    setProjectImages(null);
     void refreshProjectAudio(project.project_id);
+    void refreshProjectImages(project.project_id);
   }
 
   // ── Project CRUD ─────────────────────────────────────────────────────────────
@@ -389,6 +418,7 @@ export default function App() {
       setTtsJob(null);
       setImageJob(null);
       setImageMessage("");
+      setProjectImages(null);
       await refreshProjects();
       showNotice("تم حذف المشروع.");
     } catch (exc) {
@@ -805,6 +835,58 @@ export default function App() {
     if (imageHealth.remote_ok === false) return "خدمة الصور غير متصلة";
     if (imageHealth.remote_ok === true) return "خدمة الصور متصلة";
     return "خدمة الصور مفعّلة (بانتظار فحص الاتصال)";
+  }
+
+  async function handleGenerateOrRegenerateImage(sceneId: string) {
+    if (!projectId) {
+      setImageMessage("احفظ المشروع أولاً قبل توليد الصور.");
+      return;
+    }
+    setGeneratingSceneId(sceneId);
+    setImageMessage(`جاري توليد صورة المشهد ${sceneId}...`);
+    try {
+      const r = await postJson<{ scene_id: string; status: string }>(
+        `/api/projects/${projectId}/images/scenes/${sceneId}/generate`,
+      );
+      if (r.errors.length) setImageMessage(r.errors.join(" "));
+      else setImageMessage(`تم توليد صورة المشهد ${sceneId}.`);
+      await refreshProjectImages(projectId);
+    } catch (exc) {
+      setImageMessage(exc instanceof Error ? exc.message : "تعذر توليد صورة المشهد.");
+    } finally {
+      setGeneratingSceneId(null);
+    }
+  }
+
+  async function handleGenerateAllImages() {
+    if (!projectId) {
+      setImageMessage("احفظ المشروع أولاً قبل توليد الصور.");
+      return;
+    }
+    if (!scenes.length) {
+      setImageMessage("لا توجد مشاهد لتوليد صور لها.");
+      return;
+    }
+    setImageBusy("all");
+    setImageMessage("جاري توليد صور كل المشاهد، قد يستغرق دقائق...");
+    try {
+      const r = await postJson<{ generated: string[]; failed: { scene_id: string; error: string }[]; total_scenes: number }>(
+        `/api/projects/${projectId}/images/generate-all`,
+      );
+      if (r.errors.length) {
+        setImageMessage(r.errors.join(" "));
+      } else {
+        const { generated, failed, total_scenes } = r.data;
+        let msg = `تم توليد صور ${generated.length} من ${total_scenes} مشهد.`;
+        if (failed.length) msg += ` فشل: ${failed.map((f) => f.scene_id).join(", ")}.`;
+        setImageMessage(msg);
+        await refreshProjectImages(projectId);
+      }
+    } catch (exc) {
+      setImageMessage(exc instanceof Error ? exc.message : "تعذر توليد صور المشروع.");
+    } finally {
+      setImageBusy(null);
+    }
   }
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -1308,7 +1390,14 @@ export default function App() {
                 disabled={!projectId || !scenes.length || !imageHealth?.configured || imageBusy !== null}
                 title={!imageHealth?.configured ? "خدمة الصور غير مفعّلة" : undefined}
               >
-                {imageBusy === "scene" ? "جاري توليد صورة المشهد..." : "توليد صورة للمشهد الأول"}
+                {imageBusy === "scene" ? "جاري توليد صورة المشهد..." : "توليد صورة للمشهد الأول (معاينة)"}
+              </button>
+              <button
+                onClick={handleGenerateAllImages}
+                disabled={!projectId || !scenes.length || !imageHealth?.configured || imageBusy !== null}
+                title={!imageHealth?.configured ? "خدمة الصور غير مفعّلة" : undefined}
+              >
+                {imageBusy === "all" ? "جاري توليد صور المشروع..." : "توليد صور كل المشاهد"}
               </button>
             </div>
 
@@ -1341,6 +1430,46 @@ export default function App() {
                     </a>
                   </span>
                 )}
+              </div>
+            )}
+
+            {projectImages && projectImages.scenes.length > 0 && (
+              <div className="saved-audio-list">
+                <h3>صور المشاهد المحفوظة</h3>
+                {projectImages.scenes.map((s) => {
+                  const isGenerating = generatingSceneId === s.scene_id;
+                  return (
+                    <div key={s.scene_id} className="tts-job-card">
+                      <span>مشهد {s.scene_id}</span>
+                      {s.has_image && s.url ? (
+                        <>
+                          <img
+                            src={`${API_BASE_URL}${s.url}`}
+                            alt={`صورة المشهد ${s.scene_id}`}
+                            className="scene-image-preview"
+                          />
+                          <a className="ghost-button" href={`${API_BASE_URL}${s.url}`} download>
+                            تحميل صورة المشهد
+                          </a>
+                          {s.image_bytes != null && (
+                            <small>
+                              {s.image_width}×{s.image_height}، {Math.round(s.image_bytes / 1024)} KB
+                            </small>
+                          )}
+                        </>
+                      ) : (
+                        <small className="muted-text">لا توجد صورة محفوظة لهذا المشهد بعد</small>
+                      )}
+                      <button
+                        className="ghost-button"
+                        onClick={() => handleGenerateOrRegenerateImage(s.scene_id)}
+                        disabled={!imageHealth?.configured || generatingSceneId !== null || imageBusy !== null}
+                      >
+                        {isGenerating ? "جاري التوليد..." : s.has_image ? "إعادة توليد الصورة" : "توليد صورة لهذا المشهد"}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </section>

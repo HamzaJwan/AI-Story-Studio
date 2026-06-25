@@ -177,6 +177,65 @@ class ProjectStorage:
             return None
         return candidate if candidate.exists() else None
 
+    def project_images_dir(self, project_id: str) -> Path:
+        safe_id = self._project_path(project_id).stem
+        path = self.root / safe_id / "images"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def save_scene_image(
+        self,
+        project_id: str,
+        scene_id: str,
+        image_bytes: bytes,
+        fmt: str,
+        width: int,
+        height: int,
+        engine: str,
+        seed: int,
+        prompt_used: str,
+    ) -> ProjectResponse:
+        project = self.get_project(project_id)
+        scene = next((s for s in project.scenes if s.scene_id == scene_id), None)
+        if scene is None:
+            raise FileNotFoundError("Scene not found in project.")
+
+        images_dir = self.project_images_dir(project_id)
+        image_path = images_dir / f"scene_{scene_id}.{fmt}"
+        image_path.write_bytes(image_bytes)
+
+        scene.image_generated_at = datetime.now(timezone.utc)
+        scene.image_bytes = len(image_bytes)
+        scene.image_format = fmt
+        scene.image_width = width
+        scene.image_height = height
+        scene.image_engine = engine
+        scene.image_seed = seed
+        scene.image_prompt_used = prompt_used
+        project.updated_at = datetime.now(timezone.utc)
+        self._write_project(project)
+        return project
+
+    def get_scenes_with_images(self, project: ProjectResponse) -> list[Scene]:
+        images_dir = self.project_images_dir(project.project_id)
+        return [
+            scene
+            for scene in project.scenes
+            if scene.image_format
+            and (images_dir / f"scene_{scene.scene_id}.{scene.image_format}").exists()
+        ]
+
+    def get_scene_image_path(self, project_id: str, scene_id: str) -> Path | None:
+        project = self.get_project(project_id)
+        scene = next((s for s in project.scenes if s.scene_id == scene_id), None)
+        if scene is None or not scene.image_format:
+            return None
+        images_dir = self.project_images_dir(project_id)
+        candidate = (images_dir / f"scene_{scene.scene_id}.{scene.image_format}").resolve()
+        if images_dir.resolve() not in candidate.parents:
+            return None
+        return candidate if candidate.exists() else None
+
     def build_final_story_wav(self, project_id: str) -> bytes | None:
         project = self.get_project(project_id)
         audio_dir = self.project_audio_dir(project_id)
@@ -203,6 +262,8 @@ class ProjectStorage:
         total_duration = sum(scene.duration_seconds for scene in project.scenes)
         audio_dir = self.project_audio_dir(project_id)
         scenes_with_audio = self.get_scenes_with_audio(project)
+        images_dir = self.project_images_dir(project_id)
+        scenes_with_images = self.get_scenes_with_images(project)
         metadata = {
             "project_id": project.project_id,
             "title": project.title,
@@ -212,13 +273,21 @@ class ProjectStorage:
             "total_duration_seconds": total_duration,
             "exported_at": datetime.now(timezone.utc).isoformat(),
             "app": "AI Story Studio",
-            "phase": "1.4",
+            "phase": "2.2",
             "audio_scene_count": len(scenes_with_audio),
             "audio_limitations": [
                 "final_story.wav is a raw WAV concatenation of available scene audio in scene order "
                 "(no ffmpeg/MP3 in the backend image); convert externally if MP3 is needed.",
             ]
             if scenes_with_audio
+            else [],
+            "image_scene_count": len(scenes_with_images),
+            "image_limitations": [
+                "Image quality is CANDIDATE, not final-approved (see "
+                "docs/IMAGE_QUALITY_APPROVAL_CHECKLIST.md). No cross-scene continuity beyond "
+                "prompt text -- character/location consistency is not guaranteed.",
+            ]
+            if scenes_with_images
             else [],
         }
 
@@ -246,6 +315,9 @@ class ProjectStorage:
                 final_wav = _concatenate_wavs(wav_paths)
                 if final_wav is not None:
                     archive.writestr("audio/final_story.wav", final_wav)
+            for scene in scenes_with_images:
+                image_path = images_dir / f"scene_{scene.scene_id}.{scene.image_format}"
+                archive.writestr(f"images/scene_{scene.scene_id}.{scene.image_format}", image_path.read_bytes())
         return buffer.getvalue()
 
     def _new_project_id(self) -> str:

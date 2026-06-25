@@ -518,3 +518,29 @@ Streams the generated PNG through the backend (`image/png`). Returns `404` if th
 ### Engine note
 
 Uses the exact engine/settings recorded as `CANDIDATE` in `docs/IMAGE_QUALITY_APPROVAL_CHECKLIST.md` — technically proven, not yet a final product-quality approval.
+
+---
+
+## Phase 2.2 Story Scene Images MVP
+
+Persisted per-scene image generation, building on the Phase 2.1 bridge.
+
+### POST /api/projects/{project_id}/images/scenes/{scene_id}/generate
+
+Synchronous (blocks until done, ~2 minute budget matching the audio `generate-all` pattern). Generates from `scene.image_prompt_en`, downloads the PNG, and saves it to `data/projects/{project_id}/images/scene_{scene_id}.png` with metadata (`image_generated_at`, `image_bytes`, `image_format`, `image_width`, `image_height`, `image_engine`, `image_seed`, `image_prompt_used`) persisted on the scene. Calling it again on a scene that already has an image regenerates and overwrites it (no separate "regenerate" endpoint needed).
+
+### POST /api/projects/{project_id}/images/generate-all
+
+Sequential per-scene generation (same pattern as audio's `generate-all` — **deliberately not parallel**, since the AI Server's VRAM margin is tight). Continues past a single scene's failure; returns `{"generated": [...], "failed": [...], "total_scenes": N}`.
+
+### GET /api/projects/{project_id}/images
+
+Per-scene image metadata, backend-relative `url` only (never a filesystem path or `IMAGE_SERVICE_URL`).
+
+### GET /api/projects/{project_id}/images/{scene_id}
+
+Streams the saved PNG (`image/png`). Path resolved against the project's real scene list and verified inside the project's images directory before reading (same traversal defense as the audio endpoints). Returns `404` for an unknown scene or missing file.
+
+### export.zip changes
+
+Now also includes `images/scene_{scene_id}.png` for every scene that has one, and `metadata.json` gained `image_scene_count` and `image_limitations` (parallel to the existing `audio_*` fields). Does not change the ZIP shape for projects with no images.
