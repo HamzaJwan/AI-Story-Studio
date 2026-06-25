@@ -103,3 +103,11 @@ class TtsJobRequest(BaseModel):
     voice_id: str | None = None
     speed: float | None = None
     format: Literal["wav", "mp3"] = "wav"
+
+
+class ImageJobRequest(BaseModel):
+    scene_id: str | None = None
+    prompt: str | None = None
+    width: int | None = Field(default=None, ge=256, le=1024)
+    height: int | None = Field(default=None, ge=256, le=1024)
+    seed: int | None = None

@@ -54,7 +54,8 @@ Phase 2.0 proves image generation can run on the AI Server. It does **not** yet 
 | 1.3 | Connect App to TTS Worker | PASS | Real scene audio through backend proxy |
 | 1.4 | Project Audio Export | PASS | Per-scene WAV and `final_story.wav` in ZIP |
 | 1.5 | Audio UX Polish | PASS | Voice/language selectors, per-scene + full-story browser playback, backend-proxied |
-| 2.0 | Image Benchmark Lab | TECHNICAL PASS | ComfyUI + SDXL PNG generated; quality sign-off pending |
+| 2.0 | Image Benchmark Lab | TECHNICAL PASS | ComfyUI + SDXL PNG generated; quality `CANDIDATE`, MVP proceeding |
+| 2.1 | Image Worker Bridge | PASS | Backend-proxied job bridge to ComfyUI; real images verified for real scenes |
 
 ---
 

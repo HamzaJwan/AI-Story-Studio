@@ -1,6 +1,6 @@
-# ComfyUI Lab (Phase 2.0 — Image Benchmark)
+# ComfyUI Lab (Phase 2.0 benchmark → Phase 2.1 image worker)
 
-Isolated AI Server lab, same pattern as `silma-lab`/`tts-worker`. **Benchmark only — no image generation inside the main app, no Image Worker API yet** (that is Phase 2.1, only after this passes the Benchmark Gate in `docs/BENCHMARK_PROTOCOL.md`).
+Isolated AI Server service, same pattern as `silma-lab`/`tts-worker`. Phase 2.0's benchmark passed (`docs/IMAGE_QUALITY_APPROVAL_CHECKLIST.md`), so as of Phase 2.1 this runs as a **persistent service** (`restart: unless-stopped`) that the main backend's `backend/app/ai_providers/image_worker.py` talks to directly over ComfyUI's own native API (`/prompt`, `/history`, `/view`) — no separate custom wrapper was needed (unlike SILMA/Piper, ComfyUI already exposes a usable job API). The frontend never talks to this service directly; only the main backend does.
 
 ## Engine choice and why
 

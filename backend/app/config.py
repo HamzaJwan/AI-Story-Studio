@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     tts_enabled: bool = False
     tts_service_url: str = ""
     tts_timeout_seconds: int = 30
+    image_service_enabled: bool = False
+    image_service_url: str = ""
+    image_timeout_seconds: int = 120
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -38,6 +41,16 @@ class Settings(BaseSettings):
     def tts_configured(self) -> bool:
         value = self.tts_service_url.strip()
         return self.tts_enabled and bool(value) and "AI_SERVER_LAN_IP" not in value and "YOUR_" not in value
+
+    @property
+    def image_configured(self) -> bool:
+        value = self.image_service_url.strip()
+        return (
+            self.image_service_enabled
+            and bool(value)
+            and "AI_SERVER_LAN_IP" not in value
+            and "YOUR_" not in value
+        )
 
 
 @lru_cache

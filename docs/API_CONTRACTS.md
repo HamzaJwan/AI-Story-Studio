@@ -471,3 +471,50 @@ GET  /api/tts/jobs/{job_id}/download/{format}
 Note: this worker's job body takes raw `text` directly — it has no concept of `project_id`/`scene_id`. The backend (`backend/app/routers/tts.py`, Phase 1.3) derives `text` from the project/scene before calling it.
 
 This app's backend only proxies to these endpoints via `TTS_SERVICE_URL`. The worker itself is out of scope for Phase 1.1.
+
+---
+
+## Phase 2.1 Image Worker Bridge
+
+Connects the backend to the AI Server's ComfyUI service (`deploy/ai-server/comfyui-lab/`), now running as a persistent service (Phase 2.0's benchmark passed). The frontend never talks to `IMAGE_SERVICE_URL` directly — only the main backend does, exactly mirroring the TTS bridge's security boundary.
+
+### GET /api/images/health
+
+Always returns `200`. Same shape as `GET /api/tts/health`.
+
+```json
+{
+  "data": { "enabled": true, "configured": true, "service_url_configured": true, "remote_ok": true, "latency_ms": 13 },
+  "meta": { "provider": "image-worker" },
+  "errors": []
+}
+```
+
+### POST /api/projects/{project_id}/images/jobs
+
+Creates an image generation job for one scene (derives the prompt from `scene.image_prompt_en`, already produced by Phase 0.1's scene splitting) or a raw `prompt` override.
+
+Request:
+
+```json
+{ "scene_id": "01", "prompt": null, "width": null, "height": null, "seed": null }
+```
+
+- `scene_id`: optional; if given, must exist in the project.
+- `prompt`: optional explicit override; if omitted, derived from `scene.image_prompt_en`.
+- At least one of `scene_id`/`prompt` must resolve to non-empty text, or `422`.
+- `width`/`height`: default `768×768` (matches the AI Server's tight real VRAM headroom — see `docs/HARDWARE_PROFILE.md`); range `256–1024`.
+- Returns `503` if not configured, `404` if `project_id`/`scene_id` doesn't exist, `502` if the worker rejects the workflow or is unreachable.
+- Submits a ComfyUI workflow (SDXL base, 20 steps, euler, cfg 7.0) directly to the worker's native `/prompt` API — no custom wrapper needed, unlike SILMA/Piper.
+
+### GET /api/images/jobs/{job_id}
+
+Polls job status by querying the worker's `/history/{job_id}`. Maps ComfyUI's response to the same `queued`/`running`/`done`/`failed` shape used by the TTS bridge.
+
+### GET /api/images/jobs/{job_id}/download
+
+Streams the generated PNG through the backend (`image/png`). Returns `404` if the job isn't done yet or has no output.
+
+### Engine note
+
+Uses the exact engine/settings recorded as `CANDIDATE` in `docs/IMAGE_QUALITY_APPROVAL_CHECKLIST.md` — technically proven, not yet a final product-quality approval.

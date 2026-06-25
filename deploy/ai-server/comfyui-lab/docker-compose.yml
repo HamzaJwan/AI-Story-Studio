@@ -9,4 +9,4 @@ services:
     volumes:
       - ./data/checkpoints:/workspace/ComfyUI/models/checkpoints
       - ./data/output:/workspace/ComfyUI/output
-    restart: "no"
+    restart: unless-stopped

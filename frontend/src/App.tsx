@@ -118,6 +118,25 @@ const FALLBACK_TTS_VOICES: TtsVoicesData = {
 
 type TtsBusyAction = "health" | "scene" | "project" | "refresh" | null;
 
+type ImageHealthData = {
+  enabled: boolean;
+  configured: boolean;
+  service_url_configured: boolean;
+  remote_ok: boolean | null;
+  latency_ms?: number;
+};
+
+type ImageJobFile = { filename: string; subfolder: string; type: string };
+
+type ImageJobData = {
+  job_id?: string;
+  status?: string;
+  error?: string | null;
+  files?: ImageJobFile[];
+};
+
+type ImageBusyAction = "health" | "scene" | "refresh" | null;
+
 type LoadingAction =
   | "test"
   | "improve"
@@ -212,6 +231,11 @@ export default function App() {
   );
   const [projectAudio, setProjectAudio] = useState<ProjectAudioData | null>(null);
 
+  const [imageHealth, setImageHealth] = useState<ImageHealthData | null>(null);
+  const [imageMessage, setImageMessage] = useState("");
+  const [imageJob, setImageJob] = useState<ImageJobData | null>(null);
+  const [imageBusy, setImageBusy] = useState<ImageBusyAction>(null);
+
   const canRun = storyText.trim().length > 0 && loading === null;
 
   const sceneStats = useMemo(() => {
@@ -240,6 +264,7 @@ export default function App() {
     refreshProjects();
     checkTtsHealth();
     fetchTtsVoices();
+    checkImageHealth();
   }, []);
 
   async function fetchTtsVoices() {
@@ -287,6 +312,8 @@ export default function App() {
     setRawJsonOpen(Boolean(project.scenes?.length));
     setProjectAudio(null);
     setTtsJob(null);
+    setImageJob(null);
+    setImageMessage("");
     void refreshProjectAudio(project.project_id);
   }
 
@@ -360,6 +387,8 @@ export default function App() {
       setRawJsonOpen(false);
       setProjectAudio(null);
       setTtsJob(null);
+      setImageJob(null);
+      setImageMessage("");
       await refreshProjects();
       showNotice("تم حذف المشروع.");
     } catch (exc) {
@@ -700,6 +729,84 @@ export default function App() {
     }
   }
 
+  // ── Image Bridge (Phase 2.1 — جسر اتصال بمحرك صور حقيقي على AI Server) ─────────
+
+  async function checkImageHealth() {
+    setImageBusy("health");
+    setImageMessage("");
+    try {
+      const r = await getJson<ImageHealthData>("/api/images/health");
+      setImageHealth(r.data);
+      if (r.errors.length) setImageMessage(r.errors.join(" "));
+    } catch {
+      setImageHealth(null);
+      setImageMessage("تعذر فحص خدمة الصور.");
+    } finally {
+      setImageBusy(null);
+    }
+  }
+
+  async function handleGenerateSceneImage() {
+    if (!projectId) {
+      setImageMessage("احفظ المشروع أولاً قبل توليد الصور.");
+      return;
+    }
+    if (!scenes.length) {
+      setImageMessage("لا توجد مشاهد لتوليد صورة لها.");
+      return;
+    }
+    setImageBusy("scene");
+    setImageMessage("جاري توليد صورة المشهد...");
+    setImageJob(null);
+    try {
+      const r = await postJson<ImageJobData>(`/api/projects/${projectId}/images/jobs`, {
+        scene_id: scenes[0].scene_id,
+      });
+      setImageJob(r.data);
+      if (r.errors.length) setImageMessage(r.errors.join(" "));
+      else setImageMessage("تم إرسال طلب توليد الصورة.");
+    } catch (exc) {
+      setImageMessage(exc instanceof Error ? exc.message : "تعذر إرسال طلب توليد الصورة.");
+    } finally {
+      setImageBusy(null);
+    }
+  }
+
+  async function handleRefreshImageJob() {
+    if (!imageJob?.job_id) return;
+    setImageBusy("refresh");
+    setImageMessage("");
+    try {
+      const r = await getJson<ImageJobData>(`/api/images/jobs/${imageJob.job_id}`);
+      setImageJob(r.data);
+      if (r.errors.length) setImageMessage(r.errors.join(" "));
+      else if (r.data.status === "done") setImageMessage("تم توليد صورة المشهد.");
+      else if (r.data.status === "failed") setImageMessage("فشل توليد صورة المشهد.");
+    } catch (exc) {
+      setImageMessage(exc instanceof Error ? exc.message : "تعذر تحديث حالة المهمة.");
+    } finally {
+      setImageBusy(null);
+    }
+  }
+
+  function imageStatusClass(): string {
+    if (imageBusy === "health") return "checking";
+    if (imageHealth === null) return "disabled";
+    if (!imageHealth.configured) return "disabled";
+    if (imageHealth.remote_ok === false) return "error";
+    if (imageHealth.remote_ok === true) return "ready";
+    return "disabled";
+  }
+
+  function imageStatusLabel(): string {
+    if (imageBusy === "health") return "جاري الفحص...";
+    if (imageHealth === null) return "لم يتم الفحص بعد";
+    if (!imageHealth.configured) return "خدمة الصور غير مفعّلة";
+    if (imageHealth.remote_ok === false) return "خدمة الصور غير متصلة";
+    if (imageHealth.remote_ok === true) return "خدمة الصور متصلة";
+    return "خدمة الصور مفعّلة (بانتظار فحص الاتصال)";
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
@@ -707,7 +814,7 @@ export default function App() {
       {/* Hero */}
       <section className="hero-section">
         <div className="hero-copy">
-          <span className="phase-pill">Phase 1.5 — استوديو الصوت</span>
+          <span className="phase-pill">Phase 2.1 — استوديو الصوت والصور</span>
           <h1>AI Story Studio</h1>
           <p>حوّل قصتك إلى مشروع محفوظ، سكريبت راوي، مشاهد قابلة للتعديل، وصوت حقيقي تستمع إليه مباشرة.</p>
         </div>
@@ -1167,6 +1274,73 @@ export default function App() {
                 >
                   تحميل صوت القصة كاملة
                 </a>
+              </div>
+            )}
+          </section>
+
+          <section className="audio-panel">
+            <div className="panel-header">
+              <div>
+                <span className="eyebrow">Image Bridge</span>
+                <h2>
+                  استوديو الصور <span className="badge-experimental">تجريبي</span>
+                </h2>
+              </div>
+              <span className={`tts-status-chip tts-status--${imageStatusClass()}`}>
+                {imageStatusLabel()}
+              </span>
+            </div>
+
+            <p className="muted-text">
+              توليد الصور يتم عبر محرك صور (ComfyUI + SDXL) على AI Server من خلال backend فقط —
+              المتصفح لا يتصل بأي خدمة على AI Server مباشرة. الجودة تجريبية وقابلة لإعادة التوليد،
+              ولم تُعتمد بعد كجودة نهائية للمنتج (راجع docs/IMAGE_QUALITY_APPROVAL_CHECKLIST.md).
+            </p>
+
+            {imageMessage && <div className="notice-banner">{imageMessage}</div>}
+
+            <div className="action-bar">
+              <button onClick={checkImageHealth} disabled={imageBusy !== null}>
+                {imageBusy === "health" ? "جاري الفحص..." : "فحص خدمة الصور"}
+              </button>
+              <button
+                onClick={handleGenerateSceneImage}
+                disabled={!projectId || !scenes.length || !imageHealth?.configured || imageBusy !== null}
+                title={!imageHealth?.configured ? "خدمة الصور غير مفعّلة" : undefined}
+              >
+                {imageBusy === "scene" ? "جاري توليد صورة المشهد..." : "توليد صورة للمشهد الأول"}
+              </button>
+            </div>
+
+            {imageJob && (
+              <div className="tts-job-card">
+                {imageJob.job_id && (
+                  <span>
+                    Job ID: <code dir="ltr">{imageJob.job_id}</code>
+                  </span>
+                )}
+                {imageJob.status && <span>الحالة: {ttsStatusText(imageJob.status)}</span>}
+                {imageJob.job_id && (
+                  <button className="ghost-button" onClick={handleRefreshImageJob} disabled={imageBusy !== null}>
+                    {imageBusy === "refresh" ? "جاري التحديث..." : "تحديث الحالة"}
+                  </button>
+                )}
+                {imageJob.status === "done" && imageJob.job_id && (
+                  <span className="tts-audio-result">
+                    <img
+                      src={`${API_BASE_URL}/api/images/jobs/${imageJob.job_id}/download`}
+                      alt="صورة المشهد المولّدة"
+                      className="scene-image-preview"
+                    />
+                    <a
+                      className="ghost-button"
+                      href={`${API_BASE_URL}/api/images/jobs/${imageJob.job_id}/download`}
+                      download
+                    >
+                      تحميل صورة المشهد
+                    </a>
+                  </span>
+                )}
               </div>
             )}
           </section>

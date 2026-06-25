@@ -1,5 +1,24 @@
 # Decision Log
 
+## 2026-06-25 — Phase 2.1: Image Worker Bridge (real generated images via backend proxy)
+
+**Decision:** Connect the backend to the AI Server's ComfyUI service for real, now that Phase 2.0's benchmark passed technically and the image quality checklist records a `CANDIDATE` verdict good enough to proceed with for MVP purposes (Hamza's explicit instruction for this round).
+
+**What changed:**
+- `deploy/ai-server/comfyui-lab/docker-compose.yml`: `restart: "no"` → `unless-stopped` — it's now a real persistent service, not a one-shot benchmark.
+- `backend/app/ai_providers/image_worker.py`: talks directly to ComfyUI's own `/prompt`, `/history`, `/view` API. No custom job-tracking wrapper was needed (unlike SILMA/Piper) since ComfyUI already exposes one.
+- New endpoints (`/api/images/health`, `/api/projects/{id}/images/jobs`, `/api/images/jobs/{job_id}`, `.../download`) mirror the TTS bridge's shape and security boundary exactly: backend-proxied only, no direct browser-to-AI-Server traffic.
+- Frontend: minimal Image Studio panel (health, generate-first-scene, job status, preview, download) — no persistence yet, matching how the TTS bridge started job-only before Phase 1.4 added storage.
+
+**Evidence:**
+- Two different real scenes generated via two separate jobs, both downloaded through the backend proxy and **visually inspected** (not just statistics) — coherent images matching their respective `image_prompt_en` text.
+- Grepped every response for the AI Server's address/port and internal paths — clean.
+- Full regression suite passes; existing TTS/audio/export endpoints unaffected.
+
+**Impact:** Phase 2.1 is `PASS`. Proceeding to Milestone C (Story Scene Images MVP — persistence, generate-all, export.zip inclusion) per the Studio MVP Autopilot round, since no stop condition was hit.
+
+---
+
 ## 2026-06-25 — Phase 1.5: Audio UX Polish (real playback, no more ZIP digging)
 
 **Decision:** Convert the already-working audio backend (Phase 1.1–1.4) into an actual usable product feature — voice/language selectors, per-scene saved-audio playback, and a full-story player, all backend-proxied — without adding a new engine or touching image/video work.
