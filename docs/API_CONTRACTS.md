@@ -608,3 +608,23 @@ Streams the saved MP4 (`video/mp4`). `404` if nothing has been rendered yet.
 ### export.zip changes
 
 Now also includes `video/final_story.mp4` when one exists; `metadata.json` gained `video_included`/`video_limitations`. Does not change ZIP shape for projects with no rendered video.
+
+---
+
+## Phase 3.0/3.1 Subtitle Export MVP
+
+Pure, deterministic generation from data already in the project -- no external service, no job/polling needed (unlike audio/image generation). One cue per scene, timed cumulatively by `duration_seconds`, same timeline Phase 3.0's video assembly uses. No word-level alignment (out of scope for the MVP, see `docs/VIDEO_SUBTITLES_PLAN.md`).
+
+### GET /api/projects/{project_id}/subtitles.srt
+
+Returns `text/plain` SRT (`HH:MM:SS,mmm` timestamps), `Content-Disposition: attachment; filename="story.srt"`.
+
+### GET /api/projects/{project_id}/subtitles.vtt
+
+Returns `text/vtt` WebVTT (`HH:MM:SS.mmm` timestamps, `WEBVTT` header), `Content-Disposition: attachment; filename="story.vtt"`.
+
+Both: `404` for an unknown project; a zero-scene project returns `200` with an effectively empty body (no cues), not an error. Scenes with empty `narration_ar` are skipped (no cue), without breaking the rest of the timeline.
+
+### export.zip changes
+
+Now always includes `subtitles/story.srt` and `subtitles/story.vtt` (generation is free, so unlike audio/images/video this isn't conditional on anything having been generated first).

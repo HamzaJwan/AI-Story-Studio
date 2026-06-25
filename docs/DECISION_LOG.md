@@ -1,5 +1,20 @@
 # Decision Log
 
+## 2026-06-25 — Phase 3.0/3.1: Subtitle Export MVP (.srt/.vtt, synced to the video timeline by construction)
+
+**Decision:** Generate subtitles on demand from data already in the project (`narration_ar` + `duration_seconds`), with no job/persistence layer — unlike audio/image/video, there's no external engine call or heavy compute involved, so there's nothing to poll or cache.
+
+**What changed:**
+- `storage.py` gained `_build_srt()`/`_build_vtt()` (pure, no I/O) and `build_srt()`/`build_vtt()`. Cue timing is cumulative by `duration_seconds` -- the same field Phase 3.0's video assembly already uses for each scene's segment length, so subtitle timing and video timing agree by construction, not by coincidence.
+- `GET /api/projects/{id}/subtitles.srt` and `.../subtitles.vtt` added to `projects.py` (alongside the existing `scenes.json`/`export.zip` exports, since this is the same kind of derived-export endpoint).
+- `build_export_zip()` always includes both subtitle files now -- no conditional, since generating them has no prerequisites.
+
+**Evidence:** generated real `.srt`/`.vtt` for the same 6-scene project used in the Phase 3.0 video test -- correct Arabic RTL text, correctly formatted timestamps, and a cumulative total of exactly 52 seconds, matching the rendered video's duration exactly. Verified the zero-scene edge case (clean `200`, empty body) and the 404 case.
+
+**Impact:** Phase 3.0/3.1 subtitle export is `PASS`. This completes the Studio MVP Autopilot's core pipeline (story → scenes → audio → images → continuity → video → subtitles). Next: Milestone G, a QA/feature-review pass before the final report.
+
+---
+
 ## 2026-06-25 — Phase 3.0: Video Assembly MVP (ffmpeg, basic, real MP4 verified frame-by-frame)
 
 **Decision:** Build a basic ffmpeg-based MP4 assembly (static scene images + scene audio, hard cuts) rather than any AI video/image-to-motion model. This matches the roadmap's explicit sequencing: Phase 3.0 is the video *foundation*, Phase 3.2 (WanGP/image-to-video) is a separate, later, isolated lab benchmark.

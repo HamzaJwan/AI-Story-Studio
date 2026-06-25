@@ -44,6 +44,56 @@ def _concatenate_wavs(paths: list[Path]) -> bytes | None:
         return None
 
 
+def _format_srt_timestamp(seconds: float) -> str:
+    millis = round(seconds * 1000)
+    hours, millis = divmod(millis, 3_600_000)
+    minutes, millis = divmod(millis, 60_000)
+    secs, millis = divmod(millis, 1000)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+
+
+def _format_vtt_timestamp(seconds: float) -> str:
+    return _format_srt_timestamp(seconds).replace(",", ".")
+
+
+def _subtitle_cues(scenes: list[Scene]) -> list[tuple[float, float, str]]:
+    """One cue per scene, timed cumulatively by duration_seconds.
+
+    No word-level alignment (out of scope for the MVP) -- each scene's full
+    narration_ar is shown for its whole duration, same timeline the video
+    assembly (Phase 3.0) uses.
+    """
+    cues: list[tuple[float, float, str]] = []
+    start = 0.0
+    for scene in scenes:
+        text = scene.narration_ar.strip()
+        end = start + scene.duration_seconds
+        if text:
+            cues.append((start, end, text))
+        start = end
+    return cues
+
+
+def _build_srt(scenes: list[Scene]) -> str:
+    lines: list[str] = []
+    for index, (start, end, text) in enumerate(_subtitle_cues(scenes), start=1):
+        lines.append(str(index))
+        lines.append(f"{_format_srt_timestamp(start)} --> {_format_srt_timestamp(end)}")
+        lines.append(text)
+        lines.append("")
+    return "\n".join(lines).strip() + "\n"
+
+
+def _build_vtt(scenes: list[Scene]) -> str:
+    lines: list[str] = ["WEBVTT", ""]
+    for index, (start, end, text) in enumerate(_subtitle_cues(scenes), start=1):
+        lines.append(str(index))
+        lines.append(f"{_format_vtt_timestamp(start)} --> {_format_vtt_timestamp(end)}")
+        lines.append(text)
+        lines.append("")
+    return "\n".join(lines).strip() + "\n"
+
+
 class ProjectStorage:
     def __init__(self, settings: Settings):
         self.root = settings.data_path / "projects"
@@ -283,6 +333,14 @@ class ProjectStorage:
             return None
         return _concatenate_wavs(wav_paths)
 
+    def build_srt(self, project_id: str) -> str:
+        project = self.get_project(project_id)
+        return _build_srt(project.scenes)
+
+    def build_vtt(self, project_id: str) -> str:
+        project = self.get_project(project_id)
+        return _build_vtt(project.scenes)
+
     def scenes_export(self, project_id: str) -> dict[str, object]:
         project = self.get_project(project_id)
         return {
@@ -346,6 +404,8 @@ class ProjectStorage:
                 "metadata.json",
                 json.dumps(metadata, ensure_ascii=False, indent=2),
             )
+            archive.writestr("subtitles/story.srt", _build_srt(project.scenes))
+            archive.writestr("subtitles/story.vtt", _build_vtt(project.scenes))
             for scene in scenes_with_audio:
                 audio_path = audio_dir / f"scene_{scene.scene_id}.{scene.audio_format}"
                 archive.writestr(f"audio/scene_{scene.scene_id}.{scene.audio_format}", audio_path.read_bytes())

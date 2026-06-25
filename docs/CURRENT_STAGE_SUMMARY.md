@@ -2,33 +2,30 @@
 
 ## Current Stage
 
-**Stage:** Phase 3.0 — Video Assembly MVP
+**Stage:** Phase 3.0/3.1 — Subtitle Export MVP
 
-**Status:** ✅ Implemented and verified — real MP4 rendered from real scene images + audio, frame visually inspected.
+**Status:** ✅ Implemented and verified — real .srt/.vtt generated from a real project, timing matches the rendered video exactly.
 
-**Recommendation:** Continuing the Studio MVP Autopilot round. Next: Phase 3.0/3.1 Subtitle Export MVP (.srt/.vtt).
+**Recommendation:** Continuing the Studio MVP Autopilot round. Next: Milestone G — Studio QA / Feature Review Pass, then the final Studio MVP Autopilot Report.
 
-## What Changed in Phase 3.0
+## What Changed in This Phase
 
-- `backend/Dockerfile` now installs `ffmpeg` (apt, `--no-install-recommends`) — first time the backend image needed a system dependency beyond Python packages.
-- New `backend/app/routers/videos.py`: `POST /api/projects/{id}/video/render` (per-scene H.264 segments via `ffmpeg -loop 1 -i image.png -i audio.wav -t duration ...`, concatenated with the concat demuxer, `-c copy`, no re-encode), `GET /api/projects/{id}/video` (metadata), `GET /api/projects/{id}/video/download` (streams the MP4).
-- `storage.py` gained `project_video_dir()`, `get_video_path()`, `get_video_metadata()`/`save_video_metadata()` — video metadata lives in a small sidecar `metadata.json` next to the file rather than new `Project` schema fields, since it's one derived artifact per project, not per-scene data.
-- `build_export_zip()` now includes `video/final_story.mp4` when present; `metadata.json` gained `video_included`/`video_limitations`.
-- Frontend: a "تجميع الفيديو" panel — render button, status message (including which scenes were skipped and why), `<video>` preview + download.
+- `storage.py` gained `_build_srt()`/`_build_vtt()` (pure functions, no I/O) plus `build_srt()`/`build_vtt()` storage methods. One cue per scene, cumulative timing from `duration_seconds` — the exact same timeline Phase 3.0's video assembly already uses, so subtitles and video stay in sync by construction.
+- New `GET /api/projects/{id}/subtitles.srt` and `.../subtitles.vtt` in `projects.py` — both generate on demand (no job, no persistence needed; regenerating from current `narration_ar` is essentially free, unlike audio/image/video which call external engines or ffmpeg).
+- `build_export_zip()` now always includes `subtitles/story.srt` and `subtitles/story.vtt` (not conditional on anything, since generation has no prerequisites beyond having scenes).
+- Frontend: two plain download links ("تحميل الترجمة (.srt)" / "(.vtt)") next to the existing scenes.json/ZIP downloads — no job UI needed since generation is synchronous and instant.
 
 ## Verified End-to-End (real, not simulated)
 
-- Rendered a real 6-scene project (all scenes had both image and audio) → `6/6` included, `0` skipped, 52s duration, ~1.05 MB MP4, rendered in ~18 seconds.
-- `ffprobe` on the real file confirms: H.264 video stream (768×768) + AAC audio stream, duration `52.046016s` — matches the API's reported duration.
-- Extracted a real frame at `t=2s` and **visually inspected** it: the actual scene 01 image (storyteller at a window), confirming the video genuinely contains the right content, not just a correctly-shaped file.
-- Rendered a mostly-empty project (only 1 of 6 scenes had a saved image) → `included: ["03"]`, 5 scenes correctly skipped with `"no saved image for this scene"` reasons, 6s duration.
-- Zero-scene project → `422` with a clear message, no crash.
-- `export.zip` for the full project → 18 files (audio + images + video together), correct `video_included: true`.
-- Path traversal / address leakage grep on all video responses → clean. Video metadata survives a backend container restart.
+- Real 6-scene project → both `.srt` and `.vtt` generated with correct Arabic RTL text (no mojibake), correctly formatted timestamps (`00:00:00,000` for SRT, `00:00:00.000` for VTT), and cumulative timing that sums to exactly 52 seconds — matching Phase 3.0's rendered video duration precisely.
+- Zero-scene project → `200` with an effectively empty file, not an error.
+- Nonexistent project → `404`.
+- `export.zip` → now 20 files (audio + images + video + both subtitle files), no corruption.
+- Security grep on both subtitle responses → clean (no AI Server address/path leakage, though this endpoint never touches the AI Server anyway).
 - Full regression: `check_utf8`, `compileall`, `docker compose config`, frontend build, smoke test — all pass.
 
 ## Do Not Do Yet
 
-- لا فيديو بالذكاء الاصطناعي (WanGP/image-to-video) — هذا Phase 3.2، يبقى مخبرياً منفصلاً.
-- لا انتقالات متقدمة أو بطاقات عناوين أو دمج صوت — هذا Phase 3.1.
-- لا ترجمات مدمجة في الفيديو بعد (الترجمات نفسها Milestone F القادم).
+- لا محاذاة على مستوى الكلمة (word-level alignment) — كل مشهد سطر ترجمة واحد بمدته الكاملة، هذا Phase 3.1+ المتقدم.
+- لا حرق الترجمة داخل الفيديو (burn-in) ولا أنماط ترجمة بصرية (lower-third سينمائي، إلخ) — تلك خارج هذا الـMVP.
+- لا ترجمة إنجليزية تلقائية بعد — فقط العربية من narration_ar الموجود.

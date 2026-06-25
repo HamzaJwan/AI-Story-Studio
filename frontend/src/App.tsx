@@ -1124,6 +1124,24 @@ export default function App() {
             >
               {loading === "package" ? "جاري التجهيز..." : "تحميل حزمة المشروع ZIP"}
             </button>
+            {projectId && scenes.length > 0 && (
+              <>
+                <a
+                  className="download-button ghost-button"
+                  href={`${API_BASE_URL}/api/projects/${projectId}/subtitles.srt`}
+                  download
+                >
+                  تحميل الترجمة (.srt)
+                </a>
+                <a
+                  className="download-button ghost-button"
+                  href={`${API_BASE_URL}/api/projects/${projectId}/subtitles.vtt`}
+                  download
+                >
+                  تحميل الترجمة (.vtt)
+                </a>
+              </>
+            )}
           </div>
         </div>
 

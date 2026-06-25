@@ -61,6 +61,7 @@ Manual ComfyUI lessons are documented in `docs/COMFYUI_MANUAL_TEST_NOTES.md`. Th
 | 2.2 | Story Scene Images MVP | PASS | Persisted generate/regenerate/generate-all, images in export.zip; real style-drift gap found |
 | 2.3 | Continuity Foundation MVP | PASS | Project bibles + style presets injected into every prompt; style-drift bug fixed and visually verified |
 | 3.0 | Video Assembly MVP | PASS | ffmpeg static-image + audio MP4 assembly; real render verified frame-by-frame with ffprobe |
+| 3.0/3.1 | Subtitle Export MVP | PASS | .srt/.vtt generated from narration_ar + duration_seconds; timing matches the rendered video exactly |
 
 ---
 

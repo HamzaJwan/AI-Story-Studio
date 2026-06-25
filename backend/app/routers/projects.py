@@ -86,6 +86,38 @@ def export_scenes_json(
     )
 
 
+@router.get("/{project_id}/subtitles.srt")
+def export_subtitles_srt(
+    project_id: str,
+    storage: ProjectStorage = Depends(get_storage),
+) -> Response:
+    try:
+        content = storage.build_srt(project_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return Response(
+        content=content,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="story.srt"'},
+    )
+
+
+@router.get("/{project_id}/subtitles.vtt")
+def export_subtitles_vtt(
+    project_id: str,
+    storage: ProjectStorage = Depends(get_storage),
+) -> Response:
+    try:
+        content = storage.build_vtt(project_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return Response(
+        content=content,
+        media_type="text/vtt; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="story.vtt"'},
+    )
+
+
 @router.get("/{project_id}/export.zip")
 def export_project_zip(
     project_id: str,
