@@ -1,6 +1,24 @@
 # Decision Log
 
-## 2026-06-24 — Phase 2.0 scaffolded but BLOCKED on AI Server network (second time tonight)
+## 2026-06-25 — Phase 2.0 PASSED: real image generated (ComfyUI + SDXL)
+
+**Decision:** Retried the previously-stalled checkpoint download after confirming (with a corrected, valid speed test — the earlier "still blocked" recheck had a testing bug, see below) that the AI Server's network had genuinely recovered. Completed the full Benchmark Gate this time with a real generated image.
+
+**What happened:**
+- A `curl` recheck without `-L` was silently measuring only the fast HuggingFace redirect response (a few hundred bytes), not the actual file transfer — it looked like "still blocked" but wasn't a valid test. Caught this before concluding the network was still down, redid the test with `-L` and a real range request: **2.67 MB/s**, genuinely healthy.
+- Restarted the `wget` checkpoint download; it completed cleanly this time (~6.5GB on disk, valid safetensors header confirmed).
+- Started `comfyui-lab`, confirmed GPU visible (`cuda:0 NVIDIA GeForce RTX 4060 Ti`), submitted the bundled `workflow_sdxl_txt2img.json` (768×768, 20 steps).
+- Result: `status: success` in ~14.7s (cold run, including model load). Peak VRAM 6995 MiB used / 812 MiB free — tight, but no OOM. Output `benchmark_phase2_00001_.png`, 768×768 RGB, 693,857 bytes.
+- **Downloaded the actual image and looked at it directly** (not just checked statistics): a coherent, real scene — a person sitting by a window at night with warm light — matching the input prompt closely, no corruption or artifacts.
+
+**Impact:**
+- Phase 2.0 is `PASS` technically: the pipeline produces a real, valid image on this hardware, end to end.
+- **Not the same as product approval.** Per stop condition #9 ("تحتاج تقييم جودة بشري لصوت/صورة/فيديو قبل اعتباره PASS"), Hamza still needs to look at and approve the actual image quality before Phase 2.1 (Image Worker Bridge) or any frontend image UI work begins. This decision only confirms the pipeline works, not that the visual quality is approved for the product.
+- VRAM headroom is genuinely tight (812 MiB free at peak) — any future workflow change (higher resolution, refiner pass, batch>1) needs to be tested for OOM risk, not assumed safe.
+
+---
+
+## 2026-06-24 — Phase 2.0 scaffolded but BLOCKED on AI Server network (first attempt)
 
 **Decision:** Write the ComfyUI + SDXL image benchmark lab fully (code, workflow, docs) per the standing autopilot instruction to proceed past audio into images, but do not claim any PASS/CANDIDATE without a real generated PNG.
 
