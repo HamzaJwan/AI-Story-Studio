@@ -4,7 +4,7 @@ Last updated: 2026-06-25
 
 Owner: Hamza
 
-Current recommendation: **Hamza's manual end-to-end review of the Studio MVP** (Milestone G QA pass) — the full story → continuity → audio → images → video → subtitles → export pipeline is implemented and verified with real data on a fresh project; what remains is Hamza's own hands-on test and product sign-off, not new engineering for the MVP scope.
+Current recommendation: **Hamza's manual end-to-end review of the Studio MVP** (Milestone G QA pass). After sign-off, the next engineering track should be **Production Studio Foundations**: job queue/progress, timeline view, asset library, quality review board, then better ffmpeg video assembly. The full future backlog is now tracked in `docs/REMAINING_FEATURES_BACKLOG.md`.
 
 **2026-06-25 update — Production MVP hardening pass complete.** A full manual-QA hardening round fixed two real validation bugs (scene duration min mismatch, empty-title save error), added per-step completion indicators and an unsaved-changes indicator to the workflow UI, added spinners + clearer text to every long-running action, and made the export step list every downloadable asset with explicit available/missing state. No new features, no architecture change. See `docs/DECISION_LOG.md` for the full entry.
 
@@ -77,6 +77,16 @@ Manual ComfyUI lessons are documented in `docs/COMFYUI_MANUAL_TEST_NOTES.md`. Th
 | Hamza's hands-on Studio MVP QA pass | Every step above is engineer-verified with real data, but product feel/quality is Hamza's call, not the executor's | Hamza |
 | Decide whether image/continuity quality is acceptable for real use | Quality is `CANDIDATE`; continuity is prompt-only (Tier 1) — good enough for MVP testing, not yet a final guarantee | Hamza |
 | Pick the next roadmap track (Phase 2.7 Production Studio Foundations vs. Phase 3.1 video polish vs. Phase 4.x assistant lab) | All three are now unblocked; sequencing is a product priority call | Hamza |
+
+Recommended default if Hamza wants Autopilot after QA:
+
+1. Real Job Queue / Background Workers.
+2. Project Timeline View.
+3. Project Asset Library.
+4. Quality Review Board.
+5. Ken Burns / Better Video Assembly.
+
+These are future features, not part of the current Production MVP. They improve the already-working pipeline without adding new model risk.
 
 ~~Sync visible UI phase/status text~~ — done, hero now shows "Phase 3.1 — استوديو متكامل: صوت، صور، فيديو، ترجمة".
 ~~Confirm image worker security boundary~~ — done and re-verified every milestone (grepped every response for the AI Server's address/path).
@@ -425,17 +435,14 @@ This is a Phase 4.x lab track. It should use the existing Open WebUI + Ollama se
 
 ## 8. Recommendation
 
-**Recommended next execution phase: Phase 1.5 — Audio UX Polish.**
+**Recommended next action: Hamza final manual QA only.**
 
-Why:
-1. Audio generation already works end to end, so UX polish gives immediate product value.
-2. Hamza's current screenshots show the user still has to inspect ZIP files to confirm generated audio.
-3. The browser already has a single-job audio player, but saved project audio and full story audio are not surfaced clearly.
-4. Phase 2.1 still depends on image quality sign-off and continuity planning.
+If Hamza approves the Production MVP, the next Autopilot execution track should be **Production Studio Foundations**, in this order:
 
-Do not start Phase 2.1 until:
-- Audio UX is acceptable.
-- Hamza approves image benchmark quality.
-- The stale visible phase label/status mismatch is fixed.
-- The worker bridge plan confirms backend-only access to AI Server services.
-- VRAM and service-concurrency assumptions are documented.
+1. Real Job Queue / Background Workers.
+2. Project Timeline View.
+3. Project Asset Library.
+4. Quality Review Board.
+5. Ken Burns / Better Video Assembly.
+
+Do not start AI motion, local assistant integration, new TTS engines, public deployment, DB/Auth, or advanced continuity until the foundation track is stable and explicitly approved.

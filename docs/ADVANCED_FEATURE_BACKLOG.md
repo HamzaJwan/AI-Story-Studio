@@ -4,7 +4,7 @@ Last updated: 2026-06-25
 
 This backlog merges Hamza's product ideas, Codex planning notes, and the current roadmap into one structured production-studio backlog.
 
-The next execution phase remains **Phase 1.5 — Audio UX Polish**. Everything here is future planning unless explicitly moved into an execution prompt.
+The Production MVP is now technically accepted. Everything here is future planning unless explicitly moved into an execution prompt. The first recommended post-QA execution track is **Production Studio Foundations**: job queue/progress, timeline view, asset library, quality review board, then better ffmpeg video assembly.
 
 ## Categories
 
@@ -30,7 +30,7 @@ These turn the app from “generate files” into “manage a story production�
 
 | Feature | Category | Proposed Phase | Priority | Dependencies | Why It Matters | Acceptance Criteria | Risks | Not In Current Phase |
 |---|---|---|---|---|---|---|---|---|
-| Phase 1.5 Audio UX Polish | Near-term | 1.5 | Critical | Current TTS worker path | Makes proven audio usable inside the app | Voice/language selectors, scene player, full-story player, clear status | Scope creep into new TTS engines | No new engine/image/video work |
+| Phase 1.5 Audio UX Polish | Implemented | 1.5 | Done | Current TTS worker path | Makes proven audio usable inside the app | Voice/language selectors, scene player, full-story player, clear status | Scope creep into new TTS engines | Completed |
 | Project Timeline View | Mid-term | 2.7 | High | Audio UX, scene images, subtitle metadata | Central view for scene → narration → audio → image → subtitle → video segment | Shows missing assets, duration, status, warnings, review/regenerate links | Too much UI if started early | Not in Phase 1.5 |
 | Project Asset Library | Mid-term | 2.7 | High | Storage metadata, generated media paths | Keeps outputs discoverable and tied to scenes | Preview/download/link assets; no generated files in Git | File cleanup and metadata drift | Not in Phase 1.5 |
 | Quality Review Board | Mid-term | 2.7 | High | Audio/image/subtitle outputs | Technical PASS is not product quality PASS | Approve/retry/reject per scene with notes | Review state complexity | Not in Phase 1.5 |

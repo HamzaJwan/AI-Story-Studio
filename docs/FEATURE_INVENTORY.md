@@ -83,4 +83,4 @@ Last updated: 2026-06-25
 
 ## Current Recommendation
 
-The Studio MVP pipeline (story → scenes → audio → scene images → continuity → video → subtitles → export) is implemented and verified end-to-end on a real fresh project. Next: Hamza's own manual QA pass (`docs/MANUAL_QA_CHECKLIST.md`), then a product call on which roadmap track to pursue next (Phase 2.7 Production Studio Foundations, Phase 3.1 video polish, or Phase 4.x assistant lab).
+The Studio MVP pipeline (story → scenes → audio → scene images → continuity → video → subtitles → export) is implemented and verified end-to-end on a real fresh project. Next: Hamza's own manual QA pass (`docs/MANUAL_QA_CHECKLIST.md`). After sign-off, the recommended future track is documented in `docs/REMAINING_FEATURES_BACKLOG.md`: job queue/progress, timeline view, asset library, quality review board, then better ffmpeg video assembly.

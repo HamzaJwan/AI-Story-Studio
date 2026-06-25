@@ -2,123 +2,181 @@
 
 Last updated: 2026-06-25
 
-## Recommended Next Phase
+## Current Recommendation
 
-**Phase 1.5 — Audio UX Polish**
+**Do not add new product features before Hamza final manual QA.**
 
-## Why
+The Production MVP is accepted technically. The next engineering track after sign-off should be **Production Studio Foundations**, not another AI model integration.
 
-- The audio path is already technically working.
-- Hamza has manually confirmed generated WAV files exist and can be exported.
-- The current UX still pushes users toward ZIP inspection instead of direct playback.
-- Phase 2.1 image work still requires image quality approval and continuity planning.
+Recommended first track after QA:
+
+1. Real Job Queue / Background Workers.
+2. Project Timeline View.
+3. Project Asset Library.
+4. Quality Review Board.
+5. Ken Burns / Better Video Assembly.
+
+See `docs/REMAINING_FEATURES_BACKLOG.md` for the full future backlog.
+
+## Why This Order
+
+- It improves the existing working pipeline instead of opening a new model risk.
+- It follows proven production patterns: jobs for long-running tasks, timeline/asset-library/review-board for media workflows, and ffmpeg-based motion polish before heavy AI video.
+- It avoids adding DB/Auth/public deployment until the local studio experience is stable.
 
 ## Do Not Do Next
 
-- Do not start Phase 2.1 yet.
-- Do not add image generation UI.
-- Do not start video work.
-- Do not add a new TTS engine.
-- Do not run SILMA/AllTalk benchmarks.
+- Do not start AI motion / WanGP / AnimateDiff / SVD.
+- Do not add a custom local chat assistant before evaluating Open WebUI/Ollama RAG as a lab.
+- Do not add new TTS engines before a benchmark/safety pass.
 - Do not expose AI Server URLs to the browser.
 - Do not touch `.env` or commit generated media.
+- Do not add DB/Auth/Redis/Celery without an approved architecture step.
 
-## SONNET_NEXT_EXECUTION_PROMPT
+## AUTOPILOT_NEXT_EXECUTION_PROMPT
 
-You are now Executor inside AI Story Studio.
+You are now Lead Executor inside AI Story Studio.
 
-Task: implement **Phase 1.5 — Audio UX Polish** only.
+Task: implement the **Post-MVP Production Studio Foundations** track only, after confirming the current Production MVP remains clean.
 
-Current state:
+This is not a new AI-model phase. Do not add WanGP, AnimateDiff, SVD, new TTS engines, public deployment, DB/Auth, or a custom chat assistant.
 
-- Phase 0.1–0.4 core story/project/export workflow works.
-- Phase 1.1–1.4 audio backend path works with an external TTS worker.
-- Project audio can be generated and included in `export.zip`.
-- Current UI has a limited Audio Studio panel, a single-job player, and project audio generation, but users still need ZIP inspection to find saved audio.
-- Phase 2.0 image benchmark is technical PASS, but image work is paused until Hamza approves quality.
+### Start First
 
-Goal:
+Run:
 
-Improve the existing audio UX without adding new AI engines or touching image/video work.
+```powershell
+git fetch origin
+git checkout main
+git pull --ff-only origin main
+git status --short --branch
+git log --oneline -12
+python scripts/check_utf8.py
+python scripts/final_acceptance_check.py
+```
 
-Expected files to modify:
+If Git conflicts, generated media in Git, or acceptance check failures appear, stop and produce a handoff report before implementing.
 
-- `backend/app/routers/tts.py`
-- `backend/app/storage.py`
-- `backend/app/schemas.py` if needed
-- `frontend/src/App.tsx`
-- `frontend/src/styles.css`
-- `docs/API_CONTRACTS.md`
-- `docs/CURRENT_STAGE_SUMMARY.md`
-- `docs/DECISION_LOG.md`
+### Milestone A — Job Queue / Progress Foundation
 
-Forbidden:
+Goal: stop long image/video operations from feeling frozen.
 
-- Do not touch `.env`.
-- Do not add a new TTS engine.
-- Do not integrate SILMA/AllTalk.
-- Do not run SILMA/AllTalk benchmarks.
-- Do not add image/video features.
-- Do not modify `deploy/ai-server` except docs if absolutely necessary.
-- Do not expose `TTS_SERVICE_URL` or any AI Server URL to the browser.
-- Do not add generated WAV/MP3/ZIP/data files to Git.
-- Do not use direct browser-to-AI-Server calls.
+Implement only a lightweight local job system unless a larger architecture is explicitly approved.
 
-Backend requirements:
+Scope:
 
-1. Keep existing endpoints working:
-   - `GET /api/tts/health`
-   - `POST /api/projects/{project_id}/tts/jobs`
-   - `GET /api/tts/jobs/{job_id}`
-   - `GET /api/tts/jobs/{job_id}/download/{format}`
-   - `POST /api/projects/{project_id}/tts/generate-all`
-   - `GET /api/projects/{project_id}/export.zip`
-2. Add lightweight proxy/storage endpoints only if needed:
-   - `GET /api/tts/voices`
-   - `GET /api/projects/{project_id}/audio`
-   - `GET /api/projects/{project_id}/audio/{scene_id}`
-   - `GET /api/projects/{project_id}/audio/final_story.wav`
-3. Voice/language behavior:
-   - If the worker supports only one voice, return one selected option.
-   - Do not fail the UI because multiple voices are unavailable.
-   - Do not invent unsupported voices.
-4. Audio streaming:
-   - Serve saved project audio through the backend.
-   - Prevent path traversal.
-   - Do not expose filesystem paths or AI Server URLs.
+- Define a common job model: `queued`, `running`, `done`, `failed`, `cancelled`.
+- Add backend job metadata storage under ignored project data.
+- Convert only the safest long-running operation first, preferably image generate-all or video render.
+- Add polling endpoint and clear frontend status.
+- Do not add Redis/Celery/DB unless explicitly approved.
 
-Frontend requirements:
+Acceptance:
 
-1. Fix stale visible phase/status label.
-2. Add voice selector and language selector in Audio Studio.
-3. If only one voice/language is available, show it selected and disabled/graceful.
-4. Keep current “Generate first scene audio” behavior, but show a player when done.
-5. After “Generate project audio”, show saved per-scene audio state.
-6. Add per-scene play/download controls for generated scene audio.
-7. Add full project audio player/download if `final_story.wav` exists.
-8. Show clear statuses:
-   - not configured
-   - checking
-   - queued
-   - running
-   - done
-   - failed
-9. Keep RTL Arabic-friendly design.
-10. Do not break project save/load/edit/export or `scenes.json`.
+- Existing synchronous endpoints still work or are clearly backward compatible.
+- New job endpoint returns `job_id`.
+- UI can poll and show progress text without fake ETA.
+- Failed jobs expose a safe error message.
+- No generated media or job files are committed.
 
-Acceptance criteria:
+Commit:
 
-- TTS health check works.
-- First scene audio can be generated and played in the browser.
-- Project audio can be generated.
-- Saved scene audio can be played/downloaded without opening ZIP manually.
-- Full-story audio can be played/downloaded if available.
-- `export.zip` still includes audio.
-- Voice/language selector does not break with a single Piper Arabic voice.
-- Browser never calls AI Server directly.
-- No generated audio files are staged in Git.
+```text
+feat: add lightweight studio job progress foundation
+```
 
-Validation:
+### Milestone B — Project Timeline View
+
+Goal: make every scene's production state visible in one view.
+
+Scope:
+
+- Add a Timeline step or section.
+- Show each scene with: title, duration, narration, audio status, image status, subtitle status, video inclusion, approval status placeholder.
+- Link to existing edit/audio/image/video/export actions.
+- No new generation engine.
+
+Acceptance:
+
+- Timeline works for projects with 0 scenes, partial assets, and full assets.
+- Scene order and duration are readable.
+- Missing assets are explicit.
+
+Commit:
+
+```text
+feat: add project timeline view
+```
+
+### Milestone C — Asset Library
+
+Goal: make project outputs discoverable without opening ZIP.
+
+Scope:
+
+- Add project asset library grouped by: story/scenes, audio, images, video, subtitles, exports.
+- Use existing backend-relative download endpoints.
+- Do not expose filesystem paths or AI Server URLs.
+
+Acceptance:
+
+- Existing asset-rich project shows all available assets.
+- Empty/partial projects show clear missing states.
+- Downloads work through backend.
+
+Commit:
+
+```text
+feat: add project asset library
+```
+
+### Milestone D — Quality Review Board
+
+Goal: let Hamza approve/retry/reject scene outputs before final export.
+
+Scope:
+
+- Store lightweight review state in project JSON.
+- Per-scene status: `pending`, `approved`, `needs_retry`.
+- Notes field.
+- No AI review automation yet.
+
+Acceptance:
+
+- Review state persists after save/load.
+- Export still works.
+- No generated assets are deleted by review state changes.
+
+Commit:
+
+```text
+feat: add scene quality review board
+```
+
+### Milestone E — Better Video Assembly
+
+Goal: improve current ffmpeg video without heavy AI motion.
+
+Scope:
+
+- Add optional Ken Burns pan/zoom and fade/crossfade settings.
+- Keep default safe/simple.
+- Preserve current MP4 export.
+- Do not start AI video labs.
+
+Acceptance:
+
+- Video still renders with existing static mode.
+- Optional motion mode creates a playable MP4.
+- Subtitles/sidecar files still export.
+
+Commit:
+
+```text
+feat: add basic video assembly polish
+```
+
+### Required Validation After Every Milestone
 
 Run:
 
@@ -127,33 +185,25 @@ python scripts/check_utf8.py
 python -m compileall backend/app
 docker compose config
 docker compose exec -T frontend npm run build
+python scripts/smoke_phase0_workspace.py
+python scripts/final_acceptance_check.py
+git status --short
 ```
 
-Manual test:
+Before each commit, verify:
 
-1. Open `http://localhost:5173`.
-2. Load or create a project with scenes.
-3. Check TTS health.
-4. Generate first scene audio.
-5. Confirm player appears and audio plays.
-6. Generate project audio.
-7. Confirm per-scene audio controls appear.
-8. Confirm full project audio appears if generated.
-9. Download project ZIP and confirm audio still exists.
+- No `.env`.
+- No generated `png/wav/mp3/mp4/zip`.
+- No model files (`safetensors`, `ckpt`, `gguf`).
+- No AI Server URL in frontend source or build output.
 
-Commit message:
+### Final Report Required
 
-```text
-feat: polish audio studio UX
-```
+Return:
 
-Final report format:
-
-1. Files changed.
-2. Endpoints added/changed.
-3. Audio UX behavior implemented.
-4. Validation results.
-5. Manual test result.
-6. Git status.
-7. Confirm no image/video work was started.
-
+1. Milestones completed.
+2. Commits pushed.
+3. Validation results.
+4. Media/Git safety check.
+5. Known limitations.
+6. Whether the app is ready for Hamza review.
