@@ -68,8 +68,23 @@ class ProjectCreateRequest(BaseModel):
     original_story: str = Field(default="", max_length=25000)
     improved_story: str = Field(default="", max_length=30000)
     scenes: list[Scene] = Field(default_factory=list)
+    story_style_bible: str = Field(default="", max_length=2000)
+    character_bible: str = Field(default="", max_length=2000)
+    location_bible: str = Field(default="", max_length=2000)
+    object_bible: str = Field(default="", max_length=2000)
+    negative_prompt: str = Field(default="", max_length=500)
+    style_preset: str = Field(default="cinematic_realistic", max_length=50)
 
-    @field_validator("title", "original_story", "improved_story")
+    @field_validator(
+        "title",
+        "original_story",
+        "improved_story",
+        "story_style_bible",
+        "character_bible",
+        "location_bible",
+        "object_bible",
+        "negative_prompt",
+    )
     @classmethod
     def strip_project_text(cls, value: str) -> str:
         return value.strip()
@@ -80,8 +95,23 @@ class ProjectUpdateRequest(BaseModel):
     original_story: str | None = Field(default=None, max_length=25000)
     improved_story: str | None = Field(default=None, max_length=30000)
     scenes: list[Scene] | None = None
+    story_style_bible: str | None = Field(default=None, max_length=2000)
+    character_bible: str | None = Field(default=None, max_length=2000)
+    location_bible: str | None = Field(default=None, max_length=2000)
+    object_bible: str | None = Field(default=None, max_length=2000)
+    negative_prompt: str | None = Field(default=None, max_length=500)
+    style_preset: str | None = Field(default=None, max_length=50)
 
-    @field_validator("title", "original_story", "improved_story")
+    @field_validator(
+        "title",
+        "original_story",
+        "improved_story",
+        "story_style_bible",
+        "character_bible",
+        "location_bible",
+        "object_bible",
+        "negative_prompt",
+    )
     @classmethod
     def strip_optional_project_text(cls, value: str | None) -> str | None:
         return value.strip() if value is not None else value
@@ -95,6 +125,12 @@ class ProjectResponse(BaseModel):
     scenes: list[Scene] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
+    story_style_bible: str = ""
+    character_bible: str = ""
+    location_bible: str = ""
+    object_bible: str = ""
+    negative_prompt: str = ""
+    style_preset: str = "cinematic_realistic"
 
 
 class ProjectListItem(BaseModel):

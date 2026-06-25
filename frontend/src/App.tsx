@@ -41,7 +41,15 @@ type Project = {
   scenes: Scene[];
   created_at: string;
   updated_at: string;
+  story_style_bible: string;
+  character_bible: string;
+  location_bible: string;
+  object_bible: string;
+  negative_prompt: string;
+  style_preset: string;
 };
+
+type StylePreset = { key: string; prompt_prefix: string };
 
 type ProjectListItem = {
   project_id: string;
@@ -237,6 +245,14 @@ export default function App() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState<LoadingAction>(null);
 
+  const [storyStyleBible, setStoryStyleBible] = useState("");
+  const [characterBible, setCharacterBible] = useState("");
+  const [locationBible, setLocationBible] = useState("");
+  const [objectBible, setObjectBible] = useState("");
+  const [negativePrompt, setNegativePrompt] = useState("");
+  const [stylePreset, setStylePreset] = useState("cinematic_realistic");
+  const [stylePresets, setStylePresets] = useState<StylePreset[]>([]);
+
   const [ttsHealth, setTtsHealth] = useState<TtsHealthData | null>(null);
   const [ttsMessage, setTtsMessage] = useState("");
   const [ttsJob, setTtsJob] = useState<TtsJobData | null>(null);
@@ -283,6 +299,9 @@ export default function App() {
     checkTtsHealth();
     fetchTtsVoices();
     checkImageHealth();
+    getJson<{ presets: StylePreset[] }>("/api/images/style-presets")
+      .then((r) => setStylePresets(r.data.presets || []))
+      .catch(() => setStylePresets([]));
   }, []);
 
   async function fetchTtsVoices() {
@@ -342,6 +361,12 @@ export default function App() {
     setImageJob(null);
     setImageMessage("");
     setProjectImages(null);
+    setStoryStyleBible(project.story_style_bible || "");
+    setCharacterBible(project.character_bible || "");
+    setLocationBible(project.location_bible || "");
+    setObjectBible(project.object_bible || "");
+    setNegativePrompt(project.negative_prompt || "");
+    setStylePreset(project.style_preset || "cinematic_realistic");
     void refreshProjectAudio(project.project_id);
     void refreshProjectImages(project.project_id);
   }
@@ -385,7 +410,18 @@ export default function App() {
   async function handleSaveProject() {
     setLoading("save");
     setError("");
-    const payload = { title, original_story: storyText, improved_story: improvedText, scenes };
+    const payload = {
+      title,
+      original_story: storyText,
+      improved_story: improvedText,
+      scenes,
+      story_style_bible: storyStyleBible,
+      character_bible: characterBible,
+      location_bible: locationBible,
+      object_bible: objectBible,
+      negative_prompt: negativePrompt,
+      style_preset: stylePreset,
+    };
     try {
       const r = projectId
         ? await putJson<Project>(`/api/projects/${projectId}`, payload)
@@ -1378,6 +1414,72 @@ export default function App() {
               المتصفح لا يتصل بأي خدمة على AI Server مباشرة. الجودة تجريبية وقابلة لإعادة التوليد،
               ولم تُعتمد بعد كجودة نهائية للمنتج (راجع docs/IMAGE_QUALITY_APPROVAL_CHECKLIST.md).
             </p>
+
+            <div className="continuity-controls">
+              <h3>ضبط الاستمرارية البصرية (اختياري)</h3>
+              <p className="muted-text">
+                هذه الإعدادات تُضاف تلقائياً إلى كل مشهد عند توليد صورته، لتقليل اختلاف الأسلوب
+                بين المشاهد. تُحفظ مع المشروع عند الضغط على "حفظ المشروع".
+              </p>
+              <label>
+                النمط البصري
+                <select value={stylePreset} onChange={(e) => setStylePreset(e.target.value)}>
+                  {(stylePresets.length
+                    ? stylePresets
+                    : [{ key: "cinematic_realistic", prompt_prefix: "" }]
+                  ).map((p) => (
+                    <option key={p.key} value={p.key}>
+                      {p.key}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                أسلوب القصة العام (إضاءة، إحساس، نوع الكاميرا...)
+                <textarea
+                  rows={2}
+                  value={storyStyleBible}
+                  onChange={(e) => setStoryStyleBible(e.target.value)}
+                  placeholder="مثال: إضاءة دافئة، عمق ميدان ضحل، طابع فيلم سينمائي"
+                />
+              </label>
+              <label>
+                الشخصيات الثابتة (الوصف الذي يجب أن يتكرر في كل مشهد)
+                <textarea
+                  rows={2}
+                  value={characterBible}
+                  onChange={(e) => setCharacterBible(e.target.value)}
+                  placeholder="مثال: الراوي رجل مسن بلحية رمادية قصيرة، يرتدي معطفاً بنياً من الصوف"
+                />
+              </label>
+              <label>
+                المكان الثابت
+                <textarea
+                  rows={2}
+                  value={locationBible}
+                  onChange={(e) => setLocationBible(e.target.value)}
+                  placeholder="مثال: غرفة خشبية قديمة، نافذة بإطار أبيض"
+                />
+              </label>
+              <label>
+                العناصر/الرموز المهمة
+                <textarea
+                  rows={2}
+                  value={objectBible}
+                  onChange={(e) => setObjectBible(e.target.value)}
+                  placeholder="مثال: كتاب جلدي قديم يحمله الراوي في أغلب المشاهد"
+                />
+              </label>
+              <label>
+                Negative Prompt (ما يجب تجنبه في الصور)
+                <textarea
+                  rows={2}
+                  value={negativePrompt}
+                  onChange={(e) => setNegativePrompt(e.target.value)}
+                  placeholder="افتراضي: blurry, low quality, distorted, watermark, text"
+                />
+              </label>
+            </div>
 
             {imageMessage && <div className="notice-banner">{imageMessage}</div>}
 

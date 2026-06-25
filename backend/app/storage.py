@@ -82,6 +82,12 @@ class ProjectStorage:
             scenes=request.scenes,
             created_at=now,
             updated_at=now,
+            story_style_bible=request.story_style_bible,
+            character_bible=request.character_bible,
+            location_bible=request.location_bible,
+            object_bible=request.object_bible,
+            negative_prompt=request.negative_prompt,
+            style_preset=request.style_preset,
         )
         self._write_project(project, meta=meta)
         return project

@@ -3,9 +3,9 @@ import time
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
-from app.ai_providers.image_worker import ImageWorkerClient, ImageWorkerError
+from app.ai_providers.image_worker import DEFAULT_NEGATIVE_PROMPT, ImageWorkerClient, ImageWorkerError
 from app.config import Settings, get_settings
-from app.schemas import ApiEnvelope, ImageJobRequest, Scene
+from app.schemas import ApiEnvelope, ImageJobRequest, ProjectResponse, Scene
 from app.storage import ProjectStorage
 
 router = APIRouter(tags=["images"])
@@ -15,9 +15,43 @@ DEFAULT_HEIGHT = 768
 POLL_INTERVAL_SECONDS = 1.5
 POLL_MAX_ATTEMPTS = 80  # ~2 minutes per scene, matches the TTS generate-all budget
 
+# Phase 2.3 continuity foundation: each preset is a prompt prefix only (Tier 1,
+# prompt-only continuity per docs/IMAGE_CONTINUITY_STRATEGY.md) -- it does not
+# pin faces/objects across scenes, it only keeps the rendering style consistent.
+STYLE_PRESETS: dict[str, str] = {
+    "cinematic_realistic": "cinematic realistic photography, natural lighting, highly detailed",
+    "warm_storybook": "warm storybook illustration, soft colors, gentle lighting, hand-drawn feel",
+    "anime_cartoon": "anime cartoon style, vibrant colors, clean lineart",
+    "military_documentary": "military documentary photo style, gritty realism, muted tones",
+    "horror_suspense": "horror suspense atmosphere, dark moody lighting, high contrast, unsettling",
+    "marketing_poster": "marketing poster style, bold composition, vibrant colors, polished",
+}
+
+
+def build_scene_image_prompt(project: ProjectResponse, scene: Scene) -> str:
+    parts: list[str] = []
+    preset_text = STYLE_PRESETS.get(project.style_preset, "")
+    if preset_text:
+        parts.append(preset_text)
+    if project.story_style_bible.strip():
+        parts.append(project.story_style_bible.strip())
+    parts.append(scene.image_prompt_en.strip())
+    if project.character_bible.strip():
+        parts.append(f"Characters: {project.character_bible.strip()}")
+    if project.location_bible.strip():
+        parts.append(f"Location: {project.location_bible.strip()}")
+    if project.object_bible.strip():
+        parts.append(f"Important objects: {project.object_bible.strip()}")
+    return ", ".join(part for part in parts if part)
+
+
+def build_negative_prompt(project: ProjectResponse) -> str:
+    return project.negative_prompt.strip() or DEFAULT_NEGATIVE_PROMPT
+
 
 def _generate_and_save_scene_image(
     project_id: str,
+    project: ProjectResponse,
     scene: Scene,
     client: ImageWorkerClient,
     storage: ProjectStorage,
@@ -29,12 +63,12 @@ def _generate_and_save_scene_image(
     Raises ImageWorkerError or TimeoutError on failure -- callers decide how to
     record that (single 502 vs. a per-scene entry in a generate-all summary).
     """
-    prompt = scene.image_prompt_en.strip()
+    prompt = build_scene_image_prompt(project, scene)
     if not prompt:
         raise ImageWorkerError("Scene has no image_prompt_en to generate from.")
 
     seed = int(time.time())
-    job_id = client.create_job(prompt, width, height, seed)
+    job_id = client.create_job(prompt, width, height, seed, negative_prompt=build_negative_prompt(project))
     job = client.get_job(job_id)
     for _ in range(POLL_MAX_ATTEMPTS):
         if job.get("status") in ("done", "failed"):
@@ -68,6 +102,12 @@ def get_storage(settings: Settings = Depends(get_settings)) -> ProjectStorage:
     return ProjectStorage(settings)
 
 
+@router.get("/api/images/style-presets", response_model=ApiEnvelope)
+def list_style_presets() -> ApiEnvelope:
+    presets = [{"key": key, "prompt_prefix": value} for key, value in STYLE_PRESETS.items()]
+    return ApiEnvelope(data={"presets": presets})
+
+
 @router.get("/api/images/health", response_model=ApiEnvelope)
 def images_health(client: ImageWorkerClient = Depends(get_image_client)) -> ApiEnvelope:
     data = client.health()
@@ -97,7 +137,7 @@ def create_image_job(
         scene = next((s for s in project.scenes if s.scene_id == request.scene_id), None)
         if scene is None:
             raise HTTPException(status_code=404, detail="Scene not found in project.")
-        prompt = prompt or scene.image_prompt_en.strip()
+        prompt = prompt or build_scene_image_prompt(project, scene)
     if not prompt:
         raise HTTPException(status_code=422, detail="No image prompt available for this job.")
 
@@ -107,6 +147,7 @@ def create_image_job(
             request.width or DEFAULT_WIDTH,
             request.height or DEFAULT_HEIGHT,
             request.seed if request.seed is not None else int(time.time()),
+            negative_prompt=build_negative_prompt(project),
         )
     except ImageWorkerError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -138,7 +179,7 @@ def generate_scene_image(
         raise HTTPException(status_code=404, detail="Scene not found in project.")
 
     try:
-        _generate_and_save_scene_image(project_id, scene, client, storage, DEFAULT_WIDTH, DEFAULT_HEIGHT)
+        _generate_and_save_scene_image(project_id, project, scene, client, storage, DEFAULT_WIDTH, DEFAULT_HEIGHT)
     except ImageWorkerError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -172,7 +213,9 @@ def generate_all_scene_images(
             failed.append({"scene_id": scene.scene_id, "error": "Empty image_prompt_en."})
             continue
         try:
-            _generate_and_save_scene_image(project_id, scene, client, storage, DEFAULT_WIDTH, DEFAULT_HEIGHT)
+            _generate_and_save_scene_image(
+                project_id, project, scene, client, storage, DEFAULT_WIDTH, DEFAULT_HEIGHT
+            )
             generated.append(scene.scene_id)
         except ImageWorkerError as exc:
             failed.append({"scene_id": scene.scene_id, "error": str(exc)})

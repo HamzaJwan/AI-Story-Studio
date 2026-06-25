@@ -680,6 +680,20 @@ pre {
   width: 100%;
 }
 
+.continuity-controls {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(2, 6, 23, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.continuity-controls h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
 .scene-image-preview {
   width: 100%;
   max-width: 420px;

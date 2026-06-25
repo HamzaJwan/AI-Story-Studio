@@ -1,5 +1,21 @@
 # Decision Log
 
+## 2026-06-25 — Phase 2.3: Continuity Foundation MVP (fixing the style-drift bug found in Phase 2.2, with proof)
+
+**Decision:** Add project-level continuity bibles (story style, character, location, object, negative prompt, style preset) and inject them into every scene's image prompt automatically — Tier 1 prompt-only continuity per `docs/IMAGE_CONTINUITY_STRATEGY.md`, not face-locking or reference images (those are a later tier, out of scope for this MVP).
+
+**What changed:**
+- `Project` schema gained 6 additive fields (default empty / `cinematic_realistic`); `storage.create_project()` was fixed to actually pass them through (it had been hardcoding the `ProjectResponse` constructor call, which would have silently dropped them on creation — caught and fixed before any user-facing testing).
+- `images.py` gained `STYLE_PRESETS` (6 presets), `build_scene_image_prompt()`, `build_negative_prompt()`. All three image generation paths now use them instead of the raw `scene.image_prompt_en`.
+- `GET /api/images/style-presets` exposes the preset list so the frontend has one source of truth, not a duplicated hardcoded copy.
+- Frontend: a continuity panel (preset selector + 5 text areas) inside the Image Studio section, saved with the rest of the project.
+
+**Evidence the fix actually works (not just "looks right in code"):** took the exact project/scene from Phase 2.2's style-drift finding, set a character bible ("elderly man, grey beard, brown wool coat") and a story style bible ("warm amber lighting, 35mm film grain"), regenerated scene 03, downloaded the new PNG, and **visually inspected** it: a photo-real elderly man with a grey beard in a brown wool coat under warm amber lighting, holding a book — matching the bible text and consistent with the cinematic style of scenes 01/02, no longer the illustrative/engraving drift. Then ran `generate-all` again across all 6 scenes with continuity active (`6/6` succeeded).
+
+**Impact:** Phase 2.3 is `PASS`. The continuity gap identified in Phase 2.2 is now demonstrably fixed, not just theoretically addressed. Next: Phase 3.0 Video Assembly MVP (ffmpeg, not AI video).
+
+---
+
 ## 2026-06-25 — Phase 2.2: Story Scene Images MVP (persisted, exported, and a real continuity gap found)
 
 **Decision:** Add persisted per-scene image generation (generate/regenerate/generate-all), include images in `export.zip`, and surface per-scene image status in the UI — mirroring the audio Phase 1.4 pattern exactly.

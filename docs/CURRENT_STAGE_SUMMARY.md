@@ -2,34 +2,36 @@
 
 ## Current Stage
 
-**Stage:** Phase 2.2 — Story Scene Images MVP
+**Stage:** Phase 2.3 — Continuity Foundation MVP
 
-**Status:** ✅ Implemented and verified — per-scene image generation, persistence, export.zip inclusion, all real.
+**Status:** ✅ Implemented and verified — the style-drift bug found in Phase 2.2 is now fixed with real evidence, not just a code review.
 
-**Recommendation:** Continuing the Studio MVP Autopilot round. Milestone D (Continuity Foundation) is next, and a real, observed need for it just turned up (see below) — not a speculative feature.
+**Recommendation:** Continuing the Studio MVP Autopilot round. Next: Phase 3.0 Video Assembly MVP (ffmpeg-based, not AI video).
 
-## What Changed in Phase 2.2
+## What Changed in Phase 2.3
 
-- `Scene` schema gained image metadata fields (`image_generated_at/bytes/format/width/height/engine/seed/prompt_used`) — additive, mirrors how audio metadata was added in Phase 1.4.
-- `storage.py`: `project_images_dir()`, `save_scene_image()`, `get_scenes_with_images()`, `get_scene_image_path()` — same pattern as the audio equivalents, including the same path-traversal defense.
-- New endpoints: `POST /api/projects/{id}/images/scenes/{scene_id}/generate` (persisted, synchronous, doubles as "regenerate"), `POST /api/projects/{id}/images/generate-all` (sequential, continues past failures), `GET /api/projects/{id}/images`, `GET /api/projects/{id}/images/{scene_id}`.
-- `build_export_zip()` now includes `images/scene_{id}.png` for every scene that has one; `metadata.json` gained `image_scene_count`/`image_limitations`.
-- Frontend: per-scene saved-image list (preview, download, regenerate) populated from `GET /api/projects/{id}/images`, plus a "توليد صور كل المشاهد" button.
+- `Project` gained continuity fields: `story_style_bible`, `character_bible`, `location_bible`, `object_bible`, `negative_prompt`, `style_preset` (default `cinematic_realistic`) — additive, set via the existing `POST`/`PUT /api/projects` endpoints (no new endpoint needed; the generic `exclude_unset` merge in `storage.update_project()` already handled it once the schema fields existed).
+- `backend/app/routers/images.py` gained `STYLE_PRESETS` (6 presets), `build_scene_image_prompt()`, `build_negative_prompt()` — every image generation path (single job, per-scene generate, generate-all) now assembles the prompt from style preset + story bible + scene text + character/location/object bibles, instead of sending the raw `scene.image_prompt_en` alone.
+- New `GET /api/images/style-presets` so the frontend doesn't hardcode a second copy of the preset list.
+- Frontend: a "ضبط الاستمرارية البصرية" panel (style preset selector + 5 bible/negative-prompt text areas) inside the Image Studio section, saved together with the rest of the project via the existing "حفظ المشروع" button.
 
-## Real Finding Worth Flagging
+## Real Fix, Verified (not just code review)
 
-Generating scene 03 in isolation produced an image in a visibly different art style (illustrative/engraving) from scenes 01/02 (realistic/cinematic) — because nothing in the pipeline enforces a consistent style across scenes; each scene's raw `image_prompt_en` text is sent as-is, with no shared style prefix. This is **exactly** the problem `docs/IMAGE_CONTINUITY_STRATEGY.md` describes (Tier 1, prompt-only, "weak continuity"). It's real, observed evidence that Milestone D isn't speculative — it's addressing something that already happened on the very first multi-scene test.
+Phase 2.2 found that scene 03 of a real project rendered in a visibly different art style (illustrative/engraving) from scenes 01/02 (realistic/cinematic), because no shared style was enforced. After this phase:
+1. Set `character_bible` ("elderly man, short grey beard, brown wool coat") and `story_style_bible` ("warm amber lighting, 35mm film grain") on that exact project.
+2. Regenerated scene 03 — the assembled `image_prompt_used` correctly chained preset + story bible + scene text + character bible.
+3. Downloaded and **visually inspected** the new image: a photo-real elderly man with a grey beard in a brown wool coat, under warm amber lighting, holding a book — matching the bible text precisely. The illustrative/engraving drift was gone.
+4. Ran `generate-all` again on all 6 scenes with continuity active — `6/6` succeeded.
 
 ## Verified End-to-End (real, not simulated)
 
-- Single persisted scene generation (`scene 03`) → real 1,214,869-byte PNG, metadata persisted, streamed back through the backend and confirmed valid.
-- `generate-all` on a real 6-scene project → `6/6` generated, `0` failed.
-- `export.zip` for that project → 17 files (6 audio scenes + `final_story.wav` + 6 images + originals), `metadata.json` correctly reports `image_scene_count: 6`.
-- Persistence survives a backend container restart (confirmed: `6/6` scenes still report `has_image: true` after rebuild).
-- Path traversal attempt on `/images/{scene_id}` → `404`. Zero-scene project's `/images` and `export.zip` → both still `200`.
-- Full regression: `check_utf8`, `compileall`, `docker compose config`, frontend build, smoke test — all pass. Audio endpoints unaffected.
+- `GET /api/images/style-presets` → 6 real presets.
+- Existing (pre-Phase-2.3) project loads with `style_preset: "cinematic_realistic"` and empty bibles by default — no migration needed, no broken reads.
+- Continuity fields persist through a backend container restart.
+- Full regression: `check_utf8`, `compileall`, `docker compose config`, frontend build, smoke test — all pass.
 
 ## Do Not Do Yet
 
-- لا فيديو (Phase 3.0) قبل معالجة مشكلة الاستمرارية المرصودة فعلياً أعلاه.
-- لا تعتبر جودة الصور أو اتساقها معتمدة نهائياً — لا تزال `CANDIDATE` ومعروف أنها تفتقر للاستمرارية.
+- لا فيديو (Phase 3.0) — يبدأ الآن كخطوة تالية في هذا الجولة.
+- لا تثبيت وجه/شخصية بالصورة (face-lock/reference image) — هذا Tier أعلى من `IMAGE_CONTINUITY_STRATEGY.md`، خارج نطاق MVP.
+- جودة الصور لا تزال `CANDIDATE`، الاستمرارية الآن أفضل لكنها نصية فقط (Tier 1)، وليست ضماناً هندسياً.

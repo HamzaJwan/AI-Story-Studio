@@ -59,6 +59,7 @@ Manual ComfyUI lessons are documented in `docs/COMFYUI_MANUAL_TEST_NOTES.md`. Th
 | 2.0 | Image Benchmark Lab | TECHNICAL PASS | ComfyUI + SDXL PNG generated; quality `CANDIDATE`, MVP proceeding |
 | 2.1 | Image Worker Bridge | PASS | Backend-proxied job bridge to ComfyUI; real images verified for real scenes |
 | 2.2 | Story Scene Images MVP | PASS | Persisted generate/regenerate/generate-all, images in export.zip; real style-drift gap found |
+| 2.3 | Continuity Foundation MVP | PASS | Project bibles + style presets injected into every prompt; style-drift bug fixed and visually verified |
 
 ---
 

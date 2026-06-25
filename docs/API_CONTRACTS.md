@@ -544,3 +544,29 @@ Streams the saved PNG (`image/png`). Path resolved against the project's real sc
 ### export.zip changes
 
 Now also includes `images/scene_{scene_id}.png` for every scene that has one, and `metadata.json` gained `image_scene_count` and `image_limitations` (parallel to the existing `audio_*` fields). Does not change the ZIP shape for projects with no images.
+
+---
+
+## Phase 2.3 Continuity Foundation MVP
+
+Project-level fields (Tier 1, prompt-only continuity per `docs/IMAGE_CONTINUITY_STRATEGY.md`) injected automatically into every scene's image prompt -- no per-scene setup needed.
+
+### New `Project` fields
+
+`story_style_bible`, `character_bible`, `location_bible`, `object_bible`, `negative_prompt` (all free text, additive, default `""`), `style_preset` (default `"cinematic_realistic"`). Set via the existing `POST /api/projects` / `PUT /api/projects/{id}` — no new endpoint needed; `ProjectUpdateRequest`'s generic `exclude_unset` merge already handles them.
+
+### GET /api/images/style-presets
+
+```json
+{ "data": { "presets": [{ "key": "cinematic_realistic", "prompt_prefix": "cinematic realistic photography, ..." }, ...] } }
+```
+
+Six presets: `cinematic_realistic`, `warm_storybook`, `anime_cartoon`, `military_documentary`, `horror_suspense`, `marketing_poster`. Source of truth lives in `backend/app/routers/images.py::STYLE_PRESETS` -- the frontend fetches this list rather than hardcoding a second copy.
+
+### Prompt assembly
+
+Every image generation path (`POST .../images/jobs`, `.../scenes/{id}/generate`, `.../generate-all`) now builds the prompt as: `style_preset prefix, story_style_bible, scene.image_prompt_en, "Characters: " + character_bible, "Location: " + location_bible, "Important objects: " + object_bible` (empty fields are skipped). The negative prompt sent to the worker is `project.negative_prompt` if set, else the worker's own default. The fully assembled prompt is stored as `scene.image_prompt_used` for transparency.
+
+### Verified
+
+Setting `character_bible`/`story_style_bible` on a real project and regenerating a scene that had previously drifted to an illustrative style produced a photo-real image of an elderly man with a grey beard and brown wool coat under warm amber lighting -- matching the bible text, confirmed by visual inspection.
