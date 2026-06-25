@@ -133,16 +133,67 @@ Response:
 }
 ```
 
-### Phase 1.5 API Clarifications
+### Phase 1.5 — Audio UX Polish endpoints (implemented)
 
-Phase 1.5 may add lightweight backend endpoints only if needed for UX:
+These are lightweight UX proxy endpoints only — they introduce no new TTS engine and never expose `TTS_SERVICE_URL` or any AI Server URL/path to the browser.
 
-- `GET /api/tts/voices` — list available voices/languages from the configured worker, or return one safe default if the worker has no list endpoint yet.
-- `GET /api/projects/{project_id}/audio` — list saved per-scene audio and full-story audio metadata.
-- `GET /api/projects/{project_id}/audio/{scene_id}` — stream saved scene audio through the backend.
-- `GET /api/projects/{project_id}/audio/final_story.wav` — stream saved full-project audio if available.
+#### GET /api/tts/voices
 
-These are UX proxy endpoints only. They must not introduce a new engine or expose AI Server URLs.
+The deployed worker has no voice-listing endpoint and currently only runs Piper with one voice, so this returns a static, honest catalog rather than inventing options. Always returns `200`, independent of `TTS_ENABLED`/connectivity (this is "what voices does the app support", not a live health check).
+
+```json
+{
+  "data": {
+    "voices": [
+      { "voice_id": "ar_JO-kareem-medium", "label": "Arabic Kareem", "language": "ar", "engine": "piper", "default": true }
+    ],
+    "languages": [
+      { "language": "ar", "label": "العربية", "default": true }
+    ]
+  },
+  "meta": { "provider": "tts-worker" },
+  "errors": []
+}
+```
+
+#### GET /api/projects/{project_id}/audio
+
+Per-scene and full-story saved-audio metadata. `url` values are relative paths on **this** backend (`/api/projects/...`), never `TTS_SERVICE_URL` or a filesystem path. `final_story` is only `has_audio: true` once 2+ scenes have `wav` audio (matches the `export.zip` concatenation rule from Phase 1.4).
+
+```json
+{
+  "data": {
+    "project_id": "uuid",
+    "scenes": [
+      {
+        "scene_id": "01",
+        "has_audio": true,
+        "audio_format": "wav",
+        "audio_bytes": 425004,
+        "audio_generated_at": "2026-06-24T22:37:29.255028+00:00",
+        "url": "/api/projects/{project_id}/audio/01"
+      }
+    ],
+    "final_story": { "has_audio": true, "url": "/api/projects/{project_id}/audio/final_story.wav" }
+  },
+  "meta": {},
+  "errors": []
+}
+```
+
+Returns `404` with the standard error envelope if `project_id` does not exist.
+
+#### GET /api/projects/{project_id}/audio/{scene_id}
+
+Streams saved scene audio (`audio/wav` or `audio/mpeg`) directly from local disk through the backend. The path is resolved and verified to stay inside the project's audio directory before being read (path-traversal safe); an unknown/invalid `scene_id` or missing file returns `404`, never a directory listing or error leaking a real path.
+
+#### GET /api/projects/{project_id}/audio/final_story.wav
+
+Streams the same raw-WAV concatenation used by `export.zip`, computed on demand (not cached as a separate file) so it always matches current scene audio. Returns `404` if fewer than 2 scenes have `wav` audio.
+
+#### Existing job endpoints — filesystem path hygiene
+
+`GET /api/tts/jobs/{job_id}` and the job object returned by `POST /api/projects/{project_id}/tts/jobs` now strip the worker's internal container path (`files[].path`, e.g. `/workspace/data/jobs/...`) before returning to the browser — only `format`/`bytes` remain. The endpoint shape and the existing download flow (`GET /api/tts/jobs/{job_id}/download/{format}`) are otherwise unchanged.
 
 ## GET /api/ai/ollama/health
 

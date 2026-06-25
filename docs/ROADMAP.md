@@ -4,7 +4,7 @@ Last updated: 2026-06-25
 
 Owner: Hamza
 
-Current recommendation: **Phase 1.5 — Audio UX Polish** before Phase 2.1.
+Current recommendation: **Hamza's image quality sign-off** (unblocks Phase 2.1), or a Manual QA Pack / `App.tsx` cleanup pass. Phase 1.5 is done.
 
 ---
 
@@ -15,11 +15,11 @@ Current recommendation: **Phase 1.5 — Audio UX Polish** before Phase 2.1.
 | Core story app | PASS — project workspace, scene editing, package export, RTL Arabic UX |
 | Ollama story pipeline | PASS — improve story, split scenes, scenes.json |
 | Audio pipeline | PASS — Piper worker generated real WAV, app can request audio, export.zip can include audio |
+| Audio UX | PASS — voice/language selectors, per-scene + full-story playback, all backend-proxied, no ZIP digging required |
 | SILMA | PASS as isolated AI Server lab, but heavy bootstrap cost |
 | Image pipeline | TECHNICAL PASS — ComfyUI + SDXL generated a real PNG on the AI Server |
 | Product image quality | PENDING — Hamza must approve visual quality before Phase 2.1 |
-| Audio UX | NEEDS POLISH — audio works, but playback/voice/language/job UX is incomplete |
-| Current product gate | **Finish Audio UX polish, then return to image quality approval / Phase 2.1** |
+| Current product gate | **Hamza's image quality decision is the only thing blocking Phase 2.1** |
 
 Phase 2.0 proves image generation can run on the AI Server. It does **not** yet prove product-ready quality, character continuity, long-story consistency, or acceptable UX for multi-step jobs.
 
@@ -53,6 +53,7 @@ Phase 2.0 proves image generation can run on the AI Server. It does **not** yet 
 | 1.2 | TTS Worker Lab API | PASS with Piper | SILMA blocked in worker by network; Piper passed |
 | 1.3 | Connect App to TTS Worker | PASS | Real scene audio through backend proxy |
 | 1.4 | Project Audio Export | PASS | Per-scene WAV and `final_story.wav` in ZIP |
+| 1.5 | Audio UX Polish | PASS | Voice/language selectors, per-scene + full-story browser playback, backend-proxied |
 | 2.0 | Image Benchmark Lab | TECHNICAL PASS | ComfyUI + SDXL PNG generated; quality sign-off pending |
 
 ---
@@ -62,7 +63,7 @@ Phase 2.0 proves image generation can run on the AI Server. It does **not** yet 
 | Fix | Why | Owner |
 |---|---|---|
 | Hamza quality sign-off on the generated SDXL image | Benchmark output must be acceptable, not just technically valid | Hamza |
-| Sync visible UI phase/status text | Current UI still shows an older phase label in the hero area | Executor |
+| ~~Sync visible UI phase/status text~~ | Done in Phase 1.5 — hero now shows "Phase 1.5 — استوديو الصوت" | Executor |
 | Confirm image worker security boundary | Browser must never call ComfyUI directly | Executor |
 | Confirm VRAM budget with current AI Server services | RTX 4060 Ti 8GB had a tight SDXL margin; avoid running competing heavy services together | Executor |
 | Define image output storage shape | Avoid ad-hoc image files before product integration | Executor |
@@ -73,26 +74,26 @@ Add one more product sequencing rule: Phase 1.5 should happen first because the 
 
 ## 5. Proposed Updated Roadmap
 
-### Phase 1.5 — Audio UX Polish
+### Phase 1.5 — Audio UX Polish — ✅ PASS
 
 Goal: make the already-working TTS path usable as a real product feature before expanding into images.
 
-Scope:
-- Voice selector and language selector using current worker capability.
-- Graceful single-option behavior if the worker exposes only one voice.
-- Browser audio player for the latest single-scene job.
-- Per-scene play/download for saved scene audio.
-- Full project / `final_story.wav` play/download when project audio exists.
-- Better job status messages for queued/running/done/failed.
-- Backend proxy only; no direct browser access to the AI Server.
+Implemented:
+- Voice selector and language selector (`GET /api/tts/voices` — static honest catalog, no invented options).
+- Graceful single-option behavior — Piper Arabic shown selected, language locked to Arabic.
+- Browser audio player for the latest single-scene job (unchanged from Phase 1.1/1.3, kept ephemeral).
+- Per-scene play/download for saved scene audio (`GET /api/projects/{id}/audio`, `.../audio/{scene_id}`).
+- Full project / `final_story.wav` play/download (`.../audio/final_story.wav`, computed on demand).
+- Clearer Arabic job/health status copy.
+- Backend proxy only — verified by grepping every response for the AI Server's address/port and internal paths; found and fixed a real leak in the pre-existing job endpoints (`files[].path`).
 - No new TTS engine, no image/video work.
 
-Exit criteria:
-- User can generate and listen to one scene inside the browser.
-- User can generate all scene audio and listen/download per-scene audio without opening the ZIP manually.
-- User can play/download the full project audio if `final_story.wav` exists.
-- Voice/language controls do not break when only Piper Arabic is available.
-- `export.zip`, project workspace, and existing TTS endpoints still work.
+Exit criteria — all verified with real requests on a real 6-scene project:
+- User can generate and listen to one scene inside the browser. ✅
+- User can generate all scene audio (`6/6`) and listen/download per-scene audio without opening the ZIP manually. ✅
+- User can play/download the full project audio (`final_story.wav`, 53.63s, verified valid). ✅
+- Voice/language controls do not break when only Piper Arabic is available. ✅
+- `export.zip`, project workspace, and existing TTS endpoints still work (11-file ZIP, zero-scene project still `200`). ✅
 
 ### Phase 2.1 — Image Worker Bridge
 

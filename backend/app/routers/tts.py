@@ -13,6 +13,20 @@ router = APIRouter(tags=["tts"])
 POLL_INTERVAL_SECONDS = 1.5
 POLL_MAX_ATTEMPTS = 80  # ~2 minutes per scene at the interval above
 
+# The deployed worker (deploy/ai-server/tts-worker) has no voice-listing endpoint
+# and currently only runs Piper with this one voice. Reflect that honestly instead
+# of inventing options the worker doesn't actually support.
+KNOWN_VOICES = [
+    {
+        "voice_id": "ar_JO-kareem-medium",
+        "label": "Arabic Kareem",
+        "language": "ar",
+        "engine": "piper",
+        "default": True,
+    }
+]
+KNOWN_LANGUAGES = [{"language": "ar", "label": "العربية", "default": True}]
+
 
 def get_tts_client(settings: Settings = Depends(get_settings)) -> TtsWorkerClient:
     return TtsWorkerClient(settings)
@@ -22,6 +36,14 @@ def get_storage(settings: Settings = Depends(get_settings)) -> ProjectStorage:
     return ProjectStorage(settings)
 
 
+def _sanitize_job(job: dict) -> dict:
+    """Strip the worker's internal container filesystem paths before returning to the browser."""
+    files = job.get("files")
+    if isinstance(files, list):
+        job = {**job, "files": [{k: v for k, v in f.items() if k != "path"} for f in files]}
+    return job
+
+
 @router.get("/api/tts/health", response_model=ApiEnvelope)
 def tts_health(client: TtsWorkerClient = Depends(get_tts_client)) -> ApiEnvelope:
     data = client.health()
@@ -29,6 +51,14 @@ def tts_health(client: TtsWorkerClient = Depends(get_tts_client)) -> ApiEnvelope
     if data["configured"] and data.get("remote_ok") is False:
         errors.append("TTS worker is not reachable.")
     return ApiEnvelope(data=data, meta={"provider": "tts-worker"}, errors=errors)
+
+
+@router.get("/api/tts/voices", response_model=ApiEnvelope)
+def list_tts_voices() -> ApiEnvelope:
+    return ApiEnvelope(
+        data={"voices": KNOWN_VOICES, "languages": KNOWN_LANGUAGES},
+        meta={"provider": "tts-worker"},
+    )
 
 
 @router.post("/api/projects/{project_id}/tts/jobs", response_model=ApiEnvelope)
@@ -77,7 +107,7 @@ def create_tts_job(
     except TtsWorkerError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    return ApiEnvelope(data=result, meta={"provider": "tts-worker"})
+    return ApiEnvelope(data=_sanitize_job(result), meta={"provider": "tts-worker"})
 
 
 @router.post("/api/projects/{project_id}/tts/generate-all", response_model=ApiEnvelope)
@@ -140,7 +170,7 @@ def get_tts_job(
         result = client.get_job(job_id)
     except TtsWorkerError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return ApiEnvelope(data=result, meta={"provider": "tts-worker"})
+    return ApiEnvelope(data=_sanitize_job(result), meta={"provider": "tts-worker"})
 
 
 @router.get("/api/tts/jobs/{job_id}/download/{fmt}")
@@ -156,3 +186,80 @@ def download_tts_job_file(
     except TtsWorkerError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return Response(content=content, media_type=content_type)
+
+
+@router.get("/api/projects/{project_id}/audio", response_model=ApiEnvelope)
+def get_project_audio(
+    project_id: str,
+    storage: ProjectStorage = Depends(get_storage),
+) -> ApiEnvelope:
+    try:
+        project = storage.get_project(project_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    scenes_with_audio_ids = {scene.scene_id for scene in storage.get_scenes_with_audio(project)}
+    scenes = []
+    wav_scene_count = 0
+    for scene in project.scenes:
+        has_audio = scene.scene_id in scenes_with_audio_ids
+        if has_audio and scene.audio_format == "wav":
+            wav_scene_count += 1
+        scenes.append(
+            {
+                "scene_id": scene.scene_id,
+                "has_audio": has_audio,
+                "audio_format": scene.audio_format if has_audio else None,
+                "audio_bytes": scene.audio_bytes if has_audio else None,
+                "audio_generated_at": scene.audio_generated_at.isoformat()
+                if has_audio and scene.audio_generated_at
+                else None,
+                "url": f"/api/projects/{project_id}/audio/{scene.scene_id}" if has_audio else None,
+            }
+        )
+
+    final_story_available = wav_scene_count > 1
+    return ApiEnvelope(
+        data={
+            "project_id": project_id,
+            "scenes": scenes,
+            "final_story": {
+                "has_audio": final_story_available,
+                "url": f"/api/projects/{project_id}/audio/final_story.wav"
+                if final_story_available
+                else None,
+            },
+        }
+    )
+
+
+@router.get("/api/projects/{project_id}/audio/final_story.wav")
+def get_final_story_audio(
+    project_id: str,
+    storage: ProjectStorage = Depends(get_storage),
+) -> Response:
+    try:
+        storage.get_project(project_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    audio_bytes = storage.build_final_story_wav(project_id)
+    if audio_bytes is None:
+        raise HTTPException(status_code=404, detail="Final story audio not available.")
+    return Response(content=audio_bytes, media_type="audio/wav")
+
+
+@router.get("/api/projects/{project_id}/audio/{scene_id}")
+def get_scene_audio(
+    project_id: str,
+    scene_id: str,
+    storage: ProjectStorage = Depends(get_storage),
+) -> Response:
+    try:
+        storage.get_project(project_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    path = storage.get_scene_audio_path(project_id, scene_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Scene audio not found.")
+    media_type = "audio/wav" if path.suffix == ".wav" else "audio/mpeg"
+    return Response(content=path.read_bytes(), media_type=media_type)

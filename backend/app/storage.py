@@ -15,6 +15,7 @@ from app.schemas import (
     ProjectListItem,
     ProjectResponse,
     ProjectUpdateRequest,
+    Scene,
     SplitScenesData,
 )
 
@@ -156,6 +157,38 @@ class ProjectStorage:
         self._write_project(project)
         return project
 
+    def get_scenes_with_audio(self, project: ProjectResponse) -> list[Scene]:
+        audio_dir = self.project_audio_dir(project.project_id)
+        return [
+            scene
+            for scene in project.scenes
+            if scene.audio_format
+            and (audio_dir / f"scene_{scene.scene_id}.{scene.audio_format}").exists()
+        ]
+
+    def get_scene_audio_path(self, project_id: str, scene_id: str) -> Path | None:
+        project = self.get_project(project_id)
+        scene = next((s for s in project.scenes if s.scene_id == scene_id), None)
+        if scene is None or not scene.audio_format:
+            return None
+        audio_dir = self.project_audio_dir(project_id)
+        candidate = (audio_dir / f"scene_{scene.scene_id}.{scene.audio_format}").resolve()
+        if audio_dir.resolve() not in candidate.parents:
+            return None
+        return candidate if candidate.exists() else None
+
+    def build_final_story_wav(self, project_id: str) -> bytes | None:
+        project = self.get_project(project_id)
+        audio_dir = self.project_audio_dir(project_id)
+        wav_paths = [
+            audio_dir / f"scene_{scene.scene_id}.wav"
+            for scene in self.get_scenes_with_audio(project)
+            if scene.audio_format == "wav"
+        ]
+        if len(wav_paths) < 2:
+            return None
+        return _concatenate_wavs(wav_paths)
+
     def scenes_export(self, project_id: str) -> dict[str, object]:
         project = self.get_project(project_id)
         return {
@@ -169,11 +202,7 @@ class ProjectStorage:
         scenes_payload = self.scenes_export(project_id)
         total_duration = sum(scene.duration_seconds for scene in project.scenes)
         audio_dir = self.project_audio_dir(project_id)
-        scenes_with_audio = [
-            scene
-            for scene in project.scenes
-            if scene.audio_format and (audio_dir / f"scene_{scene.scene_id}.{scene.audio_format}").exists()
-        ]
+        scenes_with_audio = self.get_scenes_with_audio(project)
         metadata = {
             "project_id": project.project_id,
             "title": project.title,

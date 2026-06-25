@@ -2,6 +2,8 @@
 
 Last updated: 2026-06-25
 
+**Status: ✅ Implemented and manually verified end-to-end (real audio, real playback, real persistence).**
+
 ## Why Phase 1.5
 
 Audio generation already works, but the current product experience is incomplete. Users can generate audio and find it in ZIP output, yet they need clear browser playback, per-scene controls, a full-story player, and graceful voice/language controls.
@@ -61,17 +63,23 @@ Keep:
 - Current project workspace flow.
 - Existing project save/load/edit/export behavior.
 
-## Acceptance Criteria
+## Acceptance Criteria — all verified with real requests, not assumed
 
-- User can check TTS health.
-- User can generate first-scene audio and play it in the browser.
-- User can generate all project audio and see which scenes have audio.
-- User can play/download each saved scene audio without opening ZIP manually.
-- User can play/download full project audio if generated.
-- Voice/language controls work with one available voice and do not break if only Arabic Piper is available.
-- `export.zip` still includes scene audio and `final_story.wav`.
-- Browser never calls AI Server directly.
-- `python scripts/check_utf8.py`, `python -m compileall backend/app`, `docker compose config`, and frontend build pass.
+- ✅ User can check TTS health (`remote_ok: true`, real LAN latency to the AI Server worker).
+- ✅ User can generate first-scene audio and play it in the browser (`<audio>` + download appear only after `status: "done"`).
+- ✅ User can generate all project audio (`generate-all` on a real 6-scene project: `6/6` generated, `0` failed) and see which scenes have audio.
+- ✅ User can play/download each saved scene audio without opening the ZIP manually — `GET /api/projects/{id}/audio/{scene_id}` streams real WAV through the backend.
+- ✅ User can play/download full project audio if generated — `GET /api/projects/{id}/audio/final_story.wav`, verified as a valid concatenated WAV (53.63s for 6 real scenes).
+- ✅ Voice/language controls work with one available voice (`ar_JO-kareem-medium`) and do not break — `GET /api/tts/voices` always returns this catalog, with a frontend hardcoded fallback if the call ever fails.
+- ✅ `export.zip` still includes scene audio and `final_story.wav` (verified: 11 files including 6 scene WAVs + `final_story.wav`), and still returns `200` for a zero-scene project (no regression).
+- ✅ Browser never calls AI Server directly — confirmed by grepping every Phase 1.5 response for the AI Server's LAN address/port and for `/workspace` filesystem paths. Found and fixed one real gap: `GET /api/tts/jobs/{job_id}` was leaking `files[].path` (an internal container path) — stripped before this phase shipped.
+- ✅ `python scripts/check_utf8.py`, `python -m compileall backend/app`, `docker compose config`, and `docker compose exec frontend npm run build` all pass.
+
+## Implementation Notes
+
+- `final_story.wav` is computed on demand from current scene audio (not cached as a separate file), so it can never go stale relative to `export.zip`'s own concatenation.
+- `GET /api/projects/{project_id}/audio/{scene_id}` resolves the scene by ID against the project's actual scene list, then verifies the resulting path stays inside that project's audio directory before reading — defends against path traversal even if a `scene_id` were ever attacker-influenced via a project update.
+- The "generate first-scene audio" button intentionally stays ephemeral (job-based, not persisted) — only `generate-all` persists per-scene audio to disk/metadata, matching the existing Phase 1.3/1.4 design split.
 
 ## Practical Patterns
 

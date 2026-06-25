@@ -274,7 +274,8 @@ label {
 }
 
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 16px;
@@ -286,9 +287,15 @@ textarea {
 }
 
 input:focus,
-textarea:focus {
+textarea:focus,
+select:focus {
   border-color: rgba(249, 210, 138, 0.55);
   box-shadow: 0 0 0 4px rgba(249, 210, 138, 0.08);
+}
+
+select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 textarea {
@@ -617,6 +624,33 @@ pre {
   color: #fecaca;
   border-color: rgba(248, 113, 113, 0.32);
   background: rgba(190, 48, 78, 0.16);
+}
+
+.tts-status--checking {
+  color: #f9d28a;
+  border-color: rgba(249, 210, 138, 0.32);
+  background: rgba(249, 210, 138, 0.12);
+}
+
+.tts-selectors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.tts-selectors label {
+  flex: 1 1 180px;
+}
+
+.saved-audio-list {
+  display: grid;
+  gap: 10px;
+}
+
+.saved-audio-list h3 {
+  margin: 4px 0 0;
+  font-size: 1rem;
+  color: #cbd5e1;
 }
 
 .tts-job-card {

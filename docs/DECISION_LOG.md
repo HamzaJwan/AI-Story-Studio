@@ -1,5 +1,29 @@
 # Decision Log
 
+## 2026-06-25 — Phase 1.5: Audio UX Polish (real playback, no more ZIP digging)
+
+**Decision:** Convert the already-working audio backend (Phase 1.1–1.4) into an actual usable product feature — voice/language selectors, per-scene saved-audio playback, and a full-story player, all backend-proxied — without adding a new engine or touching image/video work.
+
+**What changed:**
+- `GET /api/tts/voices`: returns a static, honest catalog (`ar_JO-kareem-medium` via Piper) since the deployed worker has no voice-listing capability — no invented options.
+- `GET /api/projects/{project_id}/audio`, `.../audio/{scene_id}`, `.../audio/final_story.wav`: new backend-proxied metadata + streaming endpoints. `final_story.wav` is computed on demand (reuses the same concatenation logic as `export.zip`) rather than cached separately, so it can never drift out of sync.
+- `storage.py` refactored to share `get_scenes_with_audio()` between `export.zip` and the new endpoints instead of duplicating the scan logic.
+- Frontend: voice/language selectors, per-scene play/download list, full-story player, clearer Arabic status copy, and a fixed stale "Phase 0.4" hero label.
+
+**Bug found and fixed before commit:** `GET /api/tts/jobs/{job_id}` was leaking the worker's internal container filesystem path (`files[].path`, e.g. `/workspace/data/jobs/...`) to the browser — a violation of the project's own "no real filesystem paths" rule, even though it predates this phase. The frontend never read that field, so stripping it before returning is a safe, backward-compatible fix, not a breaking change. Caught by deliberately grepping every Phase 1.5-adjacent response for AI Server paths/addresses before considering this done.
+
+**Evidence:**
+- Real single-scene job with `voice_id` → real Piper WAV via the backend download proxy.
+- Real `generate-all` on a 6-scene project → `6/6` generated, persisted to disk + metadata, survives a backend container restart.
+- `GET .../audio/{scene_id}` and `GET .../audio/final_story.wav` both verified as valid WAV via Python's `wave` module (correct duration, not silence).
+- Path-traversal-shaped `scene_id` values return `404`, not a file.
+- `export.zip` still includes all scene audio + `final_story.wav` (11 files for 6 scenes) and still works for a zero-scene project.
+- Full regression suite (`check_utf8`, `compileall`, `docker compose config`, frontend build, smoke test) passes.
+
+**Impact:** Phase 1.5 is `PASS`. Per the explicit scope boundary for this phase, **not** proceeding to Phase 2.1 (Image Worker Bridge) or any image/video work — that still requires Hamza's quality sign-off on the Phase 2.0 image, which is a separate decision this phase does not make.
+
+---
+
 ## 2026-06-25 — Phase 2.0 PASSED: real image generated (ComfyUI + SDXL)
 
 **Decision:** Retried the previously-stalled checkpoint download after confirming (with a corrected, valid speed test — the earlier "still blocked" recheck had a testing bug, see below) that the AI Server's network had genuinely recovered. Completed the full Benchmark Gate this time with a real generated image.

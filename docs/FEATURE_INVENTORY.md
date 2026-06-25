@@ -20,19 +20,17 @@ Last updated: 2026-06-25
 | Generate all project audio | `POST /api/projects/{project_id}/tts/generate-all` | Working |
 | Audio included in ZIP | `data/projects/{id}/audio` files included in export | Working |
 | ComfyUI benchmark | `deploy/ai-server/comfyui-lab` | Technical PASS |
+| Voice/language catalog | `GET /api/tts/voices` (Phase 1.5) | Working — static honest catalog, no invented options |
+| Per-scene saved audio metadata | `GET /api/projects/{project_id}/audio` (Phase 1.5) | Working — verified on a real 6-scene project |
+| Per-scene saved audio playback | `GET /api/projects/{project_id}/audio/{scene_id}` (Phase 1.5) | Working — real `<audio>` + download, no ZIP needed |
+| Full-story playback | `GET /api/projects/{project_id}/audio/final_story.wav` (Phase 1.5) | Working — computed on demand, verified valid WAV |
+| Audio Studio UX | Voice/language selectors, status copy, per-scene + full-story players in `App.tsx` | Working |
 
 ## Implemented But Needs UX Polish
 
 | Feature | Current Gap | Recommended Phase |
 |---|---|---|
-| Browser audio playback | Single-job player exists, but saved per-scene and full-story audio are not surfaced clearly | Phase 1.5 |
-| Project audio generation | Works, but success message says to download ZIP instead of offering players/download links | Phase 1.5 |
-| Per-scene audio | Files and metadata exist after `generate-all`, but the UI lacks per-scene play/download controls | Phase 1.5 |
-| Full-story audio | `final_story.wav` exists in ZIP, but no direct browser player/download exists | Phase 1.5 |
-| Voice selection | `voice_id` is accepted by schemas but no selector/list UX exists | Phase 1.5 |
-| Language selection | Story prompt has language, but TTS UX lacks Arabic/English language selection | Phase 1.5 |
-| Job progress | Basic status exists; no percentage/ETA/scene-by-scene project progress | Phase 1.5 then shared job model |
-| Visible phase label | UI still shows an older phase label | Cleanup within Phase 1.5 |
+| Job progress | Basic status exists; no percentage/ETA/scene-by-scene project progress | Shared job/progress model, later |
 
 ## Benchmark-Only
 
@@ -49,10 +47,7 @@ Last updated: 2026-06-25
 
 | Feature | Planned Phase |
 |---|---|
-| Audio voice/language selector | Phase 1.5 |
-| Per-scene saved audio player | Phase 1.5 |
-| Full project audio player/download | Phase 1.5 |
-| Unified job progress model | Phase 1.5 foundation, expanded later |
+| Unified job progress model | Expanded later, no Phase 1.5 foundation work started |
 | Image worker bridge | Phase 2.1 after quality approval |
 | Story scene images | Phase 2.2 |
 | Character/location/object continuity | Phase 2.3 |
@@ -76,4 +71,4 @@ Last updated: 2026-06-25
 
 ## Current Recommendation
 
-Proceed with `Phase 1.5 — Audio UX Polish`. It converts already-working backend capability into a usable product experience before opening the larger image-generation track.
+`Phase 1.5 — Audio UX Polish` is implemented and verified end-to-end. Next: either Hamza's image quality sign-off (unblocks Phase 2.1) or a Manual QA Pack / `App.tsx` cleanup pass — see `docs/NEXT_EXECUTION_PLAN.md`.

@@ -75,6 +75,47 @@ type TtsJobData = {
   [key: string]: unknown;
 };
 
+type TtsVoice = {
+  voice_id: string;
+  label: string;
+  language: string;
+  engine: string;
+  default: boolean;
+};
+
+type TtsLanguage = {
+  language: string;
+  label: string;
+  default: boolean;
+};
+
+type TtsVoicesData = {
+  voices: TtsVoice[];
+  languages: TtsLanguage[];
+};
+
+type SceneAudioInfo = {
+  scene_id: string;
+  has_audio: boolean;
+  audio_format: string | null;
+  audio_bytes: number | null;
+  audio_generated_at: string | null;
+  url: string | null;
+};
+
+type ProjectAudioData = {
+  project_id: string;
+  scenes: SceneAudioInfo[];
+  final_story: { has_audio: boolean; url: string | null };
+};
+
+const FALLBACK_TTS_VOICES: TtsVoicesData = {
+  voices: [
+    { voice_id: "ar_JO-kareem-medium", label: "Arabic Kareem", language: "ar", engine: "piper", default: true },
+  ],
+  languages: [{ language: "ar", label: "العربية", default: true }],
+};
+
 type TtsBusyAction = "health" | "scene" | "project" | "refresh" | null;
 
 type LoadingAction =
@@ -165,6 +206,11 @@ export default function App() {
   const [ttsMessage, setTtsMessage] = useState("");
   const [ttsJob, setTtsJob] = useState<TtsJobData | null>(null);
   const [ttsBusy, setTtsBusy] = useState<TtsBusyAction>(null);
+  const [ttsVoices, setTtsVoices] = useState<TtsVoicesData>(FALLBACK_TTS_VOICES);
+  const [selectedVoiceId, setSelectedVoiceId] = useState<string | null>(
+    FALLBACK_TTS_VOICES.voices[0].voice_id,
+  );
+  const [projectAudio, setProjectAudio] = useState<ProjectAudioData | null>(null);
 
   const canRun = storyText.trim().length > 0 && loading === null;
 
@@ -193,7 +239,29 @@ export default function App() {
       .catch(() => setError("تعذر تحميل إعدادات المزود من backend."));
     refreshProjects();
     checkTtsHealth();
+    fetchTtsVoices();
   }, []);
+
+  async function fetchTtsVoices() {
+    try {
+      const r = await getJson<TtsVoicesData>("/api/tts/voices");
+      if (r.data.voices.length) {
+        setTtsVoices(r.data);
+        setSelectedVoiceId(r.data.voices.find((v) => v.default)?.voice_id ?? r.data.voices[0].voice_id);
+      }
+    } catch {
+      /* keep FALLBACK_TTS_VOICES — never break the selector */
+    }
+  }
+
+  async function refreshProjectAudio(id: string) {
+    try {
+      const r = await getJson<ProjectAudioData>(`/api/projects/${id}/audio`);
+      setProjectAudio(r.data);
+    } catch {
+      setProjectAudio(null);
+    }
+  }
 
   async function refreshProjects() {
     try {
@@ -217,6 +285,9 @@ export default function App() {
     setScenes(project.scenes || []);
     setExpandedIndices(new Set([0]));
     setRawJsonOpen(Boolean(project.scenes?.length));
+    setProjectAudio(null);
+    setTtsJob(null);
+    void refreshProjectAudio(project.project_id);
   }
 
   // ── Project CRUD ─────────────────────────────────────────────────────────────
@@ -287,6 +358,8 @@ export default function App() {
       setScenes([]);
       setExpandedIndices(new Set());
       setRawJsonOpen(false);
+      setProjectAudio(null);
+      setTtsJob(null);
       await refreshProjects();
       showNotice("تم حذف المشروع.");
     } catch (exc) {
@@ -505,7 +578,7 @@ export default function App() {
     URL.revokeObjectURL(url);
   }
 
-  // ── TTS Bridge (Phase 1.1 — لا يوجد engine حقيقي، فقط جسر اتصال) ────────────────
+  // ── TTS Bridge (Phase 1.5 — Audio Studio UX) ────────────────────────────────────
 
   async function checkTtsHealth() {
     setTtsBusy("health");
@@ -532,14 +605,14 @@ export default function App() {
       return;
     }
     setTtsBusy(mode);
-    setTtsMessage("");
+    setTtsMessage("جاري توليد صوت المشهد...");
     setTtsJob(null);
     try {
-      const body = { mode, scene_id: scenes[0].scene_id, format: "wav" };
+      const body = { mode, scene_id: scenes[0].scene_id, format: "wav", voice_id: selectedVoiceId };
       const r = await postJson<TtsJobData>(`/api/projects/${projectId}/tts/jobs`, body);
       setTtsJob(r.data);
       if (r.errors.length) setTtsMessage(r.errors.join(" "));
-      else setTtsMessage("تم إرسال طلب التوليد.");
+      else setTtsMessage("تم توليد صوت المشهد.");
     } catch (exc) {
       setTtsMessage(exc instanceof Error ? exc.message : "تعذر إرسال طلب توليد الصوت.");
     } finally {
@@ -557,7 +630,7 @@ export default function App() {
       return;
     }
     setTtsBusy("project");
-    setTtsMessage("جاري توليد الصوت لكل المشاهد، قد يستغرق دقائق...");
+    setTtsMessage("جاري توليد صوت المشروع، قد يستغرق دقائق...");
     setTtsJob(null);
     try {
       const r = await postJson<{ generated: string[]; failed: { scene_id: string; error: string }[]; total_scenes: number }>(
@@ -567,9 +640,10 @@ export default function App() {
         setTtsMessage(r.errors.join(" "));
       } else {
         const { generated, failed, total_scenes } = r.data;
-        let msg = `تم توليد الصوت لـ ${generated.length} من ${total_scenes} مشهد. حمّل حزمة المشروع ZIP لرؤية الصوت.`;
+        let msg = `تم توليد صوت المشروع (${generated.length} من ${total_scenes} مشهد). استمع للمشاهد أدناه.`;
         if (failed.length) msg += ` فشل: ${failed.map((f) => f.scene_id).join(", ")}.`;
         setTtsMessage(msg);
+        await refreshProjectAudio(projectId);
       }
     } catch (exc) {
       setTtsMessage(exc instanceof Error ? exc.message : "تعذر توليد صوت المشروع.");
@@ -593,12 +667,22 @@ export default function App() {
     }
   }
 
+  function ttsStatusClass(): string {
+    if (ttsBusy === "health") return "checking";
+    if (ttsHealth === null) return "disabled";
+    if (!ttsHealth.configured) return "disabled";
+    if (ttsHealth.remote_ok === false) return "error";
+    if (ttsHealth.remote_ok === true) return "ready";
+    return "disabled";
+  }
+
   function ttsStatusLabel(): string {
+    if (ttsBusy === "health") return "جاري الفحص...";
     if (ttsHealth === null) return "لم يتم الفحص بعد";
-    if (!ttsHealth.configured) return "غير مفعّلة";
-    if (ttsHealth.remote_ok === false) return "خطأ اتصال";
-    if (ttsHealth.remote_ok === true) return "مفعّلة";
-    return "مفعّلة (بانتظار فحص الاتصال)";
+    if (!ttsHealth.configured) return "خدمة الصوت غير مفعّلة";
+    if (ttsHealth.remote_ok === false) return "خدمة الصوت غير متصلة";
+    if (ttsHealth.remote_ok === true) return "خدمة الصوت متصلة";
+    return "خدمة الصوت مفعّلة (بانتظار فحص الاتصال)";
   }
 
   function ttsStatusText(status: string): string {
@@ -623,9 +707,9 @@ export default function App() {
       {/* Hero */}
       <section className="hero-section">
         <div className="hero-copy">
-          <span className="phase-pill">Phase 0.4</span>
+          <span className="phase-pill">Phase 1.5 — استوديو الصوت</span>
           <h1>AI Story Studio</h1>
-          <p>حوّل قصتك إلى مشروع محفوظ، سكريبت راوي، ومشاهد قابلة للتعديل والتصدير.</p>
+          <p>حوّل قصتك إلى مشروع محفوظ، سكريبت راوي، مشاهد قابلة للتعديل، وصوت حقيقي تستمع إليه مباشرة.</p>
         </div>
         <div className={`status-chip ${config?.ollama_configured ? "ready" : "warning"}`}>
           <span>{config?.provider || "ollama"}</span>
@@ -956,14 +1040,43 @@ export default function App() {
                   استوديو الصوت <span className="badge-experimental">تجريبي</span>
                 </h2>
               </div>
-              <span className={`tts-status-chip tts-status--${ttsHealth?.configured ? (ttsHealth.remote_ok === false ? "error" : "ready") : "disabled"}`}>
-                {ttsStatusLabel()}
-              </span>
+              <span className={`tts-status-chip tts-status--${ttsStatusClass()}`}>{ttsStatusLabel()}</span>
             </div>
 
             <p className="muted-text">
-              توليد الصوت يحتاج TTS Worker على AI Server. هذه اللوحة جسر اتصال فقط، ولا تشغّل أي
-              موديل صوت داخل التطبيق.
+              توليد الصوت يتم عبر TTS Worker على AI Server من خلال backend فقط — المتصفح لا يتصل
+              بأي خدمة على AI Server مباشرة.
+            </p>
+
+            <div className="tts-selectors">
+              <label>
+                الصوت
+                <select
+                  value={selectedVoiceId ?? ""}
+                  onChange={(e) => setSelectedVoiceId(e.target.value)}
+                  disabled={ttsVoices.voices.length <= 1}
+                >
+                  {ttsVoices.voices.map((v) => (
+                    <option key={v.voice_id} value={v.voice_id}>
+                      {v.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                اللغة
+                <select value={ttsVoices.languages[0]?.language ?? "ar"} disabled>
+                  {ttsVoices.languages.map((l) => (
+                    <option key={l.language} value={l.language}>
+                      {l.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <p className="muted-text">
+              الصوت الحالي الوحيد المتاح: {ttsVoices.voices[0]?.label ?? "—"}. اختيار اللغة غير
+              متاح حالياً إلا للعربية.
             </p>
 
             {ttsMessage && <div className="notice-banner">{ttsMessage}</div>}
@@ -977,14 +1090,14 @@ export default function App() {
                 disabled={!projectId || !scenes.length || !ttsHealth?.configured || ttsBusy !== null}
                 title={!ttsHealth?.configured ? "خدمة الصوت غير مفعّلة" : undefined}
               >
-                {ttsBusy === "scene" ? "جاري التوليد..." : "توليد صوت للمشهد الأول"}
+                {ttsBusy === "scene" ? "جاري توليد صوت المشهد..." : "توليد صوت للمشهد الأول"}
               </button>
               <button
                 onClick={handleGenerateAllAudio}
                 disabled={!projectId || !scenes.length || !ttsHealth?.configured || ttsBusy !== null}
                 title={!ttsHealth?.configured ? "خدمة الصوت غير مفعّلة" : undefined}
               >
-                {ttsBusy === "project" ? "جاري التوليد..." : "توليد صوت للمشروع"}
+                {ttsBusy === "project" ? "جاري توليد صوت المشروع..." : "توليد صوت للمشروع"}
               </button>
             </div>
 
@@ -1007,13 +1120,53 @@ export default function App() {
                     const fileUrl = `${API_BASE_URL}/api/tts/jobs/${ttsJob.job_id}/download/${file.format}`;
                     return (
                       <span key={idx} className="tts-audio-result">
+                        <p className="muted-text">استمع إلى صوت المشهد</p>
                         <audio controls src={fileUrl} className="tts-audio-player" />
                         <a className="ghost-button" href={fileUrl} download>
-                          تحميل الصوت ({file.format})
+                          تحميل صوت المشهد ({file.format})
                         </a>
                       </span>
                     );
                   })}
+              </div>
+            )}
+
+            {projectAudio && projectAudio.scenes.some((s) => s.has_audio) && (
+              <div className="saved-audio-list">
+                <h3>الأصوات المحفوظة للمشاهد</h3>
+                {projectAudio.scenes
+                  .filter((s) => s.has_audio && s.url)
+                  .map((s) => {
+                    const url = `${API_BASE_URL}${s.url}`;
+                    return (
+                      <div key={s.scene_id} className="tts-job-card">
+                        <span>مشهد {s.scene_id}</span>
+                        <audio controls src={url} className="tts-audio-player" />
+                        <a className="ghost-button" href={url} download>
+                          تحميل صوت المشهد
+                        </a>
+                        {s.audio_bytes != null && <small>{Math.round(s.audio_bytes / 1024)} KB</small>}
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+
+            {projectAudio?.final_story.has_audio && projectAudio.final_story.url && (
+              <div className="tts-job-card">
+                <span>صوت القصة كاملة</span>
+                <audio
+                  controls
+                  src={`${API_BASE_URL}${projectAudio.final_story.url}`}
+                  className="tts-audio-player"
+                />
+                <a
+                  className="ghost-button"
+                  href={`${API_BASE_URL}${projectAudio.final_story.url}`}
+                  download
+                >
+                  تحميل صوت القصة كاملة
+                </a>
               </div>
             )}
           </section>
