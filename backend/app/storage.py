@@ -242,6 +242,35 @@ class ProjectStorage:
             return None
         return candidate if candidate.exists() else None
 
+    def project_video_dir(self, project_id: str) -> Path:
+        safe_id = self._project_path(project_id).stem
+        path = self.root / safe_id / "video"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def get_video_path(self, project_id: str) -> Path | None:
+        video_dir = self.project_video_dir(project_id)
+        candidate = (video_dir / "final_story.mp4").resolve()
+        if video_dir.resolve() not in candidate.parents:
+            return None
+        return candidate if candidate.exists() else None
+
+    def get_video_metadata(self, project_id: str) -> dict | None:
+        video_dir = self.project_video_dir(project_id)
+        meta_path = video_dir / "metadata.json"
+        if not meta_path.exists():
+            return None
+        try:
+            return json.loads(meta_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    def save_video_metadata(self, project_id: str, metadata: dict) -> None:
+        video_dir = self.project_video_dir(project_id)
+        (video_dir / "metadata.json").write_text(
+            json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
     def build_final_story_wav(self, project_id: str) -> bytes | None:
         project = self.get_project(project_id)
         audio_dir = self.project_audio_dir(project_id)
@@ -270,6 +299,7 @@ class ProjectStorage:
         scenes_with_audio = self.get_scenes_with_audio(project)
         images_dir = self.project_images_dir(project_id)
         scenes_with_images = self.get_scenes_with_images(project)
+        video_path = self.get_video_path(project_id)
         metadata = {
             "project_id": project.project_id,
             "title": project.title,
@@ -279,21 +309,28 @@ class ProjectStorage:
             "total_duration_seconds": total_duration,
             "exported_at": datetime.now(timezone.utc).isoformat(),
             "app": "AI Story Studio",
-            "phase": "2.2",
+            "phase": "3.0",
             "audio_scene_count": len(scenes_with_audio),
             "audio_limitations": [
-                "final_story.wav is a raw WAV concatenation of available scene audio in scene order "
-                "(no ffmpeg/MP3 in the backend image); convert externally if MP3 is needed.",
+                "final_story.wav is a raw WAV concatenation of available scene audio in scene order, "
+                "built with Python's wave module rather than ffmpeg; convert externally if MP3 is needed.",
             ]
             if scenes_with_audio
             else [],
             "image_scene_count": len(scenes_with_images),
             "image_limitations": [
                 "Image quality is CANDIDATE, not final-approved (see "
-                "docs/IMAGE_QUALITY_APPROVAL_CHECKLIST.md). No cross-scene continuity beyond "
-                "prompt text -- character/location consistency is not guaranteed.",
+                "docs/IMAGE_QUALITY_APPROVAL_CHECKLIST.md). Continuity is prompt-only (Tier 1) -- "
+                "consistent style/character/location text, not pixel-level guarantees.",
             ]
             if scenes_with_images
+            else [],
+            "video_included": video_path is not None,
+            "video_limitations": [
+                "Basic ffmpeg assembly (static scene images + scene audio), no AI video motion, "
+                "transitions, or burned-in subtitles -- see docs/VIDEO_SUBTITLES_PLAN.md.",
+            ]
+            if video_path is not None
             else [],
         }
 
@@ -324,6 +361,8 @@ class ProjectStorage:
             for scene in scenes_with_images:
                 image_path = images_dir / f"scene_{scene.scene_id}.{scene.image_format}"
                 archive.writestr(f"images/scene_{scene.scene_id}.{scene.image_format}", image_path.read_bytes())
+            if video_path is not None:
+                archive.writestr("video/final_story.mp4", video_path.read_bytes())
         return buffer.getvalue()
 
     def _new_project_id(self) -> str:

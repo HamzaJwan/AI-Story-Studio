@@ -570,3 +570,41 @@ Every image generation path (`POST .../images/jobs`, `.../scenes/{id}/generate`,
 ### Verified
 
 Setting `character_bible`/`story_style_bible` on a real project and regenerating a scene that had previously drifted to an illustrative style produced a photo-real image of an elderly man with a grey beard and brown wool coat under warm amber lighting -- matching the bible text, confirmed by visual inspection.
+
+---
+
+## Phase 3.0 Video Assembly MVP
+
+Backend-only ffmpeg pipeline (installed in `backend/Dockerfile`) that combines each scene's saved image + saved audio into one MP4. No AI video motion, no transitions beyond a hard cut, no burned-in subtitles -- those are Phase 3.1+ (`docs/VIDEO_SUBTITLES_PLAN.md`).
+
+### POST /api/projects/{project_id}/video/render
+
+Synchronous. For each scene, in order: skips it (with a `reason`) if it has no saved image; otherwise renders a per-scene H.264 segment (`768x768`, scene's saved image held static for `scene.duration_seconds`, muxed with the scene's saved audio if present, silent otherwise) via `ffmpeg -loop 1 -i image ...`, then concatenates all segments with ffmpeg's concat demuxer (`-c copy`, no re-encode) into `data/projects/{id}/video/final_story.mp4`.
+
+```json
+{
+  "data": {
+    "rendered_at": "2026-06-25T10:50:54Z",
+    "included_scenes": ["01", "02", "03"],
+    "skipped_scenes": [{ "scene_id": "04", "reason": "no saved image for this scene" }],
+    "duration_seconds": 52,
+    "video_bytes": 1051399
+  }
+}
+```
+
+- Returns `422` if the project has no scenes, or if every scene lacks a saved image (nothing to render).
+- Returns `503` if ffmpeg is missing from the image (should not happen post-build); `502` if a render or concat step fails.
+- Re-rendering overwrites the previous `final_story.mp4` (no separate "re-render" endpoint, same pattern as image regeneration).
+
+### GET /api/projects/{project_id}/video
+
+Metadata only: `has_video`, `url` (backend-relative download path), `duration_seconds`, `video_bytes`, `rendered_at`, `included_scenes`, `skipped_scenes`. Reads a small sidecar `metadata.json` next to the video file rather than adding per-project schema fields, since the video is a single derived artifact, not per-scene data.
+
+### GET /api/projects/{project_id}/video/download
+
+Streams the saved MP4 (`video/mp4`). `404` if nothing has been rendered yet.
+
+### export.zip changes
+
+Now also includes `video/final_story.mp4` when one exists; `metadata.json` gained `video_included`/`video_limitations`. Does not change ZIP shape for projects with no rendered video.

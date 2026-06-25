@@ -1,5 +1,21 @@
 # Decision Log
 
+## 2026-06-25 — Phase 3.0: Video Assembly MVP (ffmpeg, basic, real MP4 verified frame-by-frame)
+
+**Decision:** Build a basic ffmpeg-based MP4 assembly (static scene images + scene audio, hard cuts) rather than any AI video/image-to-motion model. This matches the roadmap's explicit sequencing: Phase 3.0 is the video *foundation*, Phase 3.2 (WanGP/image-to-video) is a separate, later, isolated lab benchmark.
+
+**What changed:**
+- `backend/Dockerfile` installs `ffmpeg` via apt -- the backend image's first system dependency beyond Python packages. This is a small, reasonable, scoped Dockerfile change, not a new service or architecture shift.
+- `backend/app/routers/videos.py`: renders one H.264 segment per scene (image held static for `scene.duration_seconds`, muxed with the scene's saved audio when present), concatenates with ffmpeg's concat demuxer (`-c copy`, no re-encode, fast). Scenes without a saved image are skipped with a recorded reason rather than failing the whole render.
+- Video metadata lives in a small sidecar `metadata.json` next to the file, not as new `Project` schema fields -- it's one derived artifact per project, not per-scene data, so this avoids unnecessary schema growth.
+- `build_export_zip()` now includes the final video when present.
+
+**Evidence (verified frame-by-frame, not just an HTTP 200):** rendered a real 6-scene project end to end -- `ffprobe` confirmed a real H.264+AAC MP4 at the expected 52.046s duration; extracted a real frame at `t=2s` and visually inspected it, confirming it actually shows scene 01's saved image, not a placeholder or corrupt file. Also tested a mostly-empty project (1/6 scenes had a saved image) -- correctly rendered just that one scene and recorded 5 skip reasons. Zero-scene project returns a clean `422`.
+
+**Impact:** Phase 3.0 is `PASS`. Next: Phase 3.0/3.1 Subtitle Export MVP (`.srt`/`.vtt` from `narration_ar` + `duration_seconds`).
+
+---
+
 ## 2026-06-25 — Phase 2.3: Continuity Foundation MVP (fixing the style-drift bug found in Phase 2.2, with proof)
 
 **Decision:** Add project-level continuity bibles (story style, character, location, object, negative prompt, style preset) and inject them into every scene's image prompt automatically — Tier 1 prompt-only continuity per `docs/IMAGE_CONTINUITY_STRATEGY.md`, not face-locking or reference images (those are a later tier, out of scope for this MVP).

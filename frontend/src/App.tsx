@@ -159,6 +159,17 @@ type ProjectImagesData = {
   scenes: SceneImageInfo[];
 };
 
+type ProjectVideoData = {
+  project_id: string;
+  has_video: boolean;
+  url: string | null;
+  duration_seconds: number | null;
+  video_bytes: number | null;
+  rendered_at: string | null;
+  included_scenes: string[];
+  skipped_scenes: { scene_id: string; reason: string }[];
+};
+
 type ImageBusyAction = "health" | "scene" | "refresh" | "all" | null;
 
 type LoadingAction =
@@ -270,6 +281,10 @@ export default function App() {
   const [projectImages, setProjectImages] = useState<ProjectImagesData | null>(null);
   const [generatingSceneId, setGeneratingSceneId] = useState<string | null>(null);
 
+  const [projectVideo, setProjectVideo] = useState<ProjectVideoData | null>(null);
+  const [videoMessage, setVideoMessage] = useState("");
+  const [videoBusy, setVideoBusy] = useState(false);
+
   const canRun = storyText.trim().length > 0 && loading === null;
 
   const sceneStats = useMemo(() => {
@@ -334,6 +349,46 @@ export default function App() {
     }
   }
 
+  async function refreshProjectVideo(id: string) {
+    try {
+      const r = await getJson<ProjectVideoData>(`/api/projects/${id}/video`);
+      setProjectVideo(r.data);
+    } catch {
+      setProjectVideo(null);
+    }
+  }
+
+  async function handleRenderVideo() {
+    if (!projectId) {
+      setVideoMessage("احفظ المشروع أولاً قبل تجميع الفيديو.");
+      return;
+    }
+    setVideoBusy(true);
+    setVideoMessage("جاري تجميع الفيديو (قد يستغرق دقيقة أو أكثر)...");
+    try {
+      const r = await postJson<{
+        included_scenes: string[];
+        skipped_scenes: { scene_id: string; reason: string }[];
+        duration_seconds: number;
+      }>(`/api/projects/${projectId}/video/render`);
+      if (r.errors.length) {
+        setVideoMessage(r.errors.join(" "));
+      } else {
+        const { included_scenes, skipped_scenes } = r.data;
+        let msg = `تم تجميع الفيديو من ${included_scenes.length} مشهد.`;
+        if (skipped_scenes.length) {
+          msg += ` تم تجاوز: ${skipped_scenes.map((s) => `${s.scene_id} (${s.reason})`).join(", ")}.`;
+        }
+        setVideoMessage(msg);
+        await refreshProjectVideo(projectId);
+      }
+    } catch (exc) {
+      setVideoMessage(exc instanceof Error ? exc.message : "تعذر تجميع الفيديو.");
+    } finally {
+      setVideoBusy(false);
+    }
+  }
+
   async function refreshProjects() {
     try {
       const r = await getJson<ProjectListData>("/api/projects");
@@ -361,6 +416,8 @@ export default function App() {
     setImageJob(null);
     setImageMessage("");
     setProjectImages(null);
+    setProjectVideo(null);
+    setVideoMessage("");
     setStoryStyleBible(project.story_style_bible || "");
     setCharacterBible(project.character_bible || "");
     setLocationBible(project.location_bible || "");
@@ -369,6 +426,7 @@ export default function App() {
     setStylePreset(project.style_preset || "cinematic_realistic");
     void refreshProjectAudio(project.project_id);
     void refreshProjectImages(project.project_id);
+    void refreshProjectVideo(project.project_id);
   }
 
   // ── Project CRUD ─────────────────────────────────────────────────────────────
@@ -455,6 +513,8 @@ export default function App() {
       setImageJob(null);
       setImageMessage("");
       setProjectImages(null);
+      setProjectVideo(null);
+      setVideoMessage("");
       await refreshProjects();
       showNotice("تم حذف المشروع.");
     } catch (exc) {
@@ -1572,6 +1632,58 @@ export default function App() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </section>
+
+          <section className="audio-panel">
+            <div className="panel-header">
+              <div>
+                <span className="eyebrow">Video Assembly</span>
+                <h2>
+                  تجميع الفيديو <span className="badge-experimental">تجريبي</span>
+                </h2>
+              </div>
+            </div>
+
+            <p className="muted-text">
+              يجمّع backend (عبر ffmpeg) صور المشاهد المحفوظة مع الصوت المحفوظ في فيديو MP4 واحد —
+              بدون فيديو بالذكاء الاصطناعي وبدون انتقالات متقدمة، فقط نسخة عملية أولى. المشاهد بلا
+              صورة محفوظة يتم تجاوزها.
+            </p>
+
+            {videoMessage && <div className="notice-banner">{videoMessage}</div>}
+
+            <div className="action-bar">
+              <button onClick={handleRenderVideo} disabled={!projectId || !scenes.length || videoBusy}>
+                {videoBusy ? "جاري تجميع الفيديو..." : "تجميع فيديو القصة"}
+              </button>
+              {projectId && (
+                <button className="ghost-button" onClick={() => refreshProjectVideo(projectId)} disabled={videoBusy}>
+                  تحديث الحالة
+                </button>
+              )}
+            </div>
+
+            {projectVideo?.has_video && projectVideo.url && (
+              <div className="tts-job-card">
+                <video
+                  src={`${API_BASE_URL}${projectVideo.url}`}
+                  controls
+                  className="scene-image-preview"
+                  style={{ maxWidth: "420px" }}
+                />
+                <a className="ghost-button" href={`${API_BASE_URL}${projectVideo.url}`} download>
+                  تحميل الفيديو
+                </a>
+                {projectVideo.duration_seconds != null && (
+                  <small>
+                    {projectVideo.duration_seconds} ثانية، {projectVideo.included_scenes.length} مشهد
+                    {projectVideo.video_bytes != null
+                      ? `، ${Math.round(projectVideo.video_bytes / 1024)} KB`
+                      : ""}
+                  </small>
+                )}
               </div>
             )}
           </section>

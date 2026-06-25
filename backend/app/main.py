@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
-from app.routers import config, health, images, ollama, projects, story, tts
+from app.routers import config, health, images, ollama, projects, story, tts, videos
 
 settings = get_settings()
 
@@ -25,6 +25,7 @@ app.include_router(projects.router)
 app.include_router(story.router)
 app.include_router(tts.router)
 app.include_router(images.router)
+app.include_router(videos.router)
 
 
 @app.middleware("http")
