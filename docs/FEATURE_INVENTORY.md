@@ -68,6 +68,12 @@ Last updated: 2026-06-25
 | Job Queue Dashboard | Cross-cutting after Phase 1.5 |
 | Safety & Rights Checklist | Before voice/image reference expansion |
 | Model / Engine Dashboard | Later ops/status feature |
+| Local AI Assistant Lab | Phase 4.0 |
+| Chat model benchmark | Phase 4.1 |
+| Project Knowledge/RAG setup | Phase 4.2 |
+| Web search benchmark | Phase 4.3 |
+| Vision chat benchmark | Phase 4.4 |
+| Story Studio assistant tools | Phase 4.5 |
 
 ## Current Recommendation
 

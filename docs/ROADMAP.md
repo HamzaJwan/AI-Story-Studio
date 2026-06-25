@@ -269,6 +269,96 @@ Exit criteria:
 - Preset output dimensions and included assets are explicit.
 - Failed exports do not corrupt project data.
 
+### Phase 4.0 — Local AI Assistant Lab Research
+
+Goal: evaluate a local ChatGPT/Gemini-like assistant path by using existing AI Server services instead of building a chat system from scratch.
+
+Scope:
+- Review existing Open WebUI capabilities.
+- Review current Ollama models.
+- Define project-specific assistant use cases.
+- Test whether Open WebUI is sufficient as the assistant UI.
+- No integration inside AI Story Studio yet.
+
+Exit criteria:
+- Clear recommendation: use Open WebUI as-is, extend via Open WebUI tools/pipelines, or build a small Story Studio bridge later.
+- Candidate models and RAG settings identified for benchmark.
+- No changes to production app architecture.
+
+### Phase 4.1 — Model Benchmark for Chat
+
+Goal: choose practical default models for local chat on the AI Server.
+
+Scope:
+- Arabic chat model benchmark.
+- English chat model benchmark.
+- Coding/reasoning benchmark.
+- Response speed and context length checks.
+- Compare only models actually available or intentionally pulled for benchmark.
+
+Exit criteria:
+- Default chat model candidate selected.
+- Limits documented for Arabic, English, reasoning, and long-context tasks.
+
+### Phase 4.2 — Knowledge / RAG Setup
+
+Goal: reduce hallucination by grounding answers in project docs instead of fine-tuning first.
+
+Scope:
+- Upload project docs, roadmap, API contracts, prompts, and selected project files into Open WebUI Knowledge/RAG.
+- Test source-bound answers and citations.
+- Tune chunking/context settings.
+- Evaluate whether answers say “I do not know” when evidence is missing.
+
+Exit criteria:
+- Project-doc Q&A works with citations.
+- Hallucination test set passes an agreed threshold.
+- Fine-tuning remains deferred unless RAG + prompts + model selection prove insufficient.
+
+### Phase 4.3 — Web Search
+
+Goal: evaluate web search for current information, not internal project truth.
+
+Scope:
+- Test Open WebUI web search using a safe provider.
+- Require citations/sources.
+- Compare web results against known facts.
+- Document provider choice and limitations.
+
+Exit criteria:
+- Web search can return useful sourced answers.
+- Search failures/latency are understood.
+- Assistant does not confuse web results with internal project documents.
+
+### Phase 4.4 — Vision Chat
+
+Goal: evaluate local image-understanding models for screenshots, UI review, and future scene analysis.
+
+Scope:
+- Benchmark candidates such as `qwen2.5vl`, `llama3.2-vision`, or `llava` if suitable for hardware.
+- Upload screenshots and ask UI/quality questions.
+- Test Arabic/English descriptions.
+- Do not rely on vision output without human review.
+
+Exit criteria:
+- A practical vision model candidate is selected or marked blocked.
+- Accuracy and speed are documented.
+
+### Phase 4.5 — Story Studio Assistant Tools
+
+Goal: later connect assistant workflows to AI Story Studio safely.
+
+Scope:
+- Assistant can read current story/project context through backend-approved data.
+- Assistant can suggest story improvements, scene fixes, continuity notes, image prompts, and bibles.
+- Assistant cannot mutate project data without explicit user approval.
+- Any integration uses backend boundaries, not direct browser-to-AI-Server calls.
+
+Exit criteria:
+- Clear tool boundary.
+- Human approval required for edits.
+- No mixing Open WebUI storage with Story Studio project storage without a plan.
+
 ---
 
 ## 6. Cross-Cutting Tracks
@@ -309,6 +399,12 @@ Advanced production-studio features are documented in `docs/ADVANCED_FEATURE_BAC
 3. Quality Review Board.
 
 These are not part of Phase 1.5. They become important after audio UX polish and the first image/story media flows are stable.
+
+### Local AI Assistant Lab
+
+The local assistant path is documented in `docs/LOCAL_AI_ASSISTANT_LAB_PLAN.md`.
+
+This is a Phase 4.x lab track. It should use the existing Open WebUI + Ollama services first, not a new custom chat app.
 
 ---
 

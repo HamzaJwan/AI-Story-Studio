@@ -13,6 +13,7 @@ AI Story Studio is moving from a text-only story workspace into a local-first me
 5. **Video Layer** — assemble images + narration + subtitles/captions + transitions before full AI video.
 6. **Image Studio** — a separate workspace for general image generation/editing use cases.
 7. **Production Studio Layer** — timeline, asset library, review board, regenerate controls, version history, and export presets.
+8. **Local AI Assistant Layer** — use existing Open WebUI/Ollama/RAG/vision capabilities as a lab before any Story Studio integration.
 
 ## Image Studio Scope
 
@@ -55,6 +56,18 @@ The genre profile should influence narration, scene splitting, image prompts, au
 - Frontend talks only to the main backend.
 - Generated media is stored in ignored local project data paths and exported through project packages.
 - Asset metadata, licenses, source notes, benchmark verdicts, and quality approvals should be stored with the project.
+- Open WebUI remains a separate AI Server service until a safe integration plan exists.
+
+## Local AI Assistant Direction
+
+Do not build a ChatGPT/Gemini clone from scratch. The realistic path is:
+
+- Use existing Open WebUI as the lab interface.
+- Use existing Ollama as the local model runtime.
+- Use RAG/Knowledge for project docs instead of fine-tuning first.
+- Use web search only with citations and only when current external information is needed.
+- Use vision models only after benchmark on the AI Server.
+- Later, expose Story Studio project context through backend-approved tools if the lab proves useful.
 
 ## Subtitle Direction
 

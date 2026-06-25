@@ -369,3 +369,20 @@
 - `docs/ADVANCED_FEATURE_BACKLOG.md` documents future features by category, phase, dependencies, acceptance criteria, risk, and not-current-phase status.
 - Separate plan docs clarify Project Timeline View, Asset Library, Quality Review Board, and Safety/Rights checks.
 - Phase 1.5 remains the next execution step.
+
+---
+
+## 2026-06-25 — Add Local AI Assistant Lab as Phase 4.x
+
+**Decision:** Document a future `Phase 4.x — Local AI Assistant Lab` that uses existing Open WebUI and Ollama services instead of building a ChatGPT/Gemini clone from scratch.
+
+**Reason:**
+- The AI Server already runs Open WebUI and Ollama, so the project should benchmark and configure what exists before adding custom chat UI.
+- Open WebUI already supports model switching, file/image uploads, web search, RAG/Knowledge, tools/pipelines, and multi-model workflows.
+- Reducing hallucination should start with RAG, source-bound prompts, citations, and evaluation questions, not fine-tuning.
+- Vision chat and web search need benchmark/provider validation before being treated as reliable.
+
+**Impact:**
+- `docs/LOCAL_AI_ASSISTANT_LAB_PLAN.md` defines Phase 4.0 through Phase 4.5.
+- No Open WebUI/Ollama/deploy/app changes are made now.
+- Any future integration must respect backend boundaries and must not expose internal AI Server services directly to the browser.

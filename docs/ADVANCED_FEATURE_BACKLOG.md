@@ -44,6 +44,9 @@ These turn the app from “generate files” into “manage a story production�
 | Model / Engine Dashboard | Later | Ops/status track | Medium | Benchmark matrix, health endpoints | Shows engine status without direct AI Server exposure | Health, benchmark verdict, VRAM warning | Could expose internals if careless | Not in Phase 1.5 |
 | Separate Image Studio | Mid-term | 2.5 | High | Image worker, safety checklist | General image/design tool separate from story scenes | Prompt-to-image, image-to-image, inpaint/outpaint later, poster/certificate/social design | Scope creep into design suite | Not in Phase 1.5 |
 | Genre-Aware Story Improvement | Near/Mid-term | Text layer upgrade | Medium | Prompt architecture | Better story/narration per genre | Horror/military/documentary/warm/children/marketing profiles | Prompt drift | Not in Phase 1.5 unless copy-only |
+| Local AI Assistant Lab | Later | 4.0 | Medium | Existing Open WebUI/Ollama | Adds a local ChatGPT/Gemini-like assistant without rebuilding chat | Research report and benchmark plan | Scope creep and hallucination | Not in Phase 1.5 |
+| Project Knowledge/RAG | Later | 4.2 | Medium | Open WebUI Knowledge, embeddings | Grounds answers in project docs | Source-bound answers with citations | Bad chunking can still hallucinate | Not in Phase 1.5 |
+| Vision Chat | Later | 4.4 | Medium | Vision model benchmark | Lets user analyze screenshots/images locally | Image Q&A benchmark passes | 8GB VRAM/model quality limits | Not in Phase 1.5 |
 
 ## Research Notes
 
@@ -67,6 +70,9 @@ References:
 - IP-Adapter paper: https://arxiv.org/abs/2308.06721
 - ComfyUI ControlNet + IPAdapter workflow: https://comfyui.org/en/image-style-transfer-controlnet-ipadapter-workflow
 - Voice cloning safety / FTC: https://www.ftc.gov/policy/advocacy-research/tech-at-ftc/2023/11/preventing-harms-ai-enabled-voice-cloning
+- Open WebUI features: https://docs.openwebui.com/features/
+- Open WebUI RAG: https://docs.openwebui.com/features/chat-conversations/rag/
+- AnythingLLM document/RAG patterns: https://docs.anythingllm.com/chatting-with-documents/introduction
 
 ## What We Do Not Trust Without Benchmark
 
@@ -74,4 +80,3 @@ References:
 - Any video workflow that has not produced an MP4 on the actual hardware.
 - Any TTS engine or voice that has not passed licensing/safety checks.
 - Any “real-time” progress or ETA claim without worker-side measurements.
-
