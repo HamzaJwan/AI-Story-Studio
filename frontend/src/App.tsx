@@ -1046,6 +1046,7 @@ export default function App() {
             className="download-button"
             onClick={handleDownloadPackage}
             disabled={!projectId || loading !== null}
+            title={!projectId ? "احفظ المشروع أولاً قبل تحميل ZIP" : undefined}
           >
             ZIP
           </button>
@@ -1581,15 +1582,10 @@ export default function App() {
               </label>
               <details className="advanced-continuity">
                 <summary>إعدادات الاستمرارية المتقدمة</summary>
-              <label>
-                أسلوب القصة العام (إضاءة، إحساس، نوع الكاميرا...)
-                <textarea
-                  rows={2}
-                  value={storyStyleBible}
-                  onChange={(e) => setStoryStyleBible(e.target.value)}
-                  placeholder="مثال: إضاءة دافئة، عمق ميدان ضحل، طابع فيلم سينمائي"
-                />
-              </label>
+              <p className="muted-text">
+                حقل "وصف الصورة" أعلاه يُستخدم كأسلوب عام للقصة (إضاءة، إحساس، نوع الكاميرا). الحقول
+                التالية إضافية لتثبيت الشخصيات/المكان/العناصر عبر كل المشاهد.
+              </p>
               <label>
                 الشخصيات الثابتة (الوصف الذي يجب أن يتكرر في كل مشهد)
                 <textarea
@@ -1801,7 +1797,12 @@ export default function App() {
               حمّل المشروع كاملاً كحزمة ZIP تحتوي القصة، المشاهد، الصوت، الصور، الفيديو والترجمات المتاحة.
             </p>
             <div className="export-grid">
-              <button className="download-button" onClick={handleDownloadPackage} disabled={!projectId || loading !== null}>
+              <button
+                className="download-button"
+                onClick={handleDownloadPackage}
+                disabled={!projectId || loading !== null}
+                title={!projectId ? "احفظ المشروع أولاً قبل تحميل ZIP" : undefined}
+              >
                 {loading === "package" ? "جاري التجهيز..." : "تحميل ZIP كامل"}
               </button>
               {projectAudio?.final_story.has_audio && projectAudio.final_story.url ? (

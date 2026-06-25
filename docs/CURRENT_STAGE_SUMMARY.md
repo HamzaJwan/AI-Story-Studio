@@ -2,11 +2,13 @@
 
 ## Current Stage
 
-**Stage:** Studio MVP — Final QA Pass (Milestone G)
+**Stage:** Studio MVP — Release Candidate 1 (RC1)
 
-**Status:** ✅ Studio MVP pipeline (story → scenes → audio → images → continuity → video → subtitles → export) is implemented, verified end-to-end with real data, and has passed the engineer-side QA/cleanup pass (stale `/health`/export `phase` metadata fixed, docs synced). Hamza's manual hands-on QA pass (`docs/MANUAL_QA_CHECKLIST.md`) is the only remaining step before picking the next roadmap track.
+**Status:** ✅ Studio MVP pipeline (story → scenes → audio → images → continuity → video → subtitles → export) is implemented, verified end-to-end with real data, has passed the engineer-side QA/cleanup pass, and the workflow UI is now organized into six clear steps (القصة، المشاهد، الصوت، الصور، الفيديو والترجمة، التصدير) instead of one long page. Hamza's manual hands-on QA pass (`docs/MANUAL_QA_CHECKLIST.md`) is the only remaining step before picking the next roadmap track.
 
 **Recommendation:** No new engineering for Studio MVP scope. Next: Hamza's manual QA pass, then a product decision on the next track (Phase 2.7 Production Studio Foundations, Phase 3.1 video polish, or Phase 4.x assistant lab).
+
+**Expected RC1 output, set expectations correctly:** a video composited from static scene images + generated narration audio + subtitle timing — hard cuts only, no AI-driven motion (no Veo/Runway/WanGP-style video). Image quality is `CANDIDATE`, not final production quality. See "Known Limitations" below.
 
 ## What Changed in This Phase
 
@@ -29,3 +31,12 @@
 - لا محاذاة على مستوى الكلمة (word-level alignment) — كل مشهد سطر ترجمة واحد بمدته الكاملة، هذا Phase 3.1+ المتقدم.
 - لا حرق الترجمة داخل الفيديو (burn-in) ولا أنماط ترجمة بصرية (lower-third سينمائي، إلخ) — تلك خارج هذا الـMVP.
 - لا ترجمة إنجليزية تلقائية بعد — فقط العربية من narration_ar الموجود.
+
+## Known Limitations (RC1, documented not hidden)
+
+- **جودة الصور `CANDIDATE`** — ComfyUI/SDXL تقني PASS، لكن لم تُعتمد كجودة نهائية للمنتج. الاستمرارية prompt-only (Tier 1)، ليست pixel-level/face-locked.
+- **الفيديو تجميع ffmpeg، ليس AI video** — صور ثابتة + صوت + قطع حاد بدون حركة، ليس Veo/Runway/WanGP. حركة AI حقيقية مخططة لاحقاً (Phase 3.2، lab منفصل).
+- **Endpoints الصور/الفيديو متزامنة (synchronous)** — `.../images/generate-all` و `.../video/render` تحجب الطلب حتى الانتهاء (حتى ~دقيقتين لكل مشهد/render). مقبول لمستخدم واحد في MVP، يحتاج job queue حقيقي لاحقاً لمستخدمين متزامنين أو قصص أطول.
+- **لا Timeline View ولا Asset Library ولا Quality Review Board بعد** — Phase 2.7، لاحقاً.
+- **لا مساعد AI محلي بعد** — Phase 4.x، لاحقاً.
+- **generated media لا يدخل Git أبداً** — كل شيء تحت `data/projects/{id}/` مستثنى بـ `.gitignore`.

@@ -1,5 +1,19 @@
 # Decision Log
 
+## 2026-06-25 — Studio MVP Release Candidate 1 (RC1): UI bugfix + docs/Quick Start finalization
+
+**Decision:** Treat this session as release-candidate hardening only — no new features, no new phase. Reviewed the `refactor: organize studio workflow UI` commit (`8347e91`, six-step `StudioStep` navigation: القصة، المشاهد، الصوت، الصور، الفيديو والترجمة، التصدير), fixed one real bug it introduced, and finalized docs/README for manual QA handoff.
+
+**Bug found and fixed before sign-off:** the refactor's new "وصف الصورة / ما الذي تريد أن يظهر؟" field (Image step) was bound to the same `storyStyleBible` state as the existing advanced "أسلوب القصة العام" field — editing either one silently overwrote the other under a different label, which would look like data loss to a tester. Fixed by removing the now-redundant advanced duplicate and adding an explanatory note instead of introducing a second state variable (no new logic, just removing a confusing duplicate). Also added `title` tooltips to both ZIP download buttons that are disabled before a project is saved (sticky header + Export step), since a disabled button with no explanation reads as broken.
+
+**Verification used an existing asset-rich project** ("المسرح لي", 6 scenes) rather than generating anything new — confirmed via direct API calls that audio (6 scenes + final_story.wav), images (6 PNGs), video (52s MP4, 6/6 scenes), subtitles (.srt/.vtt), and `export.zip` (20 files) are all present and correctly shaped. No TTS/ComfyUI jobs were run this session.
+
+**Docs touched:** `README.md` (full rewrite — was still describing Phase 0.1 only; now has an accurate Quick Start, asset-storage location, and TTS/image worker prerequisites without any real IP/secrets), `docs/CURRENT_STAGE_SUMMARY.md` (stage renamed to RC1, added an explicit "Known Limitations" section), `docs/MANUAL_QA_CHECKLIST.md` (one-line note on the new step bar), `docs/FEATURE_INVENTORY.md` (logged the step-navigation UI as an implemented feature).
+
+**Impact:** Studio MVP RC1 is ready for Hamza's manual QA pass. No backend/architecture changes, no new endpoints, no new media generation.
+
+---
+
 ## 2026-06-25 — Phase 3.0/3.1: Subtitle Export MVP (.srt/.vtt, synced to the video timeline by construction)
 
 **Decision:** Generate subtitles on demand from data already in the project (`narration_ar` + `duration_seconds`), with no job/persistence layer — unlike audio/image/video, there's no external engine call or heavy compute involved, so there's nothing to poll or cache.

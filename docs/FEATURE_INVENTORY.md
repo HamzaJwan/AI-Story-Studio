@@ -30,6 +30,7 @@ Last updated: 2026-06-25
 | Continuity bibles + style presets | `Project.story_style_bible/character_bible/location_bible/object_bible/negative_prompt/style_preset`, `GET /api/images/style-presets` (Phase 2.3) | Working — verified fix for a real style-drift bug |
 | Video assembly | `POST .../video/render`, `GET .../video`, `.../video/download` (Phase 3.0) | Working — ffmpeg MP4, verified frame-by-frame |
 | Subtitle export | `GET .../subtitles.srt`, `.../subtitles.vtt` (Phase 3.0/3.1) | Working — timing matches the rendered video exactly |
+| Studio Workflow step navigation | `frontend/src/App.tsx` (`StudioStep`, `studio-stepper`) | Working — six steps (القصة، المشاهد، الصوت، الصور، الفيديو والترجمة، التصدير) instead of one long scroll; each step shows only its own panel |
 
 ## Implemented But Needs UX Polish
 
