@@ -195,11 +195,15 @@ Goal: build a reliable video-like export before AI video.
 Scope:
 - Combine existing scene images + narration audio.
 - Simple transitions, subtitles/captions, timing from scene duration.
+- Generate subtitle sidecar files from scene narration: `.srt` and/or `.vtt`.
+- Support Arabic subtitles first, with optional English subtitles when translation exists.
+- Keep subtitles editable before final video export.
 - Export as a basic story video/animatic when feasible.
 
 Exit criteria:
 - No image-to-video model required.
 - Project can export a coherent visual/audio timeline.
+- Export includes a readable subtitle file aligned at least per scene.
 
 ### Phase 3.1 — Story Video Assembly
 
@@ -210,6 +214,15 @@ Scope:
 - Scene title cards.
 - Intro/outro.
 - Audio normalization if needed.
+- Burn-in subtitles into the MP4 as an option.
+- Export separate subtitle files next to the MP4 for platforms that support captions.
+- Subtitle styling presets: readable Arabic, cinematic lower-third, social short-form.
+- Keep narration text and subtitle text editable independently when needed.
+
+Exit criteria:
+- Final MP4 can be exported with subtitles visible.
+- A sidecar `.srt` or `.vtt` file can be exported with the same timing.
+- Arabic text renders correctly without mojibake or broken RTL direction.
 
 ### Phase 3.2 — Image-to-Video Motion Lab
 

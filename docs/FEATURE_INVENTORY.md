@@ -60,8 +60,9 @@ Last updated: 2026-06-25
 | Separate Image Studio | Phase 2.5 |
 | Long-story image batching | Phase 2.6 |
 | Video foundation | Phase 3.0 |
+| Subtitle sidecar export (`.srt`/`.vtt`) | Phase 3.0 |
+| Burned-in subtitles in MP4 | Phase 3.1 |
 
 ## Current Recommendation
 
 Proceed with `Phase 1.5 — Audio UX Polish`. It converts already-working backend capability into a usable product experience before opening the larger image-generation track.
-

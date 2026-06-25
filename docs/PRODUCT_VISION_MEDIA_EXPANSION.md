@@ -10,7 +10,7 @@ AI Story Studio is moving from a text-only story workspace into a local-first me
 2. **Audio Layer** — generate narration per scene through an isolated AI Server worker.
 3. **Image Layer** — generate scene images through an isolated AI Server image worker.
 4. **Continuity Layer** — preserve characters, places, objects, colors, style, and story logic.
-5. **Video Layer** — assemble images + narration + captions + transitions before full AI video.
+5. **Video Layer** — assemble images + narration + subtitles/captions + transitions before full AI video.
 6. **Image Studio** — a separate workspace for general image generation/editing use cases.
 
 ## Image Studio Scope
@@ -43,7 +43,17 @@ The genre profile should influence narration, scene splitting, image prompts, au
 - Frontend talks only to the main backend.
 - Generated media is stored in ignored local project data paths and exported through project packages.
 
+## Subtitle Direction
+
+Future video exports should support subtitles as a first-class media layer:
+
+- Arabic subtitles generated from `narration_ar`.
+- Optional English subtitles when English narration/translation exists.
+- Sidecar subtitle export: `.srt` and/or `.vtt`.
+- Optional burned-in subtitles in the final MP4.
+- Per-scene timing first, then word/phrase-level timing if audio alignment becomes available.
+- Editable subtitle text separate from narration when the user wants shorter on-screen captions.
+
 ## Next Practical Step
 
 Before adding more capabilities, Phase 2.1 should build a safe image worker bridge and status flow. Image quality and continuity should be proven before large-scale story image generation.
-

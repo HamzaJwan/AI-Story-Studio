@@ -311,3 +311,21 @@
 - Phase 1.5 should improve UX around existing audio capabilities without adding a new TTS engine.
 - All audio must remain behind backend proxy endpoints; the browser must not call the AI Server directly.
 - Image/video work remains paused until Audio UX is polished and Hamza approves image quality.
+
+---
+
+## 2026-06-25 — Add subtitles as a future video feature
+
+**Decision:** Treat subtitles as a first-class future video layer, not as an afterthought.
+
+**Reason:**
+- The product already has structured scene narration, durations, and generated audio, which are natural inputs for subtitle timing.
+- Arabic subtitles are important for story videos and social sharing.
+- Sidecar subtitles (`.srt`/`.vtt`) are safer to implement before burned-in MP4 captions because they can be inspected and edited.
+- Burned-in captions should come later when the video assembly/export path exists.
+
+**Impact:**
+- Phase 3.0 should include subtitle sidecar export based on scene narration and timing.
+- Phase 3.1 should include optional burned-in subtitles in MP4.
+- Subtitles must support Arabic RTL/UTF-8 and optionally English if translation exists.
+- Do not implement subtitles now; Phase 1.5 Audio UX remains the next execution step.
