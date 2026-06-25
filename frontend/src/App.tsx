@@ -183,6 +183,8 @@ type LoadingAction =
   | "package"
   | null;
 
+type StudioStep = "story" | "scenes" | "audio" | "images" | "video" | "export";
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getSceneWarnings(scene: Scene): string[] {
@@ -255,6 +257,7 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState<LoadingAction>(null);
+  const [activeStep, setActiveStep] = useState<StudioStep>("story");
 
   const [storyStyleBible, setStoryStyleBible] = useState("");
   const [characterBible, setCharacterBible] = useState("");
@@ -302,6 +305,19 @@ export default function App() {
     () => (splitData ? JSON.stringify(splitData, null, 2) : ""),
     [splitData],
   );
+
+  const audioCount = projectAudio?.scenes.filter((scene) => scene.has_audio).length ?? 0;
+  const imageCount = projectImages?.scenes.filter((scene) => scene.has_image).length ?? 0;
+  const hasVideo = Boolean(projectVideo?.has_video);
+
+  const studioSteps: { key: StudioStep; label: string; hint: string }[] = [
+    { key: "story", label: "القصة", hint: "ابدأ بكتابة القصة" },
+    { key: "scenes", label: "المشاهد", hint: "حوّل القصة إلى مشاهد" },
+    { key: "audio", label: "الصوت", hint: "استمع إلى الصوت" },
+    { key: "images", label: "الصور", hint: "ولّد صور المشاهد" },
+    { key: "video", label: "الفيديو والترجمة", hint: "اصنع فيديو من الصور والصوت" },
+    { key: "export", label: "التصدير", hint: "حمّل المشروع كاملاً" },
+  ];
 
   useEffect(() => {
     getJson<ConfigData>("/api/config")
@@ -585,7 +601,8 @@ export default function App() {
       } else {
         setScenes(r.data.scenes);
         setExpandedIndices(new Set([0]));
-        setRawJsonOpen(true);
+        setRawJsonOpen(false);
+        setActiveStep("scenes");
         if (r.data.project_id) await saveGeneratedProject(r.data.project_id, r.data.scenes);
         showNotice("تم تقسيم القصة إلى مشاهد وحفظ المشروع.");
       }
@@ -1006,6 +1023,50 @@ export default function App() {
       {error && <div className="error-banner">{error}</div>}
       {notice && <div className="notice-banner">{notice}</div>}
 
+      <section className="studio-sticky-header glass-panel">
+        <div className="studio-project-summary">
+          <span className="eyebrow">Studio Workflow</span>
+          <strong>{title || "مشروع بدون عنوان"}</strong>
+          <small>{projectId ? `ID: ${projectId.slice(0, 8)}` : "غير محفوظ بعد"}</small>
+        </div>
+        <div className="studio-status-strip" aria-label="حالة المشروع">
+          <span>{scenes.length} مشاهد</span>
+          <span>{audioCount}/{scenes.length || 0} صوت</span>
+          <span>{imageCount}/{scenes.length || 0} صور</span>
+          <span>{hasVideo ? "فيديو جاهز" : "لا يوجد فيديو"}</span>
+        </div>
+        <div className="project-actions compact-actions">
+          <button onClick={handleNewProject} disabled={loading !== null}>
+            مشروع جديد
+          </button>
+          <button onClick={handleSaveProject} disabled={loading !== null}>
+            {loading === "save" ? "جاري الحفظ..." : "حفظ"}
+          </button>
+          <button
+            className="download-button"
+            onClick={handleDownloadPackage}
+            disabled={!projectId || loading !== null}
+          >
+            ZIP
+          </button>
+        </div>
+      </section>
+
+      <nav className="studio-stepper glass-panel" aria-label="خطوات الاستوديو">
+        {studioSteps.map((step, index) => (
+          <button
+            key={step.key}
+            type="button"
+            className={activeStep === step.key ? "studio-step active" : "studio-step"}
+            onClick={() => setActiveStep(step.key)}
+          >
+            <span className="step-index">{index + 1}</span>
+            <strong>{step.label}</strong>
+            <small>{step.hint}</small>
+          </button>
+        ))}
+      </nav>
+
       {/* Project workspace */}
       <section className="project-panel glass-panel">
         <div className="panel-header">
@@ -1052,7 +1113,8 @@ export default function App() {
       {/* Main workspace */}
       <section className="workspace-grid">
         {/* Left: Story editor */}
-        <div className="glass-panel editor-panel">
+        {activeStep === "story" && (
+        <div className="glass-panel editor-panel studio-step-panel">
           <div className="panel-header">
             <div>
               <span className="eyebrow">Story Input</span>
@@ -1109,6 +1171,9 @@ export default function App() {
             <button onClick={handleSplitScenes} disabled={!canRun}>
               {loading === "split" ? "جاري التقسيم..." : "تقسيم إلى مشاهد"}
             </button>
+            <button onClick={handleSaveProject} disabled={loading !== null}>
+              {loading === "save" ? "جاري الحفظ..." : "حفظ المشروع"}
+            </button>
             <button
               className="download-button"
               onClick={handleDownloadJson}
@@ -1124,29 +1189,16 @@ export default function App() {
             >
               {loading === "package" ? "جاري التجهيز..." : "تحميل حزمة المشروع ZIP"}
             </button>
-            {projectId && scenes.length > 0 && (
-              <>
-                <a
-                  className="download-button ghost-button"
-                  href={`${API_BASE_URL}/api/projects/${projectId}/subtitles.srt`}
-                  download
-                >
-                  تحميل الترجمة (.srt)
-                </a>
-                <a
-                  className="download-button ghost-button"
-                  href={`${API_BASE_URL}/api/projects/${projectId}/subtitles.vtt`}
-                  download
-                >
-                  تحميل الترجمة (.vtt)
-                </a>
-              </>
-            )}
           </div>
         </div>
 
+        )}
+
         {/* Right: Scene editor */}
-        <div className="glass-panel result-panel">
+        {activeStep !== "story" && (
+        <div className="glass-panel result-panel studio-step-panel">
+          {activeStep === "scenes" && (
+          <>
           <div className="panel-header">
             <div>
               <span className="eyebrow">Editable Scenes</span>
@@ -1329,12 +1381,16 @@ export default function App() {
           {rawJson && (
             <section className="json-preview">
               <button className="ghost-button" onClick={() => setRawJsonOpen((v) => !v)}>
-                {rawJsonOpen ? "إخفاء JSON" : "عرض JSON"}
+                {rawJsonOpen ? "إخفاء JSON" : "عرض JSON المتقدم"}
               </button>
               {rawJsonOpen && <pre dir="ltr">{rawJson}</pre>}
             </section>
           )}
 
+          </>
+          )}
+
+          {activeStep === "audio" && (
           <section className="audio-panel">
             <div className="panel-header">
               <div>
@@ -1473,7 +1529,9 @@ export default function App() {
               </div>
             )}
           </section>
+          )}
 
+          {activeStep === "images" && (
           <section className="audio-panel">
             <div className="panel-header">
               <div>
@@ -1512,6 +1570,17 @@ export default function App() {
                   ))}
                 </select>
               </label>
+              <label className="simple-image-prompt">
+                وصف الصورة / ما الذي تريد أن يظهر؟
+                <textarea
+                  rows={3}
+                  value={storyStyleBible}
+                  onChange={(e) => setStoryStyleBible(e.target.value)}
+                  placeholder="مثال: رجل ليبي مسن بجانب نافذة وفانوس، إضاءة سينمائية دافئة، واقعية عالية"
+                />
+              </label>
+              <details className="advanced-continuity">
+                <summary>إعدادات الاستمرارية المتقدمة</summary>
               <label>
                 أسلوب القصة العام (إضاءة، إحساس، نوع الكاميرا...)
                 <textarea
@@ -1557,6 +1626,7 @@ export default function App() {
                   placeholder="افتراضي: blurry, low quality, distorted, watermark, text"
                 />
               </label>
+              </details>
             </div>
 
             {imageMessage && <div className="notice-banner">{imageMessage}</div>}
@@ -1653,7 +1723,9 @@ export default function App() {
               </div>
             )}
           </section>
+          )}
 
+          {activeStep === "video" && (
           <section className="audio-panel">
             <div className="panel-header">
               <div>
@@ -1704,9 +1776,72 @@ export default function App() {
                 )}
               </div>
             )}
+            {projectId && scenes.length > 0 && (
+              <div className="action-bar">
+                <a className="ghost-button" href={`${API_BASE_URL}/api/projects/${projectId}/subtitles.srt`} download>
+                  تحميل SRT
+                </a>
+                <a className="ghost-button" href={`${API_BASE_URL}/api/projects/${projectId}/subtitles.vtt`} download>
+                  تحميل VTT
+                </a>
+              </div>
+            )}
           </section>
+          )}
+
+          {activeStep === "export" && (
+          <section className="audio-panel export-panel">
+            <div className="panel-header">
+              <div>
+                <span className="eyebrow">Export</span>
+                <h2>التصدير</h2>
+              </div>
+            </div>
+            <p className="muted-text">
+              حمّل المشروع كاملاً كحزمة ZIP تحتوي القصة، المشاهد، الصوت، الصور، الفيديو والترجمات المتاحة.
+            </p>
+            <div className="export-grid">
+              <button className="download-button" onClick={handleDownloadPackage} disabled={!projectId || loading !== null}>
+                {loading === "package" ? "جاري التجهيز..." : "تحميل ZIP كامل"}
+              </button>
+              {projectAudio?.final_story.has_audio && projectAudio.final_story.url ? (
+                <a className="ghost-button" href={`${API_BASE_URL}${projectAudio.final_story.url}`} download>
+                  تحميل صوت القصة
+                </a>
+              ) : (
+                <span className="asset-missing">لم يتم توليد صوت القصة بعد</span>
+              )}
+              {imageCount > 0 ? (
+                <span className="asset-ready">الصور موجودة داخل ZIP ({imageCount})</span>
+              ) : (
+                <span className="asset-missing">لم يتم توليد الصور بعد</span>
+              )}
+              {projectVideo?.has_video && projectVideo.url ? (
+                <a className="ghost-button" href={`${API_BASE_URL}${projectVideo.url}`} download>
+                  تحميل الفيديو MP4
+                </a>
+              ) : (
+                <span className="asset-missing">لم يتم تجميع الفيديو بعد</span>
+              )}
+              {projectId && scenes.length > 0 ? (
+                <>
+                  <a className="ghost-button" href={`${API_BASE_URL}/api/projects/${projectId}/subtitles.srt`} download>
+                    تحميل SRT
+                  </a>
+                  <a className="ghost-button" href={`${API_BASE_URL}/api/projects/${projectId}/subtitles.vtt`} download>
+                    تحميل VTT
+                  </a>
+                </>
+              ) : (
+                <span className="asset-missing">لا توجد مشاهد لتوليد الترجمة بعد</span>
+              )}
+            </div>
+          </section>
+          )}
         </div>
+        )}
       </section>
     </main>
   );
 }
+
