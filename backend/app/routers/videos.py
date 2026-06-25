@@ -52,8 +52,13 @@ def render_project_video(
     images_dir = storage.project_images_dir(project_id)
     audio_dir = storage.project_audio_dir(project_id)
     video_dir = storage.project_video_dir(project_id)
+    scene_durations = dict(zip(
+        (scene.scene_id for scene in project.scenes),
+        storage.get_scene_render_durations(project),
+    ))
 
     included: list[str] = []
+    included_durations: list[float] = []
     skipped: list[dict[str, str]] = []
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -75,12 +80,19 @@ def render_project_video(
                 if candidate.exists():
                     audio_path = candidate
 
+            # Use the scene's real saved-audio duration when present (Issue 2
+            # fix: previously always used the fixed duration_seconds estimate,
+            # so a video could run noticeably shorter than its own narration
+            # and cut audio off mid-sentence). Falls back to duration_seconds
+            # only when there is no saved audio for this scene.
+            segment_duration = scene_durations[scene.scene_id]
+
             segment_path = tmp_path / f"segment_{scene.scene_id}.mp4"
             cmd = ["ffmpeg", "-y", "-loop", "1", "-i", str(image_path)]
             if audio_path is not None:
                 cmd += ["-i", str(audio_path)]
             cmd += [
-                "-t", str(scene.duration_seconds),
+                "-t", f"{segment_duration:.3f}",
                 "-vf", f"scale={RENDER_WIDTH}:{RENDER_HEIGHT}",
                 "-c:v", "libx264",
                 "-pix_fmt", "yuv420p",
@@ -98,6 +110,7 @@ def render_project_video(
 
             segment_paths.append(segment_path)
             included.append(scene.scene_id)
+            included_durations.append(segment_duration)
 
         if not segment_paths:
             raise HTTPException(
@@ -122,9 +135,7 @@ def render_project_video(
         if result.returncode != 0 or not final_path.exists():
             raise HTTPException(status_code=502, detail="ffmpeg concat step failed.")
 
-    total_duration = sum(
-        scene.duration_seconds for scene in project.scenes if scene.scene_id in included
-    )
+    total_duration = round(sum(included_durations))
     metadata = {
         "rendered_at": datetime.now(timezone.utc).isoformat(),
         "included_scenes": included,

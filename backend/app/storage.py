@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import re
+import subprocess
 import wave
 import zipfile
 from datetime import datetime, timezone
@@ -44,6 +45,38 @@ def _concatenate_wavs(paths: list[Path]) -> bytes | None:
         return None
 
 
+def get_audio_duration_seconds(path: Path) -> float | None:
+    """Real duration of a saved scene audio file, in seconds.
+
+    Tries the stdlib `wave` module first (every audio path in this app is
+    WAV today -- generate-all and the frontend's single-scene job both
+    always request format=wav). Falls back to `ffprobe` (already installed
+    alongside ffmpeg for video assembly) for any other format, so this
+    stays correct even if MP3 is ever used. Returns None if both fail.
+    """
+    try:
+        with wave.open(str(path), "rb") as wav_file:
+            frames = wav_file.getnframes()
+            rate = wav_file.getframerate()
+            if rate > 0:
+                return frames / float(rate)
+    except (OSError, wave.Error):
+        pass
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return float(result.stdout.strip())
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        pass
+    return None
+
+
 def _format_srt_timestamp(seconds: float) -> str:
     millis = round(seconds * 1000)
     hours, millis = divmod(millis, 3_600_000)
@@ -56,27 +89,28 @@ def _format_vtt_timestamp(seconds: float) -> str:
     return _format_srt_timestamp(seconds).replace(",", ".")
 
 
-def _subtitle_cues(scenes: list[Scene]) -> list[tuple[float, float, str]]:
-    """One cue per scene, timed cumulatively by duration_seconds.
+def _subtitle_cues(scenes: list[Scene], durations: list[float]) -> list[tuple[float, float, str]]:
+    """One cue per scene, timed cumulatively by the same per-scene durations
+    used for video assembly (`ProjectStorage.get_scene_render_durations()`) --
+    the real saved-audio duration when present, else `duration_seconds`.
 
     No word-level alignment (out of scope for the MVP) -- each scene's full
-    narration_ar is shown for its whole duration, same timeline the video
-    assembly (Phase 3.0) uses.
+    narration_ar is shown for its whole duration.
     """
     cues: list[tuple[float, float, str]] = []
     start = 0.0
-    for scene in scenes:
+    for scene, duration in zip(scenes, durations):
         text = scene.narration_ar.strip()
-        end = start + scene.duration_seconds
+        end = start + duration
         if text:
             cues.append((start, end, text))
         start = end
     return cues
 
 
-def _build_srt(scenes: list[Scene]) -> str:
+def _build_srt(scenes: list[Scene], durations: list[float]) -> str:
     lines: list[str] = []
-    for index, (start, end, text) in enumerate(_subtitle_cues(scenes), start=1):
+    for index, (start, end, text) in enumerate(_subtitle_cues(scenes, durations), start=1):
         lines.append(str(index))
         lines.append(f"{_format_srt_timestamp(start)} --> {_format_srt_timestamp(end)}")
         lines.append(text)
@@ -84,9 +118,9 @@ def _build_srt(scenes: list[Scene]) -> str:
     return "\n".join(lines).strip() + "\n"
 
 
-def _build_vtt(scenes: list[Scene]) -> str:
+def _build_vtt(scenes: list[Scene], durations: list[float]) -> str:
     lines: list[str] = ["WEBVTT", ""]
-    for index, (start, end, text) in enumerate(_subtitle_cues(scenes), start=1):
+    for index, (start, end, text) in enumerate(_subtitle_cues(scenes, durations), start=1):
         lines.append(str(index))
         lines.append(f"{_format_vtt_timestamp(start)} --> {_format_vtt_timestamp(end)}")
         lines.append(text)
@@ -333,13 +367,35 @@ class ProjectStorage:
             return None
         return _concatenate_wavs(wav_paths)
 
+    def get_scene_render_durations(self, project: ProjectResponse) -> list[float]:
+        """Per-scene duration in seconds: the real saved-audio duration when
+        a scene has one, else the stored `duration_seconds` estimate.
+
+        This is the single source of truth shared by video assembly
+        (`videos.py`) and subtitle timing (`build_srt`/`build_vtt`/
+        `build_export_zip`) so a rendered video and its sidecar subtitles
+        can never drift out of sync with each other.
+        """
+        audio_dir = self.project_audio_dir(project.project_id)
+        durations: list[float] = []
+        for scene in project.scenes:
+            duration = float(scene.duration_seconds)
+            if scene.audio_format:
+                audio_path = audio_dir / f"scene_{scene.scene_id}.{scene.audio_format}"
+                if audio_path.exists():
+                    real_duration = get_audio_duration_seconds(audio_path)
+                    if real_duration and real_duration > 0:
+                        duration = real_duration
+            durations.append(duration)
+        return durations
+
     def build_srt(self, project_id: str) -> str:
         project = self.get_project(project_id)
-        return _build_srt(project.scenes)
+        return _build_srt(project.scenes, self.get_scene_render_durations(project))
 
     def build_vtt(self, project_id: str) -> str:
         project = self.get_project(project_id)
-        return _build_vtt(project.scenes)
+        return _build_vtt(project.scenes, self.get_scene_render_durations(project))
 
     def scenes_export(self, project_id: str) -> dict[str, object]:
         project = self.get_project(project_id)
@@ -352,7 +408,8 @@ class ProjectStorage:
     def build_export_zip(self, project_id: str) -> bytes:
         project = self.get_project(project_id)
         scenes_payload = self.scenes_export(project_id)
-        total_duration = sum(scene.duration_seconds for scene in project.scenes)
+        scene_durations = self.get_scene_render_durations(project)
+        total_duration = round(sum(scene_durations))
         audio_dir = self.project_audio_dir(project_id)
         scenes_with_audio = self.get_scenes_with_audio(project)
         images_dir = self.project_images_dir(project_id)
@@ -404,8 +461,8 @@ class ProjectStorage:
                 "metadata.json",
                 json.dumps(metadata, ensure_ascii=False, indent=2),
             )
-            archive.writestr("subtitles/story.srt", _build_srt(project.scenes))
-            archive.writestr("subtitles/story.vtt", _build_vtt(project.scenes))
+            archive.writestr("subtitles/story.srt", _build_srt(project.scenes, scene_durations))
+            archive.writestr("subtitles/story.vtt", _build_vtt(project.scenes, scene_durations))
             for scene in scenes_with_audio:
                 audio_path = audio_dir / f"scene_{scene.scene_id}.{scene.audio_format}"
                 archive.writestr(f"audio/scene_{scene.scene_id}.{scene.audio_format}", audio_path.read_bytes())

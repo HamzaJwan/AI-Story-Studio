@@ -510,7 +510,9 @@ export default function App() {
       return;
     }
     setVideoBusy(true);
-    setVideoMessage("جاري تجميع الفيديو (قد يستغرق دقيقة أو أكثر)...");
+    setVideoMessage(
+      "جاري تجميع الفيديو من الصور والصوت المحفوظ (قد يستغرق دقيقة أو أكثر)... يتم استخدام مدة الصوت الفعلية لكل مشهد إن وُجدت، وإلا فمدة المشهد الافتراضية.",
+    );
     try {
       const r = await postJson<{
         included_scenes: string[];
@@ -520,8 +522,8 @@ export default function App() {
       if (r.errors.length) {
         setVideoMessage(r.errors.join(" "));
       } else {
-        const { included_scenes, skipped_scenes } = r.data;
-        let msg = `تم تجميع الفيديو من ${included_scenes.length} مشهد.`;
+        const { included_scenes, skipped_scenes, duration_seconds } = r.data;
+        let msg = `تم تجميع الفيديو من ${included_scenes.length} مشهد، بمدة ${duration_seconds} ثانية تقريباً.`;
         if (skipped_scenes.length) {
           msg += ` تم تجاوز: ${skipped_scenes.map((s) => `${s.scene_id} (${s.reason})`).join(", ")}.`;
         }
@@ -913,14 +915,14 @@ export default function App() {
       return;
     }
     setTtsBusy(mode);
-    setTtsMessage("جاري توليد صوت المشهد...");
+    setTtsMessage(`جاري توليد صوت المشهد 1 من ${scenes.length}...`);
     setTtsJob(null);
     try {
       const body = { mode, scene_id: scenes[0].scene_id, format: "wav", voice_id: selectedVoiceId };
       const r = await postJson<TtsJobData>(`/api/projects/${projectId}/tts/jobs`, body);
       setTtsJob(r.data);
       if (r.errors.length) setTtsMessage(r.errors.join(" "));
-      else setTtsMessage("تم توليد صوت المشهد.");
+      else setTtsMessage("تم توليد صوت المشهد الأول.");
     } catch (exc) {
       setTtsMessage(exc instanceof Error ? exc.message : "تعذر إرسال طلب توليد الصوت.");
     } finally {
@@ -938,7 +940,9 @@ export default function App() {
       return;
     }
     setTtsBusy("project");
-    setTtsMessage("جاري توليد صوت المشروع، قد يستغرق دقائق...");
+    setTtsMessage(
+      `جاري توليد صوت ${scenes.length} مشهد بالترتيب، مشهداً تلو الآخر — قد يستغرق دقائق حسب عدد المشاهد...`,
+    );
     setTtsJob(null);
     try {
       const r = await postJson<{ generated: string[]; failed: { scene_id: string; error: string }[]; total_scenes: number }>(
@@ -948,7 +952,7 @@ export default function App() {
         setTtsMessage(r.errors.join(" "));
       } else {
         const { generated, failed, total_scenes } = r.data;
-        let msg = `تم توليد صوت المشروع (${generated.length} من ${total_scenes} مشهد). استمع للمشاهد أدناه.`;
+        let msg = `تم توليد ${generated.length} من ${total_scenes}. استمع للمشاهد أدناه.`;
         if (failed.length) msg += ` فشل: ${failed.map((f) => f.scene_id).join(", ")}.`;
         setTtsMessage(msg);
         await refreshProjectAudio(projectId);
@@ -1131,7 +1135,7 @@ export default function App() {
       return;
     }
     setImageBusy("all");
-    setImageMessage("جاري توليد صور كل المشاهد، قد يستغرق دقائق...");
+    setImageMessage(`جاري توليد صور ${scenes.length} مشهد، قد تستغرق 1-3 دقائق حسب عدد المشاهد...`);
     try {
       const r = await postJson<{ generated: string[]; failed: { scene_id: string; error: string }[]; total_scenes: number }>(
         `/api/projects/${projectId}/images/generate-all`,
@@ -1529,6 +1533,12 @@ export default function App() {
               بأي خدمة على AI Server مباشرة.
             </p>
 
+            <p className="muted-text">
+              الصوت المتاح حالياً: <strong>{ttsVoices.voices[0]?.label ?? "—"}</strong> فقط — هذا
+              التطبيق متصل بمحرك صوت واحد حالياً (Piper)، فلا يوجد صوت آخر للاختيار منه بعد.
+              اختيار اللغة غير متاح حالياً إلا للعربية، لأن المحرك المتاح يدعم العربية فقط. هذا ليس
+              عطلاً — القائمتان ستُفعَّلان تلقائياً عند إضافة أصوات/لغات حقيقية لاحقاً.
+            </p>
             <div className="tts-selectors">
               <label>
                 الصوت
@@ -1536,6 +1546,11 @@ export default function App() {
                   value={selectedVoiceId ?? ""}
                   onChange={(e) => setSelectedVoiceId(e.target.value)}
                   disabled={ttsVoices.voices.length <= 1}
+                  title={
+                    ttsVoices.voices.length <= 1
+                      ? `الصوت المتاح حالياً: ${ttsVoices.voices[0]?.label ?? "—"} فقط`
+                      : undefined
+                  }
                 >
                   {ttsVoices.voices.map((v) => (
                     <option key={v.voice_id} value={v.voice_id}>
@@ -1546,7 +1561,11 @@ export default function App() {
               </label>
               <label>
                 اللغة
-                <select value={ttsVoices.languages[0]?.language ?? "ar"} disabled>
+                <select
+                  value={ttsVoices.languages[0]?.language ?? "ar"}
+                  disabled
+                  title="اختيار اللغة غير متاح حالياً إلا للعربية"
+                >
                   {ttsVoices.languages.map((l) => (
                     <option key={l.language} value={l.language}>
                       {l.label}
@@ -1555,10 +1574,6 @@ export default function App() {
                 </select>
               </label>
             </div>
-            <p className="muted-text">
-              الصوت الحالي الوحيد المتاح: {ttsVoices.voices[0]?.label ?? "—"}. اختيار اللغة غير
-              متاح حالياً إلا للعربية.
-            </p>
 
             <BusyNotice busy={ttsBusy === "scene" || ttsBusy === "project"} message={ttsMessage} />
 
@@ -1693,19 +1708,25 @@ export default function App() {
                 </select>
               </label>
               <label className="simple-image-prompt">
-                وصف الصورة / ما الذي تريد أن يظهر؟
+                توجيه بصري عام (اختياري)
+                <p className="muted-text field-hint">
+                  اختياري: اتركه فارغاً ليستخدم النظام وصف كل مشهد تلقائياً (يمكنك الضغط على
+                  "توليد صور كل المشاهد" مباشرة بدون كتابة أي شيء هنا). اكتب في هذا الحقل فقط لو
+                  تريد توجيه الأسلوب العام (إضاءة، إحساس) لكل صور القصة.
+                </p>
                 <textarea
                   rows={3}
                   value={storyStyleBible}
                   onChange={(e) => setStoryStyleBible(e.target.value)}
-                  placeholder="مثال: رجل ليبي مسن بجانب نافذة وفانوس، إضاءة سينمائية دافئة، واقعية عالية"
+                  placeholder="مثال: إضاءة سينمائية دافئة، واقعية عالية (اختياري — اتركه فارغاً إن لم ترد توجيهاً عاماً)"
                 />
               </label>
               <details className="advanced-continuity">
                 <summary>إعدادات الاستمرارية المتقدمة</summary>
               <p className="muted-text">
-                حقل "وصف الصورة" أعلاه يُستخدم كأسلوب عام للقصة (إضاءة، إحساس، نوع الكاميرا). الحقول
-                التالية إضافية لتثبيت الشخصيات/المكان/العناصر عبر كل المشاهد.
+                حقل "توجيه بصري عام" أعلاه يُستخدم كأسلوب عام للقصة (إضاءة، إحساس، نوع الكاميرا). كل
+                الحقول هنا اختيارية أيضاً، وتُضاف تلقائياً إلى وصف كل مشهد لتثبيت الشخصيات/المكان/
+                العناصر عبر كل المشاهد وتقليل اختلافها بينها.
               </p>
               <label>
                 الشخصيات الثابتة (الوصف الذي يجب أن يتكرر في كل مشهد)

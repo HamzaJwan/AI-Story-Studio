@@ -27,6 +27,22 @@ STYLE_PRESETS: dict[str, str] = {
     "marketing_poster": "marketing poster style, bold composition, vibrant colors, polished",
 }
 
+# Manual-QA fix pack (2026-06-25, Issue 4): a fixed continuity instruction
+# appended to every scene prompt, on top of the existing bibles. This is
+# still prompt-only (Tier 1) -- each scene is still a fully independent
+# generation call with no real cross-scene memory, no IPAdapter/ControlNet/
+# reference image. It only biases a single generation to respect whatever
+# the character/location/object bibles already say, instead of drifting
+# (e.g. the observed bug: a child described as being in the street ending
+# up inside a room with no narrative reason). Quality remains CANDIDATE.
+CONTINUITY_RULES = (
+    "Maintain visual continuity with the rest of this story: keep the same characters "
+    "across all scenes; do not change a character's gender, age, clothing, or identity; "
+    "preserve the same recurring object if one is mentioned; respect the scene's own "
+    "location and the story's location transitions; do not move a character indoors "
+    "or to a different location unless this scene's own description says so."
+)
+
 
 def build_scene_image_prompt(project: ProjectResponse, scene: Scene) -> str:
     parts: list[str] = []
@@ -42,6 +58,7 @@ def build_scene_image_prompt(project: ProjectResponse, scene: Scene) -> str:
         parts.append(f"Location: {project.location_bible.strip()}")
     if project.object_bible.strip():
         parts.append(f"Important objects: {project.object_bible.strip()}")
+    parts.append(CONTINUITY_RULES)
     return ", ".join(part for part in parts if part)
 
 
@@ -63,9 +80,9 @@ def _generate_and_save_scene_image(
     Raises ImageWorkerError or TimeoutError on failure -- callers decide how to
     record that (single 502 vs. a per-scene entry in a generate-all summary).
     """
-    prompt = build_scene_image_prompt(project, scene)
-    if not prompt:
+    if not scene.image_prompt_en.strip():
         raise ImageWorkerError("لا يوجد وصف بصري (image_prompt_en) لهذا المشهد لتوليد صورة منه.")
+    prompt = build_scene_image_prompt(project, scene)
 
     seed = int(time.time())
     job_id = client.create_job(prompt, width, height, seed, negative_prompt=build_negative_prompt(project))

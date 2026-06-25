@@ -117,6 +117,19 @@ Use the lightest reliable method first:
 | 4 | ControlNet-style layout/pose/depth guides | Pose, structure, composition |
 | 5 | Character LoRA/InstantID/reference pack | Stronger recurring character continuity, benchmark first |
 
+### Tier 1 hardening (2026-06-25 manual QA fix pack)
+
+Hamza's manual test of "الراوي والفانوس" found a concrete Tier 1 failure: a child described as
+being in the street ended up indoors in a later scene with no narrative reason. `build_scene_image_prompt()`
+(`backend/app/routers/images.py`) now always appends a fixed `CONTINUITY_RULES` sentence after the
+existing bibles -- keep the same characters, do not change gender/age/clothing/identity, preserve
+recurring objects, respect each scene's own location, and do not move a character to a different
+location unless that scene's own text says so. This is **still Tier 1, prompt-only** -- each scene
+is still an independent generation call with no real cross-scene memory, no reference image, no
+IPAdapter/ControlNet. It only biases a single generation to respect what the bibles already say;
+it cannot guarantee continuity the way Tier 3+ would. Quality remains `CANDIDATE`. The full assembled
+prompt (bibles + continuity sentence) is saved to `scene.image_prompt_used` for review.
+
 ## Long Stories
 
 For stories longer than 10 scenes:
