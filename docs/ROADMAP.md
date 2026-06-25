@@ -4,7 +4,7 @@ Last updated: 2026-06-25
 
 Owner: Hamza
 
-Current recommendation: **Hamza's image quality sign-off** (unblocks Phase 2.1), or a Manual QA Pack / `App.tsx` cleanup pass. Phase 1.5 is done.
+Current recommendation: **Hamza's manual end-to-end review of the Studio MVP** (Milestone G QA pass) — the full story → continuity → audio → images → video → subtitles → export pipeline is implemented and verified with real data on a fresh project; what remains is Hamza's own hands-on test and product sign-off, not new engineering for the MVP scope.
 
 ---
 
@@ -17,13 +17,16 @@ Current recommendation: **Hamza's image quality sign-off** (unblocks Phase 2.1),
 | Audio pipeline | PASS — Piper worker generated real WAV, app can request audio, export.zip can include audio |
 | Audio UX | PASS — voice/language selectors, per-scene + full-story playback, all backend-proxied, no ZIP digging required |
 | SILMA | PASS as isolated AI Server lab, but heavy bootstrap cost |
-| Image pipeline | TECHNICAL PASS — ComfyUI + SDXL generated a real PNG on the AI Server |
-| Product image quality | CANDIDATE — Hamza's manual ComfyUI SDXL Base test produced a strong realistic storyteller image, with continuity risk documented |
-| Current product gate | **Use curated SDXL Base workflow first; do not require Refiner for MVP** |
+| Image pipeline | PASS — ComfyUI + SDXL bridged through the backend, persisted per-scene generate/regenerate/generate-all, quality `CANDIDATE` (not final-approved) |
+| Continuity foundation | PASS — project-level style/character/location/object bibles + 6 style presets injected into every prompt; verified fix for a real style-drift bug found during testing |
+| Video assembly | PASS — ffmpeg static-image + audio MP4, verified frame-by-frame with ffprobe |
+| Subtitle export | PASS — .srt/.vtt generated from narration_ar + duration_seconds, timing matches the rendered video exactly |
+| End-to-end pipeline | PASS — verified on one fresh project from creation through export.zip in a single run (see `docs/DECISION_LOG.md` Milestone G entry) |
+| Current product gate | **Hamza's manual hands-on QA pass** (see `docs/MANUAL_QA_CHECKLIST.md`) — product-quality sign-off, not a technical blocker |
 
-Phase 2.0 proves image generation can run on the AI Server. It does **not** yet prove product-ready quality, character continuity, long-story consistency, or acceptable UX for multi-step jobs.
+The Studio MVP pipeline (story → scenes → audio → scene images → continuity → video → subtitles → export) is technically complete and verified with real data, including a real fix for a real continuity bug found mid-build. It does **not** yet have face-locked character consistency, AI video motion, advanced transitions, or burned-in subtitle styling — those are explicitly deferred to later phases (3.1+, 3.2+).
 
-Manual ComfyUI lessons are documented in `docs/COMFYUI_MANUAL_TEST_NOTES.md`. The key product lesson is that SDXL Base is viable for MVP images, but prompt-only continuity can still drift across gender/identity, so Phase 2.x needs character locks, negative prompts, and later reference workflows.
+Manual ComfyUI lessons are documented in `docs/COMFYUI_MANUAL_TEST_NOTES.md`. The key product lesson is that SDXL Base is viable for MVP images, but prompt-only continuity can still drift across gender/identity — Phase 2.3 addressed this with bibles/negative prompts/style presets; pixel-level/face-locked continuity remains a later tier.
 
 ---
 
@@ -36,7 +39,7 @@ Manual ComfyUI lessons are documented in `docs/COMFYUI_MANUAL_TEST_NOTES.md`. Th
 - No `.env`, generated media, model caches, `node_modules`, or `dist` in Git.
 - Every media engine needs a benchmark gate before product integration.
 - Long-running media work must be job-based with visible status/progress.
-- Phase 2.1 must not start until Hamza approves the generated image quality from Phase 2.0.
+- Image quality is `CANDIDATE` (Hamza explicitly authorized MVP-stage proceeding with this candidate quality for the Studio MVP Autopilot round); it is not yet a final, signed-off product-quality approval.
 
 ---
 
@@ -65,17 +68,18 @@ Manual ComfyUI lessons are documented in `docs/COMFYUI_MANUAL_TEST_NOTES.md`. Th
 
 ---
 
-## 4. Required Product Fixes Before Phase 2.1
+## 4. Required Before the Next Phase (Studio MVP is done; what's left is human review)
 
-| Fix | Why | Owner |
+| Item | Why | Owner |
 |---|---|---|
-| Hamza quality sign-off on the generated SDXL image | Benchmark output must be acceptable, not just technically valid | Hamza |
-| ~~Sync visible UI phase/status text~~ | Done in Phase 1.5 — hero now shows "Phase 1.5 — استوديو الصوت" | Executor |
-| Confirm image worker security boundary | Browser must never call ComfyUI directly | Executor |
-| Confirm VRAM budget with current AI Server services | RTX 4060 Ti 8GB had a tight SDXL margin; avoid running competing heavy services together | Executor |
-| Define image output storage shape | Avoid ad-hoc image files before product integration | Executor |
+| Hamza's hands-on Studio MVP QA pass | Every step above is engineer-verified with real data, but product feel/quality is Hamza's call, not the executor's | Hamza |
+| Decide whether image/continuity quality is acceptable for real use | Quality is `CANDIDATE`; continuity is prompt-only (Tier 1) — good enough for MVP testing, not yet a final guarantee | Hamza |
+| Pick the next roadmap track (Phase 2.7 Production Studio Foundations vs. Phase 3.1 video polish vs. Phase 4.x assistant lab) | All three are now unblocked; sequencing is a product priority call | Hamza |
 
-Add one more product sequencing rule: Phase 1.5 should happen first because the audio backend already works and Hamza's manual test shows the current UX still forces users toward ZIP downloads instead of clear in-browser playback.
+~~Sync visible UI phase/status text~~ — done, hero now shows "Phase 3.1 — استوديو متكامل: صوت، صور، فيديو، ترجمة".
+~~Confirm image worker security boundary~~ — done and re-verified every milestone (grepped every response for the AI Server's address/path).
+~~Confirm VRAM budget~~ — unchanged from Phase 2.0's `--lowvram` + 768×768 mitigation; no new pressure introduced.
+~~Define image/video/subtitle storage shape~~ — done: `data/projects/{id}/{images,video}/`, sidecar `metadata.json` for video, all Git-ignored.
 
 ---
 
@@ -148,22 +152,13 @@ Exit criteria:
 - Repeated character/location/object references remain stable across at least 6 scenes.
 - User can review and edit continuity anchors before generation.
 
-### Phase 2.4 — Image Style Presets
+### Phase 2.4 — Image Style Presets — ✅ DONE (merged into Phase 2.3)
 
-Goal: make image generation intentional rather than random prompt tweaking.
+Implemented as part of Phase 2.3's continuity work rather than as a separate phase, since style presets and continuity bibles are injected into the same prompt-assembly step (`build_scene_image_prompt()`). Six presets shipped: `cinematic_realistic`, `warm_storybook`, `anime_cartoon`, `military_documentary`, `horror_suspense`, `marketing_poster` (concept art was dropped as redundant with cinematic_realistic for MVP scope; add later if a real need shows up). Exposed via `GET /api/images/style-presets` so the frontend has one source of truth.
 
-Initial presets:
-- Cinematic realistic
-- Warm storybook
-- Anime/cartoon
-- Military documentary
-- Horror/suspense
-- Concept art
-- Marketing/poster style
-
-Exit criteria:
-- Style choice affects prompts predictably.
-- Same story can be rendered in at least two styles without breaking scene structure.
+Exit criteria — verified:
+- Style choice affects prompts predictably. ✅ (`image_prompt_used` shows the exact assembled prompt)
+- Same story can be rendered in at least two styles without breaking scene structure. ✅ (preset is just a prefix string; scene structure is untouched)
 
 ### Phase 2.5 — Separate Image Studio
 

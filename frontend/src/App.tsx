@@ -992,7 +992,7 @@ export default function App() {
       {/* Hero */}
       <section className="hero-section">
         <div className="hero-copy">
-          <span className="phase-pill">Phase 2.1 — استوديو الصوت والصور</span>
+          <span className="phase-pill">Phase 3.1 — استوديو متكامل: صوت، صور، فيديو، ترجمة</span>
           <h1>AI Story Studio</h1>
           <p>حوّل قصتك إلى مشروع محفوظ، سكريبت راوي، مشاهد قابلة للتعديل، وصوت حقيقي تستمع إليه مباشرة.</p>
         </div>

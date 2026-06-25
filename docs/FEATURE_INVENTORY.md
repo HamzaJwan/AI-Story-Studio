@@ -25,6 +25,11 @@ Last updated: 2026-06-25
 | Per-scene saved audio playback | `GET /api/projects/{project_id}/audio/{scene_id}` (Phase 1.5) | Working — real `<audio>` + download, no ZIP needed |
 | Full-story playback | `GET /api/projects/{project_id}/audio/final_story.wav` (Phase 1.5) | Working — computed on demand, verified valid WAV |
 | Audio Studio UX | Voice/language selectors, status copy, per-scene + full-story players in `App.tsx` | Working |
+| Image worker bridge | `GET /api/images/health`, `POST .../images/jobs`, `GET /api/images/jobs/{id}`, `.../download` (Phase 2.1) | Working — backend-proxied to ComfyUI, verified with real generated PNGs |
+| Story scene images | `POST .../images/scenes/{id}/generate`, `.../generate-all`, `GET .../images`, `.../images/{id}` (Phase 2.2) | Working — persisted, included in export.zip |
+| Continuity bibles + style presets | `Project.story_style_bible/character_bible/location_bible/object_bible/negative_prompt/style_preset`, `GET /api/images/style-presets` (Phase 2.3) | Working — verified fix for a real style-drift bug |
+| Video assembly | `POST .../video/render`, `GET .../video`, `.../video/download` (Phase 3.0) | Working — ffmpeg MP4, verified frame-by-frame |
+| Subtitle export | `GET .../subtitles.srt`, `.../subtitles.vtt` (Phase 3.0/3.1) | Working — timing matches the rendered video exactly |
 
 ## Implemented But Needs UX Polish
 
@@ -39,31 +44,24 @@ Last updated: 2026-06-25
 | SILMA | PASS as isolated lab; blocked in worker by network during later attempt | Keep isolated, do not force into product |
 | Piper | PASS in TTS worker | Current default practical engine |
 | AllTalk/XTTS | Candidate | Needs real benchmark before product use |
-| ComfyUI + SDXL | Technical PASS | Product quality approval pending |
-| Image continuity workflows | Researched/planned | Not benchmarked as product workflow |
-| Video/WanGP | Planned only | Not started |
+| ComfyUI + SDXL | PASS, product-integrated | Quality `CANDIDATE`, not final product sign-off |
+| Image continuity workflows | Tier 1 (prompt-only) implemented and verified | Pixel-level/face-locked continuity is a later tier |
+| WanGP / image-to-video | Planned only | Not started, stays an isolated lab benchmark (Phase 3.2) |
 
 ## Planned / Not Started
 
 | Feature | Planned Phase |
 |---|---|
-| Unified job progress model | Expanded later, no Phase 1.5 foundation work started |
-| Image worker bridge | Phase 2.1 after quality approval |
-| Story scene images | Phase 2.2 |
-| Character/location/object continuity | Phase 2.3 |
-| Image style presets | Phase 2.4 |
+| Unified job progress model | Expanded later, no foundation work started |
 | Separate Image Studio | Phase 2.5 |
 | Long-story image batching | Phase 2.6 |
 | Project Timeline View | Phase 2.7 |
 | Project Asset Library | Phase 2.7 |
 | Quality Review Board | Phase 2.7 |
-| Regenerate per scene | Phase 2.7 |
-| Prompt / Style / Story Bible Editor | Phase 2.3 / 2.4 |
+| Regenerate per scene (beyond images) | Phase 2.7 |
 | Version History / Snapshots | Later product safety feature |
-| Video foundation | Phase 3.0 |
-| Subtitle sidecar export (`.srt`/`.vtt`) | Phase 3.0 |
-| Burned-in subtitles in MP4 | Phase 3.1 |
-| Subtitle Editor | Phase 3.0 / 3.1 |
+| Burned-in subtitles in MP4 / styling presets | Phase 3.1 |
+| Subtitle Editor / word-level alignment | Phase 3.0 / 3.1 |
 | Export presets | Phase 3.3 |
 | Job Queue Dashboard | Cross-cutting after Phase 1.5 |
 | Safety & Rights Checklist | Before voice/image reference expansion |
@@ -77,4 +75,4 @@ Last updated: 2026-06-25
 
 ## Current Recommendation
 
-`Phase 1.5 — Audio UX Polish` is implemented and verified end-to-end. Next: either Hamza's image quality sign-off (unblocks Phase 2.1) or a Manual QA Pack / `App.tsx` cleanup pass — see `docs/NEXT_EXECUTION_PLAN.md`.
+The Studio MVP pipeline (story → scenes → audio → scene images → continuity → video → subtitles → export) is implemented and verified end-to-end on a real fresh project. Next: Hamza's own manual QA pass (`docs/MANUAL_QA_CHECKLIST.md`), then a product call on which roadmap track to pursue next (Phase 2.7 Production Studio Foundations, Phase 3.1 video polish, or Phase 4.x assistant lab).
