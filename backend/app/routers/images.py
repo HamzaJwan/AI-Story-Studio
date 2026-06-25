@@ -65,7 +65,7 @@ def _generate_and_save_scene_image(
     """
     prompt = build_scene_image_prompt(project, scene)
     if not prompt:
-        raise ImageWorkerError("Scene has no image_prompt_en to generate from.")
+        raise ImageWorkerError("لا يوجد وصف بصري (image_prompt_en) لهذا المشهد لتوليد صورة منه.")
 
     seed = int(time.time())
     job_id = client.create_job(prompt, width, height, seed, negative_prompt=build_negative_prompt(project))
@@ -77,7 +77,7 @@ def _generate_and_save_scene_image(
         job = client.get_job(job_id)
 
     if job.get("status") != "done":
-        raise ImageWorkerError(job.get("error") or "Image generation timed out.")
+        raise ImageWorkerError(job.get("error") or "انتهت مهلة توليد الصورة.")
 
     file_info = job["files"][0]
     content, _ = client.download_file(file_info["filename"], file_info["subfolder"], file_info["type"])

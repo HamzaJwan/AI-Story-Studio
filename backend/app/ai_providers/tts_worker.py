@@ -44,7 +44,7 @@ class TtsWorkerClient:
 
     def create_job(self, payload: dict[str, Any]) -> dict[str, Any]:
         if not self.is_configured():
-            raise TtsWorkerError("TTS service is not configured.")
+            raise TtsWorkerError("خدمة الصوت غير مفعّلة.")
         try:
             response = requests.post(
                 f"{self.service_url}/api/tts/jobs",
@@ -53,12 +53,12 @@ class TtsWorkerClient:
             )
             response.raise_for_status()
         except requests.RequestException as exc:
-            raise TtsWorkerError("TTS worker request failed.") from exc
+            raise TtsWorkerError("تعذر الاتصال بخدمة الصوت.") from exc
         return response.json()
 
     def get_job(self, job_id: str) -> dict[str, Any]:
         if not self.is_configured():
-            raise TtsWorkerError("TTS service is not configured.")
+            raise TtsWorkerError("خدمة الصوت غير مفعّلة.")
         try:
             response = requests.get(
                 f"{self.service_url}/api/tts/jobs/{job_id}",
@@ -66,12 +66,12 @@ class TtsWorkerClient:
             )
             response.raise_for_status()
         except requests.RequestException as exc:
-            raise TtsWorkerError("TTS worker request failed.") from exc
+            raise TtsWorkerError("تعذر الاتصال بخدمة الصوت.") from exc
         return response.json()
 
     def download_file(self, job_id: str, fmt: str) -> tuple[bytes, str]:
         if not self.is_configured():
-            raise TtsWorkerError("TTS service is not configured.")
+            raise TtsWorkerError("خدمة الصوت غير مفعّلة.")
         try:
             response = requests.get(
                 f"{self.service_url}/api/tts/jobs/{job_id}/download/{fmt}",
@@ -79,6 +79,6 @@ class TtsWorkerClient:
             )
             response.raise_for_status()
         except requests.RequestException as exc:
-            raise TtsWorkerError("TTS worker request failed.") from exc
+            raise TtsWorkerError("تعذر الاتصال بخدمة الصوت.") from exc
         content_type = response.headers.get("content-type", "application/octet-stream")
         return response.content, content_type

@@ -93,7 +93,7 @@ class ImageWorkerClient:
         negative_prompt: str = DEFAULT_NEGATIVE_PROMPT,
     ) -> str:
         if not self.is_configured():
-            raise ImageWorkerError("Image service is not configured.")
+            raise ImageWorkerError("خدمة الصور غير مفعّلة.")
         workflow = self._build_workflow(prompt, negative_prompt, width, height, seed)
         try:
             response = requests.post(
@@ -104,24 +104,24 @@ class ImageWorkerClient:
             response.raise_for_status()
             data = response.json()
         except requests.RequestException as exc:
-            raise ImageWorkerError("Image worker request failed.") from exc
+            raise ImageWorkerError("تعذر الاتصال بخدمة الصور.") from exc
 
         if data.get("node_errors"):
-            raise ImageWorkerError(f"Image workflow rejected: {data['node_errors']}")
+            raise ImageWorkerError(f"تم رفض workflow توليد الصورة: {data['node_errors']}")
         prompt_id = data.get("prompt_id")
         if not prompt_id:
-            raise ImageWorkerError("Image worker did not return a job id.")
+            raise ImageWorkerError("لم ترجع خدمة الصور رقم مهمة (job id).")
         return prompt_id
 
     def get_job(self, job_id: str) -> dict[str, Any]:
         if not self.is_configured():
-            raise ImageWorkerError("Image service is not configured.")
+            raise ImageWorkerError("خدمة الصور غير مفعّلة.")
         try:
             response = requests.get(f"{self.service_url}/history/{job_id}", timeout=self.timeout)
             response.raise_for_status()
             history = response.json()
         except requests.RequestException as exc:
-            raise ImageWorkerError("Image worker request failed.") from exc
+            raise ImageWorkerError("تعذر الاتصال بخدمة الصور.") from exc
 
         entry = history.get(job_id)
         if entry is None:
@@ -146,7 +146,7 @@ class ImageWorkerClient:
 
     def download_file(self, filename: str, subfolder: str, file_type: str) -> tuple[bytes, str]:
         if not self.is_configured():
-            raise ImageWorkerError("Image service is not configured.")
+            raise ImageWorkerError("خدمة الصور غير مفعّلة.")
         try:
             response = requests.get(
                 f"{self.service_url}/view",
@@ -155,6 +155,6 @@ class ImageWorkerClient:
             )
             response.raise_for_status()
         except requests.RequestException as exc:
-            raise ImageWorkerError("Image worker request failed.") from exc
+            raise ImageWorkerError("تعذر الاتصال بخدمة الصور.") from exc
         content_type = response.headers.get("content-type", "image/png")
         return response.content, content_type

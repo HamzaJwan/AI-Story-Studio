@@ -71,7 +71,7 @@ class OllamaProvider:
         num_predict: int | None = None,
     ) -> OllamaResult:
         if not self.is_configured():
-            raise OllamaError("Ollama is not configured. Set OLLAMA_BASE_URL in local .env.")
+            raise OllamaError("خدمة Ollama غير مهيأة. تأكد من ضبط OLLAMA_BASE_URL في ملف .env المحلي.")
 
         selected_model = model or self.model
         started = time.perf_counter()
@@ -95,11 +95,11 @@ class OllamaProvider:
             )
             response.raise_for_status()
         except requests.RequestException as exc:
-            raise OllamaError("Ollama request failed. Check local .env and server availability.") from exc
+            raise OllamaError("تعذر الاتصال بخدمة Ollama. تحقق من ملف .env المحلي ومن تشغيل الخادم.") from exc
 
         latency_ms = int((time.perf_counter() - started) * 1000)
         data = response.json()
         text = str(data.get("response", "")).strip()
         if not text:
-            raise OllamaError("Ollama returned an empty response.")
+            raise OllamaError("استجابة فارغة من خدمة Ollama.")
         return OllamaResult(text=text, latency_ms=latency_ms, model=selected_model)
