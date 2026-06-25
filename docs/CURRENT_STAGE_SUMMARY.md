@@ -3,32 +3,39 @@
 ## Current Stage
 
 **Stage:** Phase 2.0 — Image Benchmark Lab
-**Status:** ✅ PASS (technical) — **awaiting Hamza's quality sign-off before Phase 2.1**
-**Owner:** Hamza
-**Executor:** Claude
-**Reviewer:** Hamza
 
-## What happened
+**Status:** Technical PASS, pending Hamza quality sign-off
 
-First attempt at the SDXL checkpoint download stalled on the AI Server's network (documented as `BLOCKED`, same pattern as SILMA earlier). Before giving up, re-verified the network with a *correct* test (the first "still down" recheck had a bug — `curl` without `-L` only measures the fast redirect, not the real download) and found it had genuinely recovered (2.67 MB/s). Retried the download — it completed cleanly (~6.5GB).
+**Recommendation:** APPROVED WITH FIXES before Phase 2.1
 
-Ran the real benchmark:
-- `comfyui-lab` started, GPU confirmed visible inside the container.
-- Submitted the bundled SDXL text-to-image workflow (768×768, 20 steps).
-- **Real result:** `status: success` in ~14.7s (cold run). Peak VRAM 6995 MiB / 812 MiB free (tight, no OOM). Output PNG (693,857 bytes) downloaded and **visually inspected directly** — a coherent, real night-window scene matching the prompt, no corruption.
+## Verified Product State
 
-## Important distinction
+- Phase 0.1 is stable: Ollama connection, story improvement, scene splitting, and `scenes.json` generation work.
+- Phase 0.2 is stable: local project creation, saving, loading, scene editing, and edited `scenes.json` export work.
+- Phase 0.3 and 0.4 are completed: scene editing UX polish and project ZIP export are available.
+- Phase 1.x audio path is functionally proven with an external AI Server worker and project audio export.
+- Phase 2.0 image benchmark is technically proven: ComfyUI + SDXL generated a real PNG on the AI Server.
 
-This is a **technical** PASS: the image-generation pipeline works end to end on this hardware. It is **not** a product quality approval. Per the project's own stop condition #9, Hamza needs to look at and approve the actual image quality before Phase 2.1 (Image Worker Bridge) or any frontend image UI work starts.
+## Important Distinction
+
+Phase 2.0 is a **technical** image-generation pass, not a final product-quality approval. Hamza still needs to approve the actual image quality before Phase 2.1 adds an image worker bridge or any image UI.
+
+## Current Gaps
+
+- Product UI still needs a small status/phase label sync before the next implementation phase.
+- Image continuity is not solved yet: character, location, object, color, and long-story consistency need their own strategy.
+- Long-running audio/image/video jobs need a unified progress/status model before scaling.
+- TTS/SILMA/AllTalk remain AI Server services/labs; they should not be merged into the App Server.
 
 ## Next Action
 
-1. Commit and push Phase 2.0's real result.
-2. Wait for Hamza's quality sign-off on the generated image before proceeding to Phase 2.1.
-3. Do not build an Image Worker Bridge or frontend image UI in the meantime — nothing to bridge to without that approval.
+1. Hamza reviews Phase 2.0 image quality.
+2. Executor fixes the small visible phase/status mismatch.
+3. Start Phase 2.1 — Image Worker Bridge only after the above are done.
 
 ## Do Not Do Yet
 
-- لا Image Worker Bridge (Phase 2.1) ولا أي UI صور قبل موافقة حمزة الصريحة على الجودة.
-- لا فيديو (Phase 3.0) قبل حسم الصور بالكامل.
-- لا تغيير resolution/batch بدون فحص VRAM من جديد — الهامش الحالي ضيق جداً (812 MiB فقط وقت القمة).
+- Do not start Phase 2.1 before image quality sign-off.
+- Do not add frontend image generation UI yet.
+- Do not start video generation.
+- Do not expose ComfyUI or other AI Server services directly to the browser.

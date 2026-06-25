@@ -278,3 +278,19 @@
 - Phase 0.2 is ready as the current product baseline.
 - TTS/SILMA/AllTalk remain isolated labs and are not part of the app UI.
 - Next step is Phase 0.3 — Scene Editing UX Polish before any TTS UI.
+
+---
+
+## 2026-06-25 — Align roadmap with media-generation vision
+
+**Decision:** Treat Phase 2.0 as a technical image benchmark PASS, but require Hamza's product-quality sign-off and a small UI/status sync before Phase 2.1 starts.
+
+**Reason:**
+- The current app is no longer only a story-to-scenes tool; it now has a proven audio path and a technically proven image benchmark.
+- Hamza's new direction requires planning for image continuity, long-story batching, style presets, a separate Image Studio, genre-aware narration, and future video assembly.
+- Community and research patterns show that prompt-only scene generation is not enough for recurring characters, stable locations, or object/color consistency. Continuity needs story/character/location/object bibles plus benchmarked reference workflows.
+
+**Impact:**
+- `docs/ROADMAP.md` now separates Phase 2.1 image worker bridge, Phase 2.2 scene image generation, Phase 2.3 continuity foundation, Phase 2.4 style presets, Phase 2.5 Image Studio, Phase 2.6 long-story batching, and Phase 3.x video work.
+- New strategy docs describe media expansion, image continuity, and unified job progress.
+- Recommendation is `APPROVED WITH FIXES`: close the quality sign-off and small UI/status mismatch before implementation resumes.
