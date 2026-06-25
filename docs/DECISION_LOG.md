@@ -21,6 +21,8 @@
 
 **Impact:** `fix: harden studio MVP manual QA flow` (commit `04f5485`) bundles Milestones 1-4 of the Production MVP plan into one commit, since all the changes landed in the same two frontend files (`App.tsx`, `styles.css`) and splitting them into separate commits would have required interactive `git add -p` staging, which is disallowed. No backend code, API contract, or architecture changed.
 
+**Code organization (Milestone 6), scoped down deliberately:** extracted only `StudioStepper` and `ProjectHeader` from `App.tsx` (commit `9d799da`) — both are pure, props-only, no internal state. Did **not** split the six step-content panels (Story/Scenes/Audio/Images/Video/Export) into their own components: each shares 15-30+ state values/handlers with the rest of `App.tsx`, and the dev container has no source volume mount (every edit needs a full image rebuild, several minutes, with `tsc` as the only safety net — no live browser available this session to visually confirm a large refactor didn't silently drop a prop). Splitting those six panels remains a documented future improvement, not abandoned, just correctly deferred until it can be verified properly.
+
 ---
 
 ## 2026-06-25 — Studio MVP Release Candidate 1 (RC1): UI bugfix + docs/Quick Start finalization

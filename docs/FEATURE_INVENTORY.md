@@ -71,6 +71,7 @@ Last updated: 2026-06-25
 | Subtitle Editor / word-level alignment | Phase 3.0 / 3.1 |
 | Export presets | Phase 3.3 |
 | Job Queue Dashboard | Cross-cutting after Phase 1.5 |
+| Split `App.tsx` step panels into components (StoryStep/ScenesStep/AudioStep/ImagesStep/VideoStep/ExportStep) | Deferred — each shares 15-30+ state/handlers; needs a live browser to verify safely, see `docs/DECISION_LOG.md` 2026-06-25 entry |
 | Safety & Rights Checklist | Before voice/image reference expansion |
 | Model / Engine Dashboard | Later ops/status feature |
 | Local AI Assistant Lab | Phase 4.0 |
