@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     data_dir: str = "./data"
     max_story_chars: int = 25000
+    long_story_chunk_chars: int = 6000
     tts_enabled: bool = False
     tts_service_url: str = ""
     tts_timeout_seconds: int = 30

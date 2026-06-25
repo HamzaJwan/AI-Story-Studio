@@ -13,6 +13,14 @@ class OllamaError(RuntimeError):
     pass
 
 
+_CONTEXT_OVERFLOW_HINTS = ("context", "too long", "exceed", "out of memory", "token")
+
+
+def _looks_like_context_overflow(body_snippet: str) -> bool:
+    lowered = body_snippet.lower()
+    return any(hint in lowered for hint in _CONTEXT_OVERFLOW_HINTS)
+
+
 @dataclass
 class OllamaResult:
     text: str
@@ -94,6 +102,29 @@ class OllamaProvider:
                 timeout=self.timeout,
             )
             response.raise_for_status()
+        except requests.exceptions.Timeout as exc:
+            # Covers both connect-timeout and read-timeout. This is NOT a connection
+            # failure -- Ollama is reachable but the request (often a long story sent
+            # as one prompt) took longer than `self.timeout`. Misreporting this as a
+            # "service unreachable" error was the manual-QA bug: a healthy Ollama with
+            # a long story would still show a connection-refused-style message.
+            raise OllamaError(
+                "استغرق الطلب وقتاً أطول من المسموح (Timeout). إذا كانت القصة طويلة، "
+                "جرّب وضع تحسين القصص الطويلة أو قسّم النص إلى أجزاء أصغر."
+            ) from exc
+        except requests.exceptions.ConnectionError as exc:
+            raise OllamaError(
+                "تعذر الاتصال بخدمة Ollama. تحقق من ملف .env المحلي ومن تشغيل الخادم."
+            ) from exc
+        except requests.exceptions.HTTPError as exc:
+            status_code = exc.response.status_code if exc.response is not None else None
+            body_snippet = (exc.response.text or "") if exc.response is not None else ""
+            if _looks_like_context_overflow(body_snippet):
+                raise OllamaError(
+                    "النص طويل جداً على الموديل الحالي (تجاوز سعة السياق). "
+                    "جرّب وضع تحسين القصص الطويلة أو قسّم النص إلى أجزاء أصغر."
+                ) from exc
+            raise OllamaError(f"خدمة Ollama أعادت خطأ (HTTP {status_code}).") from exc
         except requests.RequestException as exc:
             raise OllamaError("تعذر الاتصال بخدمة Ollama. تحقق من ملف .env المحلي ومن تشغيل الخادم.") from exc
 

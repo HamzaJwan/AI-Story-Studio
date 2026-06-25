@@ -19,13 +19,15 @@ def get_storage(settings: Settings = Depends(get_settings)) -> ProjectStorage:
 def improve_story(
     request: ImproveStoryRequest,
     provider: OllamaProvider = Depends(get_provider),
+    settings: Settings = Depends(get_settings),
 ) -> ApiEnvelope:
     try:
         engine = StoryEngine(provider)
-        improved_text, latency_ms = engine.improve_narration_script(
+        improved_text, latency_ms, chunk_count = engine.improve_narration_script(
             story_text=request.story_text,
             tone=request.tone,
             language=request.language,
+            chunk_chars=settings.long_story_chunk_chars,
         )
         return ApiEnvelope(
             data={"improved_text": improved_text},
@@ -33,6 +35,7 @@ def improve_story(
                 "provider": "ollama",
                 "model": provider.model,
                 "latency_ms": latency_ms,
+                "chunk_count": chunk_count,
                 "limitations": ["AI output requires human review"],
             },
         )

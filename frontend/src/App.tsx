@@ -25,7 +25,10 @@ type ConfigData = {
   provider: string;
   model: string;
   ollama_configured: boolean;
+  long_story_chunk_chars: number;
 };
+
+const DEFAULT_LONG_STORY_CHUNK_CHARS = 6000;
 
 type SplitData = {
   project_id: string | null;
@@ -369,6 +372,7 @@ export default function App() {
   const [tone, setTone] = useState(TONES[0]);
   const [config, setConfig] = useState<ConfigData | null>(null);
   const [providerMessage, setProviderMessage] = useState("لم يتم الاختبار بعد");
+  const [improveProgress, setImproveProgress] = useState("");
   const [improvedText, setImprovedText] = useState("");
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [expandedIndices, setExpandedIndices] = useState<Set<number>>(new Set([0]));
@@ -418,6 +422,8 @@ export default function App() {
   const [videoBusy, setVideoBusy] = useState(false);
 
   const canRun = storyText.trim().length > 0 && loading === null;
+  const longStoryChunkChars = config?.long_story_chunk_chars || DEFAULT_LONG_STORY_CHUNK_CHARS;
+  const isLongStory = storyText.trim().length > longStoryChunkChars;
 
   const sceneStats = useMemo(() => {
     const totalDuration = scenes.reduce((sum, s) => sum + (s.duration_seconds || 0), 0);
@@ -704,6 +710,7 @@ export default function App() {
   async function handleImproveStory() {
     setLoading("improve");
     setError("");
+    setImproveProgress(isLongStory ? "النص طويل، سيتم تحسينه على أجزاء. قد يستغرق ذلك دقيقة أو أكثر..." : "");
     try {
       const r = await postJson<{ improved_text: string }>("/api/story/improve", {
         story_text: storyText,
@@ -714,12 +721,18 @@ export default function App() {
         setError(r.errors.join(" "));
       } else {
         setImprovedText(r.data.improved_text);
-        showNotice("تم تحسين القصة. لا تنس حفظ المشروع.");
+        const chunkCount = Number(r.meta?.chunk_count) || 1;
+        showNotice(
+          chunkCount > 1
+            ? `تم تحسين القصة على ${chunkCount} أجزاء. لا تنس حفظ المشروع.`
+            : "تم تحسين القصة. لا تنس حفظ المشروع."
+        );
       }
-    } catch {
-      setError("تعذر تحسين القصة. تحقق من backend وOllama.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تعذر تحسين القصة. تحقق من backend وOllama.");
     } finally {
       setLoading(null);
+      setImproveProgress("");
     }
   }
 
@@ -1264,6 +1277,12 @@ export default function App() {
               placeholder="اكتب القصة العربية هنا..."
             />
           </label>
+          {isLongStory && (
+            <p className="muted-text field-hint">
+              سيتم تحسين القصة على أجزاء لأن النص طويل ({storyText.trim().length} حرف). كل جزء يُحسَّن
+              بطلب منفصل لـ Ollama حتى لا يفشل الطلب بسبب طول النص.
+            </p>
+          )}
 
           <label className="story-label">
             سكريبت الراوي المحسن
@@ -1292,7 +1311,11 @@ export default function App() {
               {loading === "test" ? "جاري الاختبار..." : "اختبار Ollama"}
             </button>
             <button onClick={handleImproveStory} disabled={!canRun}>
-              {loading === "improve" ? "جاري التحسين..." : "تحسين القصة"}
+              {loading === "improve"
+                ? isLongStory
+                  ? "جاري تحسين القصة على أجزاء..."
+                  : "جاري التحسين..."
+                : "تحسين القصة"}
             </button>
             <button onClick={handleSplitScenes} disabled={!canRun}>
               {loading === "split" ? "جاري التقسيم..." : "تقسيم إلى مشاهد"}
@@ -1316,6 +1339,7 @@ export default function App() {
               {loading === "package" ? "جاري التجهيز..." : "تحميل حزمة المشروع ZIP"}
             </button>
           </div>
+          {improveProgress && <p className="muted-text">{improveProgress}</p>}
         </div>
 
         )}

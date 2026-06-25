@@ -14,5 +14,6 @@ def config() -> ApiEnvelope:
             "provider": "ollama",
             "model": settings.ollama_model,
             "ollama_configured": settings.ollama_configured,
+            "long_story_chunk_chars": settings.long_story_chunk_chars,
         }
     )
