@@ -1,10 +1,11 @@
 import time
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import Response
 
 from app.ai_providers.image_worker import DEFAULT_NEGATIVE_PROMPT, ImageWorkerClient, ImageWorkerError
 from app.config import Settings, get_settings
+from app.jobs import JobStore, get_job_store, now_iso
 from app.schemas import ApiEnvelope, ImageJobRequest, ProjectResponse, Scene
 from app.storage import ProjectStorage
 
@@ -117,6 +118,61 @@ def get_image_client(settings: Settings = Depends(get_settings)) -> ImageWorkerC
 
 def get_storage(settings: Settings = Depends(get_settings)) -> ProjectStorage:
     return ProjectStorage(settings)
+
+
+def get_store(settings: Settings = Depends(get_settings)) -> JobStore:
+    return get_job_store(settings.data_path)
+
+
+def _run_generate_all_images_job(
+    job_store: JobStore,
+    job_id: str,
+    project_id: str,
+    project: ProjectResponse,
+    client: ImageWorkerClient,
+    storage: ProjectStorage,
+    width: int,
+    height: int,
+) -> None:
+    job_store.update(job_id, status="running", started_at=now_iso())
+    try:
+        generated: list[str] = []
+        failed: list[dict[str, str]] = []
+        total = len(project.scenes)
+        for index, scene in enumerate(project.scenes, start=1):
+            job_store.update(
+                job_id,
+                current_step=index,
+                total_steps=total,
+                completed_steps=index - 1,
+                message_ar=f"جاري توليد صورة المشهد {index} من {total}...",
+            )
+            if not scene.image_prompt_en.strip():
+                failed.append({"scene_id": scene.scene_id, "error": "Empty image_prompt_en."})
+                continue
+            try:
+                _generate_and_save_scene_image(project_id, project, scene, client, storage, width, height)
+                generated.append(scene.scene_id)
+            except ImageWorkerError as exc:
+                failed.append({"scene_id": scene.scene_id, "error": str(exc)})
+        job_store.update(
+            job_id,
+            status="done",
+            current_step=total,
+            completed_steps=total,
+            finished_at=now_iso(),
+            message_ar=f"تم توليد {len(generated)} من {total}.",
+            affected_scene_ids=generated,
+            result_summary={"generated": generated, "failed": failed, "total_scenes": total},
+        )
+    except Exception:
+        job_store.update(
+            job_id,
+            status="failed",
+            finished_at=now_iso(),
+            safe_error_ar="حدث خطأ غير متوقع أثناء توليد الصور.",
+            message_ar="فشل توليد الصور.",
+        )
 
 
 @router.get("/api/images/style-presets", response_model=ApiEnvelope)
@@ -241,6 +297,48 @@ def generate_all_scene_images(
         data={"generated": generated, "failed": failed, "total_scenes": len(project.scenes)},
         meta={"provider": "image-worker"},
     )
+
+
+@router.post("/api/projects/{project_id}/images/generate-all/jobs", response_model=ApiEnvelope)
+def generate_all_scene_images_job(
+    project_id: str,
+    background_tasks: BackgroundTasks,
+    client: ImageWorkerClient = Depends(get_image_client),
+    storage: ProjectStorage = Depends(get_storage),
+    store: JobStore = Depends(get_store),
+) -> ApiEnvelope:
+    """Job-based variant of /images/generate-all -- returns a job_id immediately
+    instead of blocking the request for the whole sequential generation run
+    (one job per scene, polled via GET /api/jobs/{job_id})."""
+    if not client.is_configured():
+        raise HTTPException(status_code=503, detail="Image service is not configured.")
+
+    try:
+        project = storage.get_project(project_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    if not project.scenes:
+        raise HTTPException(status_code=422, detail="Project has no scenes to illustrate.")
+
+    job = store.create(
+        project_id,
+        "images_generate_all",
+        total_steps=len(project.scenes),
+        message_ar="في قائمة الانتظار...",
+    )
+    background_tasks.add_task(
+        _run_generate_all_images_job,
+        store,
+        job.job_id,
+        project_id,
+        project,
+        client,
+        storage,
+        DEFAULT_WIDTH,
+        DEFAULT_HEIGHT,
+    )
+    return ApiEnvelope(data=job.to_dict(), meta={"provider": "image-worker"})
 
 
 @router.get("/api/projects/{project_id}/images", response_model=ApiEnvelope)

@@ -1,11 +1,12 @@
 import time
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import Response
 
 from app.ai_providers.tts_worker import TtsWorkerClient, TtsWorkerError
 from app.config import Settings, get_settings
-from app.schemas import ApiEnvelope, TtsJobRequest
+from app.jobs import JobStore, get_job_store, now_iso
+from app.schemas import ApiEnvelope, ProjectResponse, TtsJobRequest
 from app.storage import ProjectStorage
 
 router = APIRouter(tags=["tts"])
@@ -34,6 +35,72 @@ def get_tts_client(settings: Settings = Depends(get_settings)) -> TtsWorkerClien
 
 def get_storage(settings: Settings = Depends(get_settings)) -> ProjectStorage:
     return ProjectStorage(settings)
+
+
+def get_store(settings: Settings = Depends(get_settings)) -> JobStore:
+    return get_job_store(settings.data_path)
+
+
+def _run_generate_all_audio_job(
+    job_store: JobStore,
+    job_id: str,
+    project_id: str,
+    project: ProjectResponse,
+    client: TtsWorkerClient,
+    storage: ProjectStorage,
+) -> None:
+    job_store.update(job_id, status="running", started_at=now_iso())
+    try:
+        generated: list[str] = []
+        failed: list[dict[str, str]] = []
+        total = len(project.scenes)
+        for index, scene in enumerate(project.scenes, start=1):
+            job_store.update(
+                job_id,
+                current_step=index,
+                total_steps=total,
+                completed_steps=index - 1,
+                message_ar=f"جاري توليد صوت المشهد {index} من {total}...",
+            )
+            if not scene.narration_ar.strip():
+                failed.append({"scene_id": scene.scene_id, "error": "Empty narration."})
+                continue
+            try:
+                job = client.create_job(
+                    {"text": scene.narration_ar, "voice_id": None, "speed": None, "format": "wav"}
+                )
+                tts_job_id = job["job_id"]
+                for _ in range(POLL_MAX_ATTEMPTS):
+                    if job.get("status") in ("done", "failed"):
+                        break
+                    time.sleep(POLL_INTERVAL_SECONDS)
+                    job = client.get_job(tts_job_id)
+                if job.get("status") != "done":
+                    failed.append({"scene_id": scene.scene_id, "error": job.get("error") or "Timed out."})
+                    continue
+                audio_bytes, _ = client.download_file(tts_job_id, "wav")
+                storage.save_scene_audio(project_id, scene.scene_id, audio_bytes, "wav")
+                generated.append(scene.scene_id)
+            except TtsWorkerError as exc:
+                failed.append({"scene_id": scene.scene_id, "error": str(exc)})
+        job_store.update(
+            job_id,
+            status="done",
+            current_step=total,
+            completed_steps=total,
+            finished_at=now_iso(),
+            message_ar=f"تم توليد {len(generated)} من {total}.",
+            affected_scene_ids=generated,
+            result_summary={"generated": generated, "failed": failed, "total_scenes": total},
+        )
+    except Exception:
+        job_store.update(
+            job_id,
+            status="failed",
+            finished_at=now_iso(),
+            safe_error_ar="حدث خطأ غير متوقع أثناء توليد الصوت.",
+            message_ar="فشل توليد الصوت.",
+        )
 
 
 def _sanitize_job(job: dict) -> dict:
@@ -157,6 +224,37 @@ def generate_all_scene_audio(
         data={"generated": generated, "failed": failed, "total_scenes": len(project.scenes)},
         meta={"provider": "tts-worker"},
     )
+
+
+@router.post("/api/projects/{project_id}/tts/generate-all/jobs", response_model=ApiEnvelope)
+def generate_all_scene_audio_job(
+    project_id: str,
+    background_tasks: BackgroundTasks,
+    client: TtsWorkerClient = Depends(get_tts_client),
+    storage: ProjectStorage = Depends(get_storage),
+    store: JobStore = Depends(get_store),
+) -> ApiEnvelope:
+    """Job-based variant of /tts/generate-all -- returns a job_id immediately
+    instead of blocking the request for the whole sequential narration run."""
+    if not client.is_configured():
+        raise HTTPException(status_code=503, detail="TTS service is not configured.")
+
+    try:
+        project = storage.get_project(project_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    if not project.scenes:
+        raise HTTPException(status_code=422, detail="Project has no scenes to narrate.")
+
+    job = store.create(
+        project_id,
+        "audio_generate_all",
+        total_steps=len(project.scenes),
+        message_ar="في قائمة الانتظار...",
+    )
+    background_tasks.add_task(_run_generate_all_audio_job, store, job.job_id, project_id, project, client, storage)
+    return ApiEnvelope(data=job.to_dict(), meta={"provider": "tts-worker"})
 
 
 @router.get("/api/tts/jobs/{job_id}", response_model=ApiEnvelope)

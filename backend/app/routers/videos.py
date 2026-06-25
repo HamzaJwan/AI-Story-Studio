@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import subprocess
 import tempfile
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import Response
 
 from app.config import Settings, get_settings
+from app.jobs import JobStore, get_job_store, now_iso
 from app.schemas import ApiEnvelope
 from app.storage import ProjectStorage
 
@@ -25,29 +27,45 @@ def get_storage(settings: Settings = Depends(get_settings)) -> ProjectStorage:
     return ProjectStorage(settings)
 
 
+def get_store(settings: Settings = Depends(get_settings)) -> JobStore:
+    return get_job_store(settings.data_path)
+
+
+class FfmpegError(RuntimeError):
+    def __init__(self, message: str, status_code: int = 502):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class VideoNoContentError(RuntimeError):
+    """Project has no scenes, or no scene has a usable saved image yet."""
+
+
 def _run_ffmpeg(cmd: list[str], timeout: int) -> subprocess.CompletedProcess:
     try:
         return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
     except FileNotFoundError as exc:
-        raise HTTPException(
-            status_code=503, detail="ffmpeg is not available in the backend image."
-        ) from exc
+        raise FfmpegError("ffmpeg is not available in the backend image.", status_code=503) from exc
     except subprocess.TimeoutExpired as exc:
-        raise HTTPException(status_code=502, detail="ffmpeg timed out.") from exc
+        raise FfmpegError("ffmpeg timed out.", status_code=502) from exc
 
 
-@router.post("/api/projects/{project_id}/video/render", response_model=ApiEnvelope)
-def render_project_video(
+def _render_video_for_project(
     project_id: str,
-    storage: ProjectStorage = Depends(get_storage),
-) -> ApiEnvelope:
-    try:
-        project = storage.get_project(project_id)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    storage: ProjectStorage,
+    on_progress: Callable[[int, int], None] | None = None,
+) -> dict:
+    """Shared render core used by both the synchronous endpoint and the
+    job-based endpoint below. Raises FileNotFoundError (no project),
+    VideoNoContentError (no scenes / no renderable images), or FfmpegError
+    (binary missing, timeout, or non-zero exit) -- callers translate these
+    into either an HTTPException (sync path) or a failed job record (job
+    path), so the actual ffmpeg logic only lives here.
+    """
+    project = storage.get_project(project_id)
 
     if not project.scenes:
-        raise HTTPException(status_code=422, detail="Project has no scenes to render.")
+        raise VideoNoContentError("Project has no scenes to render.")
 
     images_dir = storage.project_images_dir(project_id)
     audio_dir = storage.project_audio_dir(project_id)
@@ -60,12 +78,16 @@ def render_project_video(
     included: list[str] = []
     included_durations: list[float] = []
     skipped: list[dict[str, str]] = []
+    total_scenes = len(project.scenes)
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         segment_paths: list[Path] = []
 
-        for scene in project.scenes:
+        for index, scene in enumerate(project.scenes, start=1):
+            if on_progress:
+                on_progress(index, total_scenes)
+
             if not scene.image_format:
                 skipped.append({"scene_id": scene.scene_id, "reason": "no saved image for this scene"})
                 continue
@@ -113,9 +135,8 @@ def render_project_video(
             included_durations.append(segment_duration)
 
         if not segment_paths:
-            raise HTTPException(
-                status_code=422,
-                detail="No scene has a saved image yet -- generate at least one scene image first.",
+            raise VideoNoContentError(
+                "No scene has a saved image yet -- generate at least one scene image first."
             )
 
         concat_list = tmp_path / "concat.txt"
@@ -133,7 +154,7 @@ def render_project_video(
         ]
         result = _run_ffmpeg(concat_cmd, CONCAT_TIMEOUT_SECONDS)
         if result.returncode != 0 or not final_path.exists():
-            raise HTTPException(status_code=502, detail="ffmpeg concat step failed.")
+            raise FfmpegError("ffmpeg concat step failed.")
 
     total_duration = round(sum(included_durations))
     metadata = {
@@ -144,8 +165,97 @@ def render_project_video(
         "video_bytes": final_path.stat().st_size,
     }
     storage.save_video_metadata(project_id, metadata)
+    return metadata
+
+
+def _run_render_video_job(job_store: JobStore, job_id: str, project_id: str, storage: ProjectStorage) -> None:
+    job_store.update(
+        job_id, status="running", started_at=now_iso(),
+        message_ar="جاري تجميع الفيديو من الصور والصوت المحفوظ...",
+    )
+    try:
+        def on_progress(index: int, total: int) -> None:
+            job_store.update(
+                job_id,
+                current_step=index,
+                total_steps=total,
+                completed_steps=index - 1,
+                message_ar=f"جاري تجميع مشهد {index} من {total} في الفيديو...",
+            )
+
+        metadata = _render_video_for_project(project_id, storage, on_progress=on_progress)
+        total = len(metadata.get("included_scenes", [])) + len(metadata.get("skipped_scenes", []))
+        job_store.update(
+            job_id,
+            status="done",
+            current_step=total,
+            completed_steps=total,
+            finished_at=now_iso(),
+            message_ar=f"تم تجميع الفيديو بمدة {metadata['duration_seconds']} ثانية تقريباً.",
+            affected_scene_ids=metadata.get("included_scenes", []),
+            result_summary=metadata,
+        )
+    except FileNotFoundError as exc:
+        job_store.update(
+            job_id, status="failed", finished_at=now_iso(), safe_error_ar=str(exc), message_ar="فشل تجميع الفيديو."
+        )
+    except VideoNoContentError as exc:
+        job_store.update(
+            job_id, status="failed", finished_at=now_iso(), safe_error_ar=str(exc), message_ar="فشل تجميع الفيديو."
+        )
+    except FfmpegError as exc:
+        job_store.update(
+            job_id, status="failed", finished_at=now_iso(), safe_error_ar=str(exc), message_ar="فشل تجميع الفيديو."
+        )
+    except Exception:
+        job_store.update(
+            job_id,
+            status="failed",
+            finished_at=now_iso(),
+            safe_error_ar="حدث خطأ غير متوقع أثناء تجميع الفيديو.",
+            message_ar="فشل تجميع الفيديو.",
+        )
+
+
+@router.post("/api/projects/{project_id}/video/render", response_model=ApiEnvelope)
+def render_project_video(
+    project_id: str,
+    storage: ProjectStorage = Depends(get_storage),
+) -> ApiEnvelope:
+    try:
+        metadata = _render_video_for_project(project_id, storage)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except VideoNoContentError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except FfmpegError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
     return ApiEnvelope(data=metadata, meta={"provider": "ffmpeg"})
+
+
+@router.post("/api/projects/{project_id}/video/render/jobs", response_model=ApiEnvelope)
+def render_project_video_job(
+    project_id: str,
+    background_tasks: BackgroundTasks,
+    storage: ProjectStorage = Depends(get_storage),
+    store: JobStore = Depends(get_store),
+) -> ApiEnvelope:
+    """Job-based variant of /video/render -- returns a job_id immediately so
+    the UI can poll instead of blocking on the whole ffmpeg render+concat run."""
+    try:
+        project = storage.get_project(project_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    if not project.scenes:
+        raise HTTPException(status_code=422, detail="Project has no scenes to render.")
+
+    job = store.create(
+        project_id, "video_render", total_steps=len(project.scenes), message_ar="في قائمة الانتظار..."
+    )
+    background_tasks.add_task(_run_render_video_job, store, job.job_id, project_id, storage)
+    return ApiEnvelope(data=job.to_dict(), meta={"provider": "ffmpeg"})
 
 
 @router.get("/api/projects/{project_id}/video", response_model=ApiEnvelope)

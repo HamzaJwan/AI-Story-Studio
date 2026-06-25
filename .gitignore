@@ -30,6 +30,7 @@ data/projects/*.json
 data/projects/*/
 data/projects/**
 !data/projects/.gitkeep
+data/jobs/
 deploy/ai-server/*/data/
 outputs/
 *.wav

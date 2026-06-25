@@ -362,6 +362,36 @@ const putJson = <T,>(path: string, payload: unknown) =>
 
 const deleteJson = <T,>(path: string) => requestJson<T>(path, { method: "DELETE" });
 
+// ── Jobs (Milestone A lightweight progress polling) ────────────────────────────
+
+type JobRecord = {
+  job_id: string;
+  project_id: string;
+  job_type: string;
+  status: "queued" | "running" | "done" | "failed" | "cancelled";
+  current_step: number;
+  total_steps: number;
+  completed_steps: number;
+  message_ar: string;
+  safe_error_ar: string | null;
+  result_summary: Record<string, unknown> | null;
+  affected_scene_ids: string[];
+};
+
+const JOB_POLL_INTERVAL_MS = 1200;
+const TERMINAL_JOB_STATUSES = new Set(["done", "failed", "cancelled"]);
+
+async function pollJob(jobId: string, onUpdate: (job: JobRecord) => void): Promise<JobRecord> {
+  for (;;) {
+    const r = await getJson<JobRecord>(`/api/jobs/${jobId}`);
+    onUpdate(r.data);
+    if (TERMINAL_JOB_STATUSES.has(r.data.status)) {
+      return r.data;
+    }
+    await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
+  }
+}
+
 // ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -517,24 +547,31 @@ export default function App() {
     }
     setVideoBusy(true);
     setVideoMessage(
-      "جاري تجميع الفيديو من الصور والصوت المحفوظ (قد يستغرق دقيقة أو أكثر)... يتم استخدام مدة الصوت الفعلية لكل مشهد إن وُجدت، وإلا فمدة المشهد الافتراضية.",
+      "جاري تجميع الفيديو من الصور والصوت المحفوظ... يتم استخدام مدة الصوت الفعلية لكل مشهد إن وُجدت، وإلا فمدة المشهد الافتراضية.",
     );
     try {
-      const r = await postJson<{
-        included_scenes: string[];
-        skipped_scenes: { scene_id: string; reason: string }[];
-        duration_seconds: number;
-      }>(`/api/projects/${projectId}/video/render`);
+      const r = await postJson<JobRecord>(`/api/projects/${projectId}/video/render/jobs`);
       if (r.errors.length) {
         setVideoMessage(r.errors.join(" "));
-      } else {
-        const { included_scenes, skipped_scenes, duration_seconds } = r.data;
-        let msg = `تم تجميع الفيديو من ${included_scenes.length} مشهد، بمدة ${duration_seconds} ثانية تقريباً.`;
-        if (skipped_scenes.length) {
-          msg += ` تم تجاوز: ${skipped_scenes.map((s) => `${s.scene_id} (${s.reason})`).join(", ")}.`;
+        return;
+      }
+      const finalJob = await pollJob(r.data.job_id, (job) => {
+        setVideoMessage(job.message_ar || `جاري تجميع مشهد ${job.current_step} من ${job.total_steps}...`);
+      });
+      if (finalJob.status === "done" && finalJob.result_summary) {
+        const summary = finalJob.result_summary as {
+          included_scenes: string[];
+          skipped_scenes: { scene_id: string; reason: string }[];
+          duration_seconds: number;
+        };
+        let msg = `تم تجميع الفيديو من ${summary.included_scenes.length} مشهد، بمدة ${summary.duration_seconds} ثانية تقريباً.`;
+        if (summary.skipped_scenes.length) {
+          msg += ` تم تجاوز: ${summary.skipped_scenes.map((s) => `${s.scene_id} (${s.reason})`).join(", ")}.`;
         }
         setVideoMessage(msg);
         await refreshProjectVideo(projectId);
+      } else {
+        setVideoMessage(finalJob.safe_error_ar || "تعذر تجميع الفيديو.");
       }
     } catch (exc) {
       setVideoMessage(exc instanceof Error ? exc.message : "تعذر تجميع الفيديو.");
@@ -712,6 +749,36 @@ export default function App() {
     setError("");
     setImproveProgress(isLongStory ? "النص طويل، سيتم تحسينه على أجزاء. قد يستغرق ذلك دقيقة أو أكثر..." : "");
     try {
+      if (isLongStory) {
+        // Long stories use the job-based endpoint so the UI can show real
+        // per-chunk progress (e.g. "جاري تحسين الجزء 2 من 3...") instead of a
+        // single blocking request with no feedback for a minute or more.
+        const r = await postJson<JobRecord>(`/api/projects/${projectId ?? "draft"}/story/improve/jobs`, {
+          story_text: storyText,
+          tone,
+          language: "ar",
+        });
+        if (r.errors.length) {
+          setError(r.errors.join(" "));
+          return;
+        }
+        const finalJob = await pollJob(r.data.job_id, (job) => {
+          setImproveProgress(job.message_ar || `جاري تحسين الجزء ${job.current_step} من ${job.total_steps}...`);
+        });
+        if (finalJob.status === "done" && finalJob.result_summary) {
+          const summary = finalJob.result_summary as { improved_text: string; chunk_count: number };
+          setImprovedText(summary.improved_text);
+          showNotice(
+            summary.chunk_count > 1
+              ? `تم تحسين القصة على ${summary.chunk_count} أجزاء. لا تنس حفظ المشروع.`
+              : "تم تحسين القصة. لا تنس حفظ المشروع."
+          );
+        } else {
+          setError(finalJob.safe_error_ar || "تعذر تحسين القصة.");
+        }
+        return;
+      }
+
       const r = await postJson<{ improved_text: string }>("/api/story/improve", {
         story_text: storyText,
         tone,
@@ -721,12 +788,7 @@ export default function App() {
         setError(r.errors.join(" "));
       } else {
         setImprovedText(r.data.improved_text);
-        const chunkCount = Number(r.meta?.chunk_count) || 1;
-        showNotice(
-          chunkCount > 1
-            ? `تم تحسين القصة على ${chunkCount} أجزاء. لا تنس حفظ المشروع.`
-            : "تم تحسين القصة. لا تنس حفظ المشروع."
-        );
+        showNotice("تم تحسين القصة. لا تنس حفظ المشروع.");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "تعذر تحسين القصة. تحقق من backend وOllama.");
@@ -958,17 +1020,26 @@ export default function App() {
     );
     setTtsJob(null);
     try {
-      const r = await postJson<{ generated: string[]; failed: { scene_id: string; error: string }[]; total_scenes: number }>(
-        `/api/projects/${projectId}/tts/generate-all`,
-      );
+      const r = await postJson<JobRecord>(`/api/projects/${projectId}/tts/generate-all/jobs`);
       if (r.errors.length) {
         setTtsMessage(r.errors.join(" "));
-      } else {
-        const { generated, failed, total_scenes } = r.data;
-        let msg = `تم توليد ${generated.length} من ${total_scenes}. استمع للمشاهد أدناه.`;
-        if (failed.length) msg += ` فشل: ${failed.map((f) => f.scene_id).join(", ")}.`;
+        return;
+      }
+      const finalJob = await pollJob(r.data.job_id, (job) => {
+        setTtsMessage(job.message_ar || `جاري توليد صوت المشهد ${job.current_step} من ${job.total_steps}...`);
+      });
+      if (finalJob.status === "done" && finalJob.result_summary) {
+        const summary = finalJob.result_summary as {
+          generated: string[];
+          failed: { scene_id: string; error: string }[];
+          total_scenes: number;
+        };
+        let msg = `تم توليد ${summary.generated.length} من ${summary.total_scenes}. استمع للمشاهد أدناه.`;
+        if (summary.failed.length) msg += ` فشل: ${summary.failed.map((f) => f.scene_id).join(", ")}.`;
         setTtsMessage(msg);
         await refreshProjectAudio(projectId);
+      } else {
+        setTtsMessage(finalJob.safe_error_ar || "تعذر توليد صوت المشروع.");
       }
     } catch (exc) {
       setTtsMessage(exc instanceof Error ? exc.message : "تعذر توليد صوت المشروع.");
@@ -1150,17 +1221,26 @@ export default function App() {
     setImageBusy("all");
     setImageMessage(`جاري توليد صور ${scenes.length} مشهد، قد تستغرق 1-3 دقائق حسب عدد المشاهد...`);
     try {
-      const r = await postJson<{ generated: string[]; failed: { scene_id: string; error: string }[]; total_scenes: number }>(
-        `/api/projects/${projectId}/images/generate-all`,
-      );
+      const r = await postJson<JobRecord>(`/api/projects/${projectId}/images/generate-all/jobs`);
       if (r.errors.length) {
         setImageMessage(r.errors.join(" "));
-      } else {
-        const { generated, failed, total_scenes } = r.data;
-        let msg = `تم توليد صور ${generated.length} من ${total_scenes} مشهد.`;
-        if (failed.length) msg += ` فشل: ${failed.map((f) => f.scene_id).join(", ")}.`;
+        return;
+      }
+      const finalJob = await pollJob(r.data.job_id, (job) => {
+        setImageMessage(job.message_ar || `جاري توليد صورة المشهد ${job.current_step} من ${job.total_steps}...`);
+      });
+      if (finalJob.status === "done" && finalJob.result_summary) {
+        const summary = finalJob.result_summary as {
+          generated: string[];
+          failed: { scene_id: string; error: string }[];
+          total_scenes: number;
+        };
+        let msg = `تم توليد صور ${summary.generated.length} من ${summary.total_scenes} مشهد.`;
+        if (summary.failed.length) msg += ` فشل: ${summary.failed.map((f) => f.scene_id).join(", ")}.`;
         setImageMessage(msg);
         await refreshProjectImages(projectId);
+      } else {
+        setImageMessage(finalJob.safe_error_ar || "تعذر توليد صور المشروع.");
       }
     } catch (exc) {
       setImageMessage(exc instanceof Error ? exc.message : "تعذر توليد صور المشروع.");
