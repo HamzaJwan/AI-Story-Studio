@@ -427,3 +427,21 @@
 - `docs/LOCAL_AI_ASSISTANT_LAB_PLAN.md` defines Phase 4.0 through Phase 4.5.
 - No Open WebUI/Ollama/deploy/app changes are made now.
 - Any future integration must respect backend boundaries and must not expose internal AI Server services directly to the browser.
+
+---
+
+## 2026-06-25 — Prefer curated SDXL Base workflow for MVP images
+
+**Decision:** For MVP image generation, prefer a backend-controlled SDXL Base workflow first. Do not require SDXL Refiner for MVP, and do not expose raw public ComfyUI templates directly in the product.
+
+**Reason:**
+- Hamza's manual ComfyUI test produced a strong realistic Libyan storyteller image using `sd_xl_base_1.0.safetensors`.
+- Some ComfyUI templates request missing checkpoints such as SDXL Refiner, SDXL Turbo, or DreamShaper, but those template requirements should not force the project to download every missing model.
+- A manual workaround that swapped a missing Refiner checkpoint to SDXL Base worked for experimentation, but it is not the right product pipeline.
+- A follow-up prompt showed gender/character drift, confirming that prompt-only continuity is not enough.
+
+**Impact:**
+- Phase 2.x should use curated backend workflows and prompt builders.
+- Refiner/Turbo/style checkpoints stay optional future benchmarks.
+- Product prompts must include character/gender locks and negative prompts.
+- Stronger continuity remains a future reference-workflow benchmark.

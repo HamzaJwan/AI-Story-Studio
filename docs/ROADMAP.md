@@ -18,10 +18,12 @@ Current recommendation: **Hamza's image quality sign-off** (unblocks Phase 2.1),
 | Audio UX | PASS — voice/language selectors, per-scene + full-story playback, all backend-proxied, no ZIP digging required |
 | SILMA | PASS as isolated AI Server lab, but heavy bootstrap cost |
 | Image pipeline | TECHNICAL PASS — ComfyUI + SDXL generated a real PNG on the AI Server |
-| Product image quality | PENDING — Hamza must approve visual quality before Phase 2.1 |
-| Current product gate | **Hamza's image quality decision is the only thing blocking Phase 2.1** |
+| Product image quality | CANDIDATE — Hamza's manual ComfyUI SDXL Base test produced a strong realistic storyteller image, with continuity risk documented |
+| Current product gate | **Use curated SDXL Base workflow first; do not require Refiner for MVP** |
 
 Phase 2.0 proves image generation can run on the AI Server. It does **not** yet prove product-ready quality, character continuity, long-story consistency, or acceptable UX for multi-step jobs.
+
+Manual ComfyUI lessons are documented in `docs/COMFYUI_MANUAL_TEST_NOTES.md`. The key product lesson is that SDXL Base is viable for MVP images, but prompt-only continuity can still drift across gender/identity, so Phase 2.x needs character locks, negative prompts, and later reference workflows.
 
 ---
 

@@ -14,6 +14,22 @@ Scene-by-scene image generation can easily break story continuity:
 
 Prompt-only generation is not enough for reliable continuity.
 
+## Manual ComfyUI Lesson
+
+Hamza's manual ComfyUI test confirmed this risk in practice. A prompt that tried to reuse the
+"same old Libyan storyteller" still drifted into a different character, including a gender change
+in one result. This means the product must not rely on `same character` wording alone.
+
+For MVP scene-image prompts, repeat the core identity in every prompt:
+
+- Gender lock: male/female must be explicit when important.
+- Age lock: old man / elderly woman / child, etc.
+- Role and cultural identity: e.g. elderly Libyan male storyteller.
+- Fixed clothing and props: robe, wrapped headscarf, lantern, wooden window.
+- Negative prompt: explicitly block unwanted gender, age, style, and artifact drift.
+
+Details are recorded in `docs/COMFYUI_MANUAL_TEST_NOTES.md`.
+
 ## Strategy
 
 ### 1. Story Bible
@@ -57,6 +73,16 @@ For each recurring character:
 - Emotional range.
 - Negative constraints: what must not change.
 - Optional reference image once the product supports safe references.
+
+Minimum MVP character fields:
+
+- `gender`
+- `age_range`
+- `role`
+- `visual_identity`
+- `clothing`
+- `persistent_props`
+- `must_not_change`
 
 ### 3. Location Bible
 
