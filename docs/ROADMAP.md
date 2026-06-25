@@ -188,6 +188,22 @@ Exit criteria:
 - A 12+ scene story can run in batches.
 - User sees progress, ETA, and failed-scene recovery.
 
+### Phase 2.7 — Production Studio Foundations
+
+Goal: introduce the product structures that turn generated media into a manageable studio workflow.
+
+Scope:
+- Project Timeline View: scene → narration → audio → image → subtitle → video segment.
+- Project Asset Library: audio, generated images, subtitles, exports, reference images, anchors, style references, metadata.
+- Quality Review Board: approve/retry/reject per scene with notes and warnings.
+- Regenerate per scene: retry audio/image/subtitles/prompt without regenerating the whole project.
+
+Exit criteria:
+- Every scene shows asset status and missing items.
+- Generated assets are previewable/downloadable from the project, not hidden in folders.
+- Hamza can approve or reject scene outputs before video assembly.
+- Failed scene outputs can be retried without restarting the full project.
+
 ### Phase 3.0 — Video Foundation
 
 Goal: build a reliable video-like export before AI video.
@@ -233,6 +249,25 @@ Scope:
 - Test one image-to-video clip first.
 - Record VRAM, time, quality, and failure modes.
 
+### Phase 3.3 — Export Presets
+
+Goal: export projects in practical formats for different platforms and workflows.
+
+Scope:
+- YouTube 16:9.
+- TikTok/Reels/Shorts 9:16.
+- Square 1:1.
+- Audio-only export.
+- Subtitles-only export.
+- Story package export.
+- Image set export.
+- Video package export.
+
+Exit criteria:
+- User can choose an export preset before rendering.
+- Preset output dimensions and included assets are explicit.
+- Failed exports do not corrupt project data.
+
 ---
 
 ## 6. Cross-Cutting Tracks
@@ -263,6 +298,16 @@ The UI should show progress, elapsed time, ETA when available, current step, and
 ### Media Storage
 
 Generated media should live under ignored project data paths and be referenced by project metadata. Git must only contain code, docs, and safe scaffold files.
+
+### Studio Backlog
+
+Advanced production-studio features are documented in `docs/ADVANCED_FEATURE_BACKLOG.md`. The top strategic features are:
+
+1. Project Timeline View.
+2. Project Asset Library.
+3. Quality Review Board.
+
+These are not part of Phase 1.5. They become important after audio UX polish and the first image/story media flows are stable.
 
 ---
 

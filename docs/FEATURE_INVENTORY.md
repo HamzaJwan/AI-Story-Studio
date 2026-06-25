@@ -59,9 +59,20 @@ Last updated: 2026-06-25
 | Image style presets | Phase 2.4 |
 | Separate Image Studio | Phase 2.5 |
 | Long-story image batching | Phase 2.6 |
+| Project Timeline View | Phase 2.7 |
+| Project Asset Library | Phase 2.7 |
+| Quality Review Board | Phase 2.7 |
+| Regenerate per scene | Phase 2.7 |
+| Prompt / Style / Story Bible Editor | Phase 2.3 / 2.4 |
+| Version History / Snapshots | Later product safety feature |
 | Video foundation | Phase 3.0 |
 | Subtitle sidecar export (`.srt`/`.vtt`) | Phase 3.0 |
 | Burned-in subtitles in MP4 | Phase 3.1 |
+| Subtitle Editor | Phase 3.0 / 3.1 |
+| Export presets | Phase 3.3 |
+| Job Queue Dashboard | Cross-cutting after Phase 1.5 |
+| Safety & Rights Checklist | Before voice/image reference expansion |
+| Model / Engine Dashboard | Later ops/status feature |
 
 ## Current Recommendation
 

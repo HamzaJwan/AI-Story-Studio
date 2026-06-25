@@ -26,6 +26,27 @@ Create a visual bible before image generation:
 - Lighting mood.
 - Forbidden style changes.
 
+### Story / Style Bible Editor — Future UI
+
+Later, the app should provide an editor for:
+
+- Story Bible.
+- Character Bible.
+- Location Bible.
+- Object Bible.
+- Visual Style Bible.
+- Forbidden changes.
+
+Examples:
+
+- Character is a 40-year-old man and must not switch gender.
+- The white door must remain white.
+- Clothing, hair, room layout, and atmosphere should stay consistent.
+- Same character should remain recognizable across 10+ scenes.
+- Style can be cinematic, anime, cartoon, realistic, military documentary, horror, warm storybook, or marketing.
+
+This belongs to Phase 2.3 / Phase 2.4, not Phase 1.5.
+
 ### 2. Character Bible
 
 For each recurring character:
@@ -98,4 +119,3 @@ The AI Server has enough GPU for SDXL-class generation, but 8GB VRAM is tight. A
 - ComfyUI startup flags / VRAM options: https://docs.comfy.org/development/comfyui-server/startup-flags
 - ComfyUI ControlNet + IPAdapter style workflow: https://comfyui.org/en/image-style-transfer-controlnet-ipadapter-workflow
 - RunComfy consistent character workflow examples: https://www.runcomfy.com/comfyui-workflows/create-consistent-characters-within-comfyui
-

@@ -329,3 +329,19 @@
 - Phase 3.1 should include optional burned-in subtitles in MP4.
 - Subtitles must support Arabic RTL/UTF-8 and optionally English if translation exists.
 - Do not implement subtitles now; Phase 1.5 Audio UX remains the next execution step.
+
+---
+
+## 2026-06-25 — Add advanced production studio backlog
+
+**Decision:** Add a structured advanced backlog for production-studio features while keeping Phase 1.5 as the next execution phase.
+
+**Reason:**
+- AI Story Studio is evolving from a generator into a media production workspace.
+- Mature media workflows use timelines, asset libraries, review/approval gates, versioning, and per-item retries.
+- These features are strategically important, but implementing them before Audio UX polish would create scope creep.
+
+**Impact:**
+- `docs/ADVANCED_FEATURE_BACKLOG.md` documents future features by category, phase, dependencies, acceptance criteria, risk, and not-current-phase status.
+- Separate plan docs clarify Project Timeline View, Asset Library, Quality Review Board, and Safety/Rights checks.
+- Phase 1.5 remains the next execution step.

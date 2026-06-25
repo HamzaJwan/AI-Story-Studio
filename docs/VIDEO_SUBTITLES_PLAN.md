@@ -78,6 +78,19 @@ For burned-in MP4 subtitles later:
   - documentary clean
   - social short-form bold
 
+## Subtitle Editor — Future UI
+
+Later, the user should be able to:
+
+- Edit subtitle text per scene.
+- Adjust scene-level timing.
+- Split long narration into shorter readable subtitle blocks.
+- Add English subtitles when translation exists.
+- Preview subtitles before MP4 export.
+- Choose sidecar-only or burned-in subtitles.
+
+This belongs to Phase 3.0 / Phase 3.1, not Phase 1.5.
+
 ## Acceptance Criteria
 
 For Phase 3.0:

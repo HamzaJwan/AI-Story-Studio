@@ -46,6 +46,8 @@ If exact progress is not available, show coarse truthful states instead of fake 
 - Keep generated outputs attached to the scene/project.
 - Allow retry for failed scenes without re-running the whole project.
 - Show short, human-readable errors in Arabic.
+- Later: add a Job Queue Dashboard that shows all audio/image/subtitle/video/export jobs in one place.
+- Later: include affected scene, engine used, current step, retry button, and warning states.
 
 ## Backend Behavior
 
@@ -59,3 +61,22 @@ If exact progress is not available, show coarse truthful states instead of fake 
 
 Polling is enough for the next phase. Server-Sent Events or WebSocket can be considered later if polling becomes noisy or slow.
 
+## Job Queue Dashboard — Later
+
+The dashboard should show:
+
+- queued
+- preparing
+- running
+- postprocessing
+- done
+- failed
+- elapsed time
+- ETA when available
+- retry failed
+- affected scene
+- engine/service used
+- output file links
+- warning if a required asset is missing
+
+This is not part of Phase 1.5 except for using consistent status names.
