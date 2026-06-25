@@ -218,6 +218,102 @@ function BusyNotice({ busy, message }: { busy: boolean; message: string }) {
   );
 }
 
+function ProjectHeader({
+  title,
+  projectId,
+  isDirty,
+  sceneCount,
+  audioCount,
+  imageCount,
+  hasVideo,
+  loading,
+  onNewProject,
+  onSaveProject,
+  onDownloadZip,
+}: {
+  title: string;
+  projectId: string | null;
+  isDirty: boolean;
+  sceneCount: number;
+  audioCount: number;
+  imageCount: number;
+  hasVideo: boolean;
+  loading: LoadingAction;
+  onNewProject: () => void;
+  onSaveProject: () => void;
+  onDownloadZip: () => void;
+}) {
+  return (
+    <section className="studio-sticky-header glass-panel">
+      <div className="studio-project-summary">
+        <span className="eyebrow">Studio Workflow</span>
+        <strong>{title || "مشروع بدون عنوان"}</strong>
+        <small>
+          {projectId ? `ID: ${projectId.slice(0, 8)}` : "غير محفوظ بعد"}
+          {projectId && (
+            <span className={isDirty ? "save-state save-state--dirty" : "save-state save-state--saved"}>
+              {isDirty ? " · تغييرات غير محفوظة" : " · محفوظ"}
+            </span>
+          )}
+        </small>
+      </div>
+      <div className="studio-status-strip" aria-label="حالة المشروع">
+        <span>{sceneCount} مشاهد</span>
+        <span>{audioCount}/{sceneCount || 0} صوت</span>
+        <span>{imageCount}/{sceneCount || 0} صور</span>
+        <span>{hasVideo ? "فيديو جاهز" : "لا يوجد فيديو"}</span>
+      </div>
+      <div className="project-actions compact-actions">
+        <button onClick={onNewProject} disabled={loading !== null}>
+          مشروع جديد
+        </button>
+        <button onClick={onSaveProject} disabled={loading !== null}>
+          {loading === "save" ? "جاري الحفظ..." : "حفظ"}
+        </button>
+        <button
+          className="download-button"
+          onClick={onDownloadZip}
+          disabled={!projectId || loading !== null}
+          title={!projectId ? "احفظ المشروع أولاً قبل تحميل ZIP" : undefined}
+        >
+          ZIP
+        </button>
+      </div>
+    </section>
+  );
+}
+
+type StudioStepInfo = { key: StudioStep; label: string; hint: string; done: boolean };
+
+function StudioStepper({
+  steps,
+  activeStep,
+  onSelect,
+}: {
+  steps: StudioStepInfo[];
+  activeStep: StudioStep;
+  onSelect: (step: StudioStep) => void;
+}) {
+  return (
+    <nav className="studio-stepper glass-panel" aria-label="خطوات الاستوديو">
+      {steps.map((step, index) => (
+        <button
+          key={step.key}
+          type="button"
+          className={activeStep === step.key ? "studio-step active" : "studio-step"}
+          onClick={() => onSelect(step.key)}
+        >
+          <span className={step.done ? "step-index step-index--done" : "step-index"}>
+            {step.done ? "✓" : index + 1}
+          </span>
+          <strong>{step.label}</strong>
+          <small>{step.hint}</small>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 function renumberScenes(list: Scene[]): Scene[] {
   return list.map((s, i) => ({ ...s, scene_id: String(i + 1).padStart(2, "0") }));
 }
@@ -344,7 +440,7 @@ export default function App() {
   const hasVideo = Boolean(projectVideo?.has_video);
   const hasStoryText = Boolean(storyText.trim() || improvedText.trim());
 
-  const studioSteps: { key: StudioStep; label: string; hint: string; done: boolean }[] = [
+  const studioSteps: StudioStepInfo[] = [
     { key: "story", label: "القصة", hint: "ابدأ بكتابة القصة", done: hasStoryText },
     { key: "scenes", label: "المشاهد", hint: "حوّل القصة إلى مشاهد", done: scenes.length > 0 },
     { key: "audio", label: "الصوت", hint: "استمع إلى الصوت", done: audioCount > 0 },
@@ -1077,59 +1173,21 @@ export default function App() {
       {error && <div className="error-banner">{error}</div>}
       {notice && <div className="notice-banner">{notice}</div>}
 
-      <section className="studio-sticky-header glass-panel">
-        <div className="studio-project-summary">
-          <span className="eyebrow">Studio Workflow</span>
-          <strong>{title || "مشروع بدون عنوان"}</strong>
-          <small>
-            {projectId ? `ID: ${projectId.slice(0, 8)}` : "غير محفوظ بعد"}
-            {projectId && (
-              <span className={isDirty ? "save-state save-state--dirty" : "save-state save-state--saved"}>
-                {isDirty ? " · تغييرات غير محفوظة" : " · محفوظ"}
-              </span>
-            )}
-          </small>
-        </div>
-        <div className="studio-status-strip" aria-label="حالة المشروع">
-          <span>{scenes.length} مشاهد</span>
-          <span>{audioCount}/{scenes.length || 0} صوت</span>
-          <span>{imageCount}/{scenes.length || 0} صور</span>
-          <span>{hasVideo ? "فيديو جاهز" : "لا يوجد فيديو"}</span>
-        </div>
-        <div className="project-actions compact-actions">
-          <button onClick={handleNewProject} disabled={loading !== null}>
-            مشروع جديد
-          </button>
-          <button onClick={handleSaveProject} disabled={loading !== null}>
-            {loading === "save" ? "جاري الحفظ..." : "حفظ"}
-          </button>
-          <button
-            className="download-button"
-            onClick={handleDownloadPackage}
-            disabled={!projectId || loading !== null}
-            title={!projectId ? "احفظ المشروع أولاً قبل تحميل ZIP" : undefined}
-          >
-            ZIP
-          </button>
-        </div>
-      </section>
+      <ProjectHeader
+        title={title}
+        projectId={projectId}
+        isDirty={isDirty}
+        sceneCount={scenes.length}
+        audioCount={audioCount}
+        imageCount={imageCount}
+        hasVideo={hasVideo}
+        loading={loading}
+        onNewProject={handleNewProject}
+        onSaveProject={handleSaveProject}
+        onDownloadZip={handleDownloadPackage}
+      />
 
-      <nav className="studio-stepper glass-panel" aria-label="خطوات الاستوديو">
-        {studioSteps.map((step, index) => (
-          <button
-            key={step.key}
-            type="button"
-            className={activeStep === step.key ? "studio-step active" : "studio-step"}
-            onClick={() => setActiveStep(step.key)}
-          >
-            <span className={step.done ? "step-index step-index--done" : "step-index"}>
-              {step.done ? "✓" : index + 1}
-            </span>
-            <strong>{step.label}</strong>
-            <small>{step.hint}</small>
-          </button>
-        ))}
-      </nav>
+      <StudioStepper steps={studioSteps} activeStep={activeStep} onSelect={setActiveStep} />
 
       {/* Project workspace */}
       <section className="project-panel glass-panel">
