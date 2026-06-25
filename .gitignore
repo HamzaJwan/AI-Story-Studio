@@ -25,6 +25,7 @@ build/
 
 # Local generated media
 data/benchmarks/
+data/reviews/
 data/projects/*.json
 data/projects/*/
 data/projects/**

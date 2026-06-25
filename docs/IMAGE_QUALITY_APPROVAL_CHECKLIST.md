@@ -1,0 +1,43 @@
+# Image Quality Approval Checklist
+
+Last updated: 2026-06-25
+
+## Purpose
+
+Per `docs/BENCHMARK_PROTOCOL.md` and the project's own stop condition ("تحتاج تقييم جودة بشري لصوت/صورة/فيديو قبل اعتباره PASS"), no image engine output is approved for the product based on a technical pass alone. This checklist is the artifact Hamza reviews to make that call. The image itself is **not** committed to Git — it lives at `data/reviews/image-quality/{review-id}/` (gitignored) so it stays reviewable without bloating the repo.
+
+## Review: phase2-benchmark
+
+- **Image file:** `data/reviews/image-quality/phase2-benchmark/benchmark_phase2_00001.png` (local only, not in Git)
+- **Engine:** ComfyUI + SDXL base 1.0 fp16
+- **Prompt:** "cinematic realistic scene, a quiet narrator sitting by an old window at night, warm light, highly detailed"
+- **Settings:** 768×768, 20 steps, euler sampler, cfg 7.0, `--lowvram`
+- **Generation time:** ~14.7s (cold run including model load)
+- **VRAM:** peak 6995/8188 MiB (812 MiB free — tight)
+
+### Checklist (objective/technical observations — not a substitute for Hamza's review)
+
+| Criterion | Observation |
+|---|---|
+| Prompt match | Strong — depicts a person seated by a window at night with warm interior light, matching the prompt directly |
+| Clarity | Image is sharp and coherent at 768×768; no blur or garbled regions |
+| Artifacts | None obvious (no extra limbs, melted geometry, or broken perspective in this generation) |
+| Visual style | Cinematic/realistic, consistent with the requested style |
+| Suitability for MVP | Technically sound as a first benchmark; resolution (768×768) is below typical 1024×1024 SDXL target due to the AI Server's tight ~5.86GB real VRAM headroom |
+
+### Decision
+
+**CANDIDATE — technically sound, practical for MVP continuation.** This is **not** a final APPROVED/REJECTED call — that decision belongs to Hamza. Per his explicit instruction for this MVP round ("proceed with a practical MVP path as long as you keep outputs reviewable/regeneratable and document quality limitations"), Milestones B onward proceed using this engine/settings as the working default, with every generated image kept regeneratable and reviewable (never silently accepted as final).
+
+### Known Limitations (documented, not hidden)
+
+- Resolution capped at 768×768 (not 1024×1024) because of tight real VRAM headroom (812 MiB free at peak with the current SDXL base + `--lowvram` config) — a pre-existing, unrelated container (`alltalk_tts`) permanently holds ~1.9GB on the same GPU.
+- No continuity mechanism yet (Tier 1 only — prompt-only, per `docs/IMAGE_CONTINUITY_STRATEGY.md`) — character/location/object consistency across scenes is not guaranteed.
+- Single benchmark image reviewed; per-scene generation in Milestone C onward should be spot-checked, not assumed uniformly good.
+- VRAM margin is tight enough that any future change (higher resolution, refiner pass, batch>1, or running concurrently with other heavy AI Server services) needs its own VRAM check before being assumed safe.
+
+## How to Add a New Review
+
+1. Copy the generated image (and any metadata) into `data/reviews/image-quality/{review-id}/` (already gitignored via `data/reviews/`).
+2. Add a new `### Review: {review-id}` section above using the same table shape.
+3. Record a `Decision` — `APPROVED` / `NEEDS BETTER SETTINGS` / `REJECTED` / `CANDIDATE` (pending human review) — and list any limitations honestly.
