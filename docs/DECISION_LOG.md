@@ -294,3 +294,20 @@
 - `docs/ROADMAP.md` now separates Phase 2.1 image worker bridge, Phase 2.2 scene image generation, Phase 2.3 continuity foundation, Phase 2.4 style presets, Phase 2.5 Image Studio, Phase 2.6 long-story batching, and Phase 3.x video work.
 - New strategy docs describe media expansion, image continuity, and unified job progress.
 - Recommendation is `APPROVED WITH FIXES`: close the quality sign-off and small UI/status mismatch before implementation resumes.
+
+---
+
+## 2026-06-25 — Choose Phase 1.5 Audio UX Polish before image bridge
+
+**Decision:** The next execution phase should be `Phase 1.5 — Audio UX Polish`, not Phase 2.1.
+
+**Reason:**
+- The audio backend and worker path are already proven, including real scene audio and project audio export.
+- Hamza's current product test shows the user still has to rely on ZIP inspection to find audio files.
+- The app has a single-job player, but lacks a complete product workflow for saved per-scene audio, full-story playback, voice selection, language selection, and clear progress.
+- Phase 2.1 image work still depends on image-quality approval and continuity planning.
+
+**Impact:**
+- Phase 1.5 should improve UX around existing audio capabilities without adding a new TTS engine.
+- All audio must remain behind backend proxy endpoints; the browser must not call the AI Server directly.
+- Image/video work remains paused until Audio UX is polished and Hamza approves image quality.

@@ -49,6 +49,101 @@ Response:
 
 لا يرجع `OLLAMA_BASE_URL` كاملاً.
 
+## Current TTS API — Phase 1.x
+
+All TTS traffic must pass through the main backend. The browser must not call `TTS_SERVICE_URL` or the AI Server directly.
+
+### GET /api/tts/health
+
+Response:
+
+```json
+{
+  "data": {
+    "enabled": true,
+    "configured": true,
+    "service_url_configured": true,
+    "remote_ok": true,
+    "latency_ms": 12
+  },
+  "meta": {
+    "provider": "tts-worker"
+  },
+  "errors": []
+}
+```
+
+### POST /api/projects/{project_id}/tts/jobs
+
+Creates a single TTS job for one scene or for the project narration text. Existing UI currently uses it mainly for the first scene.
+
+Request:
+
+```json
+{
+  "mode": "scene",
+  "scene_id": "01",
+  "voice_id": null,
+  "speed": null,
+  "format": "wav"
+}
+```
+
+Response:
+
+```json
+{
+  "data": {
+    "job_id": "uuid",
+    "status": "queued",
+    "files": []
+  },
+  "meta": {
+    "provider": "tts-worker"
+  },
+  "errors": []
+}
+```
+
+### GET /api/tts/jobs/{job_id}
+
+Returns worker job status and file metadata when done.
+
+### GET /api/tts/jobs/{job_id}/download/{format}
+
+Streams generated job audio through the backend proxy.
+
+### POST /api/projects/{project_id}/tts/generate-all
+
+Generates WAV audio for all scenes, saves the files under the local project audio folder, and updates scene audio metadata.
+
+Response:
+
+```json
+{
+  "data": {
+    "generated": ["01", "02"],
+    "failed": [],
+    "total_scenes": 2
+  },
+  "meta": {
+    "provider": "tts-worker"
+  },
+  "errors": []
+}
+```
+
+### Phase 1.5 API Clarifications
+
+Phase 1.5 may add lightweight backend endpoints only if needed for UX:
+
+- `GET /api/tts/voices` — list available voices/languages from the configured worker, or return one safe default if the worker has no list endpoint yet.
+- `GET /api/projects/{project_id}/audio` — list saved per-scene audio and full-story audio metadata.
+- `GET /api/projects/{project_id}/audio/{scene_id}` — stream saved scene audio through the backend.
+- `GET /api/projects/{project_id}/audio/final_story.wav` — stream saved full-project audio if available.
+
+These are UX proxy endpoints only. They must not introduce a new engine or expose AI Server URLs.
+
 ## GET /api/ai/ollama/health
 
 Response:

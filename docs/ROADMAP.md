@@ -4,7 +4,7 @@ Last updated: 2026-06-25
 
 Owner: Hamza
 
-Current recommendation: **APPROVED WITH FIXES** — do not start Phase 2.1 until the required fixes below are closed.
+Current recommendation: **Phase 1.5 — Audio UX Polish** before Phase 2.1.
 
 ---
 
@@ -18,7 +18,8 @@ Current recommendation: **APPROVED WITH FIXES** — do not start Phase 2.1 until
 | SILMA | PASS as isolated AI Server lab, but heavy bootstrap cost |
 | Image pipeline | TECHNICAL PASS — ComfyUI + SDXL generated a real PNG on the AI Server |
 | Product image quality | PENDING — Hamza must approve visual quality before Phase 2.1 |
-| Current product gate | **Fix small UI/doc mismatches, then start Phase 2.1** |
+| Audio UX | NEEDS POLISH — audio works, but playback/voice/language/job UX is incomplete |
+| Current product gate | **Finish Audio UX polish, then return to image quality approval / Phase 2.1** |
 
 Phase 2.0 proves image generation can run on the AI Server. It does **not** yet prove product-ready quality, character continuity, long-story consistency, or acceptable UX for multi-step jobs.
 
@@ -56,7 +57,7 @@ Phase 2.0 proves image generation can run on the AI Server. It does **not** yet 
 
 ---
 
-## 4. Required Fixes Before Phase 2.1
+## 4. Required Product Fixes Before Phase 2.1
 
 | Fix | Why | Owner |
 |---|---|---|
@@ -66,11 +67,32 @@ Phase 2.0 proves image generation can run on the AI Server. It does **not** yet 
 | Confirm VRAM budget with current AI Server services | RTX 4060 Ti 8GB had a tight SDXL margin; avoid running competing heavy services together | Executor |
 | Define image output storage shape | Avoid ad-hoc image files before product integration | Executor |
 
-If any of these cannot be closed quickly, keep Phase 2.1 on hold and improve documentation/tests first.
+Add one more product sequencing rule: Phase 1.5 should happen first because the audio backend already works and Hamza's manual test shows the current UX still forces users toward ZIP downloads instead of clear in-browser playback.
 
 ---
 
 ## 5. Proposed Updated Roadmap
+
+### Phase 1.5 — Audio UX Polish
+
+Goal: make the already-working TTS path usable as a real product feature before expanding into images.
+
+Scope:
+- Voice selector and language selector using current worker capability.
+- Graceful single-option behavior if the worker exposes only one voice.
+- Browser audio player for the latest single-scene job.
+- Per-scene play/download for saved scene audio.
+- Full project / `final_story.wav` play/download when project audio exists.
+- Better job status messages for queued/running/done/failed.
+- Backend proxy only; no direct browser access to the AI Server.
+- No new TTS engine, no image/video work.
+
+Exit criteria:
+- User can generate and listen to one scene inside the browser.
+- User can generate all scene audio and listen/download per-scene audio without opening the ZIP manually.
+- User can play/download the full project audio if `final_story.wav` exists.
+- Voice/language controls do not break when only Piper Arabic is available.
+- `export.zip`, project workspace, and existing TTS endpoints still work.
 
 ### Phase 2.1 — Image Worker Bridge
 
@@ -244,12 +266,17 @@ Generated media should live under ignored project data paths and be referenced b
 
 ## 8. Recommendation
 
-**APPROVED WITH FIXES.**
+**Recommended next execution phase: Phase 1.5 — Audio UX Polish.**
 
-Start Phase 2.1 only after:
-1. Hamza approves the Phase 2.0 generated image quality.
-2. The stale visible phase label/status mismatch is fixed.
-3. The worker bridge plan confirms backend-only access to AI Server services.
-4. VRAM and service-concurrency assumptions are documented.
+Why:
+1. Audio generation already works end to end, so UX polish gives immediate product value.
+2. Hamza's current screenshots show the user still has to inspect ZIP files to confirm generated audio.
+3. The browser already has a single-job audio player, but saved project audio and full story audio are not surfaced clearly.
+4. Phase 2.1 still depends on image quality sign-off and continuity planning.
 
-If Hamza does not approve image quality, do not build Phase 2.1. Instead run a focused image-quality benchmark with style presets and continuity references.
+Do not start Phase 2.1 until:
+- Audio UX is acceptable.
+- Hamza approves image benchmark quality.
+- The stale visible phase label/status mismatch is fixed.
+- The worker bridge plan confirms backend-only access to AI Server services.
+- VRAM and service-concurrency assumptions are documented.

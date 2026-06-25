@@ -6,7 +6,7 @@
 
 **Status:** Technical PASS, pending Hamza quality sign-off
 
-**Recommendation:** APPROVED WITH FIXES before Phase 2.1
+**Recommendation:** Start Phase 1.5 — Audio UX Polish before Phase 2.1
 
 ## Verified Product State
 
@@ -20,22 +20,25 @@
 
 Phase 2.0 is a **technical** image-generation pass, not a final product-quality approval. Hamza still needs to approve the actual image quality before Phase 2.1 adds an image worker bridge or any image UI.
 
+The strongest immediate product gap is now Audio UX: audio files are generated and exported, but the app needs clearer in-browser playback, per-scene saved audio controls, full-story playback, voice/language controls, and better job status.
+
 ## Current Gaps
 
 - Product UI still needs a small status/phase label sync before the next implementation phase.
+- Audio UX needs polish: voice/language selector, per-scene saved audio playback, full project audio playback, and clearer progress.
 - Image continuity is not solved yet: character, location, object, color, and long-story consistency need their own strategy.
 - Long-running audio/image/video jobs need a unified progress/status model before scaling.
 - TTS/SILMA/AllTalk remain AI Server services/labs; they should not be merged into the App Server.
 
 ## Next Action
 
-1. Hamza reviews Phase 2.0 image quality.
-2. Executor fixes the small visible phase/status mismatch.
-3. Start Phase 2.1 — Image Worker Bridge only after the above are done.
+1. Start Phase 1.5 — Audio UX Polish.
+2. Keep all audio traffic proxied through the backend.
+3. After Audio UX polish, return to Hamza's image quality approval and Phase 2.1 planning.
 
 ## Do Not Do Yet
 
-- Do not start Phase 2.1 before image quality sign-off.
+- Do not start Phase 2.1 before Audio UX polish and image quality sign-off.
 - Do not add frontend image generation UI yet.
 - Do not start video generation.
 - Do not expose ComfyUI or other AI Server services directly to the browser.
