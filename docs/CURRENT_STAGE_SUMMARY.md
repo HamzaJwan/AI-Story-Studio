@@ -2,11 +2,11 @@
 
 ## Current Stage
 
-**Stage:** Phase 3.0/3.1 — Subtitle Export MVP
+**Stage:** Studio MVP — Final QA Pass (Milestone G)
 
-**Status:** ✅ Implemented and verified — real .srt/.vtt generated from a real project, timing matches the rendered video exactly.
+**Status:** ✅ Studio MVP pipeline (story → scenes → audio → images → continuity → video → subtitles → export) is implemented, verified end-to-end with real data, and has passed the engineer-side QA/cleanup pass (stale `/health`/export `phase` metadata fixed, docs synced). Hamza's manual hands-on QA pass (`docs/MANUAL_QA_CHECKLIST.md`) is the only remaining step before picking the next roadmap track.
 
-**Recommendation:** Continuing the Studio MVP Autopilot round. Next: Milestone G — Studio QA / Feature Review Pass, then the final Studio MVP Autopilot Report.
+**Recommendation:** No new engineering for Studio MVP scope. Next: Hamza's manual QA pass, then a product decision on the next track (Phase 2.7 Production Studio Foundations, Phase 3.1 video polish, or Phase 4.x assistant lab).
 
 ## What Changed in This Phase
 

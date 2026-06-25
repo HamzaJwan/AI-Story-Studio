@@ -24,7 +24,7 @@ Response:
   "data": {
     "status": "ok",
     "app": "AI Story Studio",
-    "phase": "0.1"
+    "phase": "3.1"
   },
   "meta": {},
   "errors": []
@@ -370,7 +370,7 @@ Returns a downloadable ZIP archive (`application/zip`) containing the full proje
   "total_duration_seconds": 48,
   "exported_at": "2026-06-24T00:10:00+00:00",
   "app": "AI Story Studio",
-  "phase": "1.4",
+  "phase": "3.1",
   "audio_scene_count": 6,
   "audio_limitations": ["final_story.wav is a raw WAV concatenation ... convert externally if MP3 is needed."]
 }

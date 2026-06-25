@@ -36,6 +36,7 @@ Last updated: 2026-06-25
 | Feature | Current Gap | Recommended Phase |
 |---|---|---|
 | Job progress | Basic status exists; no percentage/ETA/scene-by-scene project progress | Shared job/progress model, later |
+| Image/video synchronous endpoints | `.../images/scenes/{id}/generate`, `.../images/generate-all`, and `.../video/render` block the HTTP request until done (up to ~2 minutes per scene/render, per `docs/API_CONTRACTS.md`) instead of returning a job ID to poll. Acceptable for MVP single-user usage; would not scale to concurrent users or longer stories without a real job queue. | Unified job/progress model, later — no rework planned for Studio MVP |
 
 ## Benchmark-Only
 

@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_env: str = "development"
     app_name: str = "AI Story Studio"
-    app_phase: str = "0.1"
+    app_phase: str = "3.1"
     ollama_base_url: str = ""
     ollama_model: str = "qwen2.5:7b"
     ollama_timeout_seconds: int = 180

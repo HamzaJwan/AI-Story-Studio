@@ -367,7 +367,7 @@ class ProjectStorage:
             "total_duration_seconds": total_duration,
             "exported_at": datetime.now(timezone.utc).isoformat(),
             "app": "AI Story Studio",
-            "phase": "3.0",
+            "phase": "3.1",
             "audio_scene_count": len(scenes_with_audio),
             "audio_limitations": [
                 "final_story.wav is a raw WAV concatenation of available scene audio in scene order, "
