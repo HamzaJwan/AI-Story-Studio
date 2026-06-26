@@ -1,5 +1,79 @@
 # Decision Log
 
+## 2026-06-26 — Production Studio RC2: Milestones B-J (Timeline, Asset Library, Review Board, Ken Burns, Bible polish, Image Studio, Safety checklist, Engine dashboard, Assistant docs)
+
+**Decision:** Continue directly from the prior session's Milestone 0 (long story improve
+fix) and Milestone A (job progress foundation) into the remaining Production Studio
+Foundations backlog, in the order already specified in `docs/NEXT_EXECUTION_PLAN.md`
+and the RC2 prompt: B Timeline → C Asset Library → D Review Board → E Ken Burns video
+→ F Bible editor polish → G standalone Image Studio → H Safety checklist → I Engine
+dashboard → J Assistant-lab docs. No DB/Auth/Redis/Celery, no AI video models, no new
+TTS/image engines, no public deployment.
+
+**What changed, by milestone:**
+- **B Timeline View**: new "الخط الزمني" step, entirely derived from already-fetched
+  project/audio/image/video state (no new backend endpoint) -- per-scene duration,
+  narration preview, audio/image/subtitle/video-inclusion status, review status,
+  warnings, and quick jump/play/preview actions.
+- **C Asset Library**: new "مكتبة الأصول" step grouping every project file (story text,
+  scenes.json, per-scene audio, final_story.wav, per-scene images, video, SRT/VTT,
+  export.zip) with available/missing state. All downloads are backend-relative URLs
+  already used elsewhere in the app -- no filesystem paths or AI Server URLs.
+- **D Quality Review Board**: `Scene.review_status/review_notes/review_updated_at`
+  added to the schema; new "مراجعة الجودة" step with approve/needs_retry/reject +
+  notes, persisted via the existing `PUT /api/projects/{id}` (no dedicated endpoint).
+  A non-blocking warning appears on the Export step when scenes are unreviewed.
+- **E Ken Burns video**: `Project.video_mode`/`video_transition` fields; the video
+  render core (`_render_video_for_project`) now builds an ffmpeg `zoompan` filter for
+  `ken_burns` mode and a per-segment fade in/out for `transition=fade`. Deliberately
+  *not* a true crossfade between segments (the concat step still uses lossless `-c
+  copy`) -- documented as a low-risk simplification rather than re-encoding the whole
+  timeline. The Milestone 0 duration-sync guarantee was re-verified for this mode with
+  a synthetic 6-scene project (`scripts/test_ken_burns_video.py`).
+- **F Bible editor polish**: read-only `GET .../images/scenes/{id}/prompt-preview`
+  endpoint plus a "معاينة prompt" button on the continuity panel, so the bible fields'
+  effect is visible before spending a real generation job. Added the explicit caveat
+  text that bibles reduce but do not guarantee continuity without a reference workflow.
+- **G Simple Image Studio**: `POST /api/images/standalone/jobs` (single prompt, no
+  scene/project attachment, no continuity-bible mixing) reuses the already
+  project-agnostic job-status/download endpoints; new "استوديو الصور المستقل" step.
+  Verified end-to-end with one real (256x256) ComfyUI job to confirm the wiring, not
+  just the schema.
+- **H Safety & rights checklist**: `Project.safety_source_type/safety_consent_confirmed/
+  safety_rights_notes/safety_applies_to` fields, surfaced as a small form on the
+  continuity panel with a warning when source type is `unknown`. Purely informational,
+  never blocks generation or export.
+- **I Engine/model status dashboard**: `GET /api/system/status` aggregates the existing
+  Ollama/TTS/image health checks plus `shutil.which("ffmpeg")` into one payload; shown
+  as a collapsible panel under the hero section. No new exposure risk -- every
+  underlying `health()` call already stripped URLs to booleans/latency.
+- **J Assistant lab docs**: re-confirmed `docs/LOCAL_AI_ASSISTANT_LAB_PLAN.md` (already
+  comprehensive from an earlier session) with a short status note; no code, no chat UI.
+
+**Why the schema/router files share commits:** `backend/app/schemas.py` picked up
+fields for D, E, and H in one continuous edit pass (review fields, video mode fields,
+safety fields), and `frontend/src/App.tsx`/`styles.css` carry the UI for every
+milestone B through I, since splitting either file into nine separate commits would
+have required risky line-by-line `git add -p` staging across non-contiguous regions of
+a 2000+ line file. Five commits were made instead of nine, grouped by what could be
+cleanly isolated: Ken Burns (videos.py + schema), prompt-preview/standalone-image
+(images.py), engine dashboard (system.py + main.py), assistant docs, and one combined
+frontend commit covering all UI. This is disclosed here rather than hidden behind
+artificially-split commit messages.
+
+**Verification approach:** every new backend endpoint was hit directly with real HTTP
+requests (not just unit-style assertions) -- `/api/system/status` against the real
+local Ollama/TTS/image-worker, `/api/images/standalone/jobs` with one real small
+ComfyUI job, `/video/render` in `ken_burns`+`fade` mode against synthetic but real WAV/
+PNG fixtures, and a review-status save/reload round-trip against a real throwaway
+project. No long Arabic text was printed to the terminal/transcript per the session's
+constraint -- only counts, statuses, and booleans.
+
+**Impact:** Production Studio RC2's full milestone list (0, A-J) is now implemented,
+tested, committed, and pushed. Full report in `docs/PRODUCTION_STUDIO_RC2_REPORT.md`.
+
+---
+
 ## 2026-06-25 — AI Story Studio Production MVP: manual-QA hardening + UX polish pass
 
 **Decision:** Treat this as a no-new-features hardening pass on top of RC1 — find and fix real bugs via a manual QA walkthrough, polish workflow clarity, and document everything, without touching architecture, endpoints, or starting a new phase.

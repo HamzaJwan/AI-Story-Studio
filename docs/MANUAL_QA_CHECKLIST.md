@@ -1,10 +1,36 @@
-# Manual QA Checklist — AI Story Studio Production MVP
+# Manual QA Checklist — AI Story Studio Production Studio RC2
 
-Last updated: 2026-06-25
+Last updated: 2026-06-26
 
-This checklist is for Hamza to manually try the full Studio MVP pipeline in the browser. Every item below was already verified by the executor with real backend requests and real generated files (see `docs/DECISION_LOG.md` for evidence per phase) — this pass is about product feel and judgment calls, not technical correctness.
+This checklist is for Hamza to manually try the full Studio pipeline in the browser. Every item below was already verified by the executor with real backend requests and real generated files (see `docs/DECISION_LOG.md` for evidence per phase) — this pass is about product feel and judgment calls, not technical correctness.
 
-Open the app at `http://localhost:5173` before starting (or your configured `FRONTEND_PORT`). The page top has a **"Studio Workflow"** step bar (القصة، المشاهد، الصوت، الصور، الفيديو والترجمة، التصدير) — click a step to jump to its panel; each section below corresponds to one step. Each step shows a ✓ once it has data (scenes/audio/images/video), and the project title shows **"محفوظ"** or **"تغييرات غير محفوظة"** so you always know whether your last edit was saved.
+Open the app at `http://localhost:5173` before starting (or your configured `FRONTEND_PORT`). The page top has a **"Studio Workflow"** step bar (القصة، المشاهد، الصوت، الصور، الفيديو والترجمة، الخط الزمني، مكتبة الأصول، مراجعة الجودة، استوديو الصور المستقل، التصدير) — click a step to jump to its panel; each section below corresponds to one step. Each step shows a ✓ once it has data (scenes/audio/images/video), and the project title shows **"محفوظ"** or **"تغييرات غير محفوظة"** so you always know whether your last edit was saved.
+
+## 0. Production Studio RC2 — What's New (try this first)
+
+- [ ] Paste a long story (10,000+ Arabic characters) and click "تحسين القصة" — it should
+      succeed on multiple parts instead of failing with a misleading connection error.
+      Watch the button text change to "جاري تحسين القصة على أجزاء...".
+- [ ] Click "توليد صور كل المشاهد" or "تجميع فيديو القصة" — the status message should
+      update live (e.g. "جاري توليد صورة المشهد 2 من 6...") instead of staying frozen
+      on one static sentence.
+- [ ] Open "الخط الزمني" — confirm every scene shows its audio/image/subtitle/video
+      status and review status in one place.
+- [ ] Open "مكتبة الأصول" — confirm every generated file (audio, images, video,
+      subtitles, scenes.json) is listed with a working download link, with no folder
+      paths or AI Server addresses visible anywhere.
+- [ ] Open "مراجعة الجودة" — approve one scene, mark another "يحتاج إعادة", add a
+      note, then reload the project and confirm the status/notes persisted.
+- [ ] In "الفيديو والترجمة", switch "نوع الحركة" to "حركة خفيفة" and "الانتقال بين
+      المشاهد" to "تلاشي خفيف", save the project, then render — confirm the video
+      still plays, the duration still roughly matches your audio, and it visibly zooms
+      slightly instead of staying perfectly still.
+- [ ] Open "استوديو الصور المستقل", type one description, generate, and confirm a
+      preview + download appear — without needing any project/scenes.
+- [ ] In the continuity section (الصور step), click "معاينة prompt المشهد الأول" and
+      confirm it shows text without actually generating an image.
+- [ ] Open the "حالة الخدمات" panel under the hero and click "فحص حالة الخدمات" —
+      confirm it shows Ollama/الصوت/الصور/ffmpeg status with no IPs or URLs visible.
 
 ## 1. Story → Scenes
 
@@ -64,7 +90,8 @@ Open the app at `http://localhost:5173` before starting (or your configured `FRO
 
 After going through this list, the main product decisions are:
 1. Is image quality (Phase 2.0–2.3) good enough to use for real, or does it need a different engine/workflow before relying on it?
-2. Is the basic ffmpeg video assembly (Phase 3.0) an acceptable "first cut" video, or is Phase 3.1 polish (transitions, subtitle burn-in) needed before it's shareable?
-3. Which roadmap track should come next — Phase 2.7 (Project Timeline/Asset Library/Quality Review Board), Phase 3.1 (video polish), or Phase 4.x (local assistant lab)?
+2. Is the ffmpeg video assembly (static or Ken Burns, Phase 3.0/RC2) an acceptable video, or is Phase 3.1 polish (true crossfades, subtitle burn-in) needed before it's shareable?
+3. Do the new RC2 surfaces (Timeline, Asset Library, Review Board, Image Studio) feel useful in real use, or do any need rework before relying on them daily?
+4. Which roadmap track should come next — Advanced Image Continuity, Export Presets, Advanced Subtitle Editor, or Phase 4.x (local assistant lab, still docs-only)?
 
 None of these are technical blockers — the pipeline works end-to-end with real data. They are product calls that only Hamza can make.

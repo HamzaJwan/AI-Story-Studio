@@ -1,10 +1,12 @@
 # AI Story Studio — Product Roadmap
 
-Last updated: 2026-06-25
+Last updated: 2026-06-26
 
 Owner: Hamza
 
-Current recommendation: **Hamza's manual end-to-end review of the Studio MVP** (Milestone G QA pass). After sign-off, the next engineering track should be **Production Studio Foundations**: job queue/progress, timeline view, asset library, quality review board, then better ffmpeg video assembly. The full future backlog is now tracked in `docs/REMAINING_FEATURES_BACKLOG.md`.
+Current recommendation: **Production Studio RC2 is feature-complete for the foundations track** (Milestones 0, A-J). Next step is Hamza's manual QA pass over the new Timeline/Asset Library/Review Board/Ken Burns/Image Studio surfaces — see `docs/MANUAL_QA_CHECKLIST.md`. After sign-off, remaining future work lives in `docs/REMAINING_FEATURES_BACKLOG.md` (advanced continuity, export presets, AI motion lab, local assistant integration).
+
+**2026-06-26 update — Production Studio RC2 complete.** Fixed the long-story-improve failure (chunked improvement + correct timeout/connection error messages), added a lightweight local job/progress system (no Redis/Celery/DB) for story-improve/audio/image/video operations, then built the full Production Studio Foundations track: Project Timeline View, Project Asset Library, Quality Review Board, Ken Burns/fade video assembly mode, story-bible prompt preview, a standalone single-prompt Image Studio, a lightweight safety/rights checklist, and a model/engine status dashboard. See `docs/PRODUCTION_STUDIO_RC2_REPORT.md` and `docs/DECISION_LOG.md` for full details.
 
 **2026-06-25 update — Production MVP hardening pass complete.** A full manual-QA hardening round fixed two real validation bugs (scene duration min mismatch, empty-title save error), added per-step completion indicators and an unsaved-changes indicator to the workflow UI, added spinners + clearer text to every long-running action, and made the export step list every downloadable asset with explicit available/missing state. No new features, no architecture change. See `docs/DECISION_LOG.md` for the full entry.
 
@@ -21,10 +23,18 @@ Current recommendation: **Hamza's manual end-to-end review of the Studio MVP** (
 | SILMA | PASS as isolated AI Server lab, but heavy bootstrap cost |
 | Image pipeline | PASS — ComfyUI + SDXL bridged through the backend, persisted per-scene generate/regenerate/generate-all, quality `CANDIDATE` (not final-approved) |
 | Continuity foundation | PASS — project-level style/character/location/object bibles + 6 style presets injected into every prompt; verified fix for a real style-drift bug found during testing |
-| Video assembly | PASS — ffmpeg static-image + audio MP4, verified frame-by-frame with ffprobe |
+| Video assembly | PASS — ffmpeg static-image + audio MP4, verified frame-by-frame with ffprobe; optional Ken Burns zoompan + fade transition (RC2) |
 | Subtitle export | PASS — .srt/.vtt generated from narration_ar + duration_seconds, timing matches the rendered video exactly |
+| Long story improve | PASS (RC2) — chunked improvement for stories over `LONG_STORY_CHUNK_CHARS`, real timeout vs. connection-error distinction |
+| Job/progress foundation | PASS (RC2) — local JSON job records, no Redis/Celery/DB; story-improve/audio/image/video each have a pollable `/jobs` variant alongside the original synchronous endpoint |
+| Project Timeline View | PASS (RC2) — per-scene audio/image/subtitle/video-inclusion/review status in one view |
+| Project Asset Library | PASS (RC2) — every project file grouped with available/missing state, backend-proxied downloads only |
+| Quality Review Board | PASS (RC2) — per-scene approve/needs_retry/reject + notes, non-blocking export warning |
+| Simple Image Studio | PASS (RC2) — single prompt to one standalone image, separate from scene images |
+| Safety & rights checklist | PASS (RC2) — lightweight project-level metadata, informational only |
+| Model/engine dashboard | PASS (RC2) — aggregated Ollama/TTS/image/ffmpeg status, no URLs/secrets exposed |
 | End-to-end pipeline | PASS — verified on one fresh project from creation through export.zip in a single run (see `docs/DECISION_LOG.md` Milestone G entry) |
-| Current product gate | **Hamza's manual hands-on QA pass** (see `docs/MANUAL_QA_CHECKLIST.md`) — product-quality sign-off, not a technical blocker |
+| Current product gate | **Hamza's manual hands-on QA pass over the RC2 additions** (see `docs/MANUAL_QA_CHECKLIST.md`) — product-quality sign-off, not a technical blocker |
 
 The Studio MVP pipeline (story → scenes → audio → scene images → continuity → video → subtitles → export) is technically complete and verified with real data, including a real fix for a real continuity bug found mid-build. It does **not** yet have face-locked character consistency, AI video motion, advanced transitions, or burned-in subtitle styling — those are explicitly deferred to later phases (3.1+, 3.2+).
 
@@ -67,26 +77,27 @@ Manual ComfyUI lessons are documented in `docs/COMFYUI_MANUAL_TEST_NOTES.md`. Th
 | 2.3 | Continuity Foundation MVP | PASS | Project bibles + style presets injected into every prompt; style-drift bug fixed and visually verified |
 | 3.0 | Video Assembly MVP | PASS | ffmpeg static-image + audio MP4 assembly; real render verified frame-by-frame with ffprobe |
 | 3.0/3.1 | Subtitle Export MVP | PASS | .srt/.vtt generated from narration_ar + duration_seconds; timing matches the rendered video exactly |
+| 2.7 | Production Studio Foundations (RC2) | PASS | Job/progress system, Timeline View, Asset Library, Quality Review Board, Ken Burns/fade video, Simple Image Studio, Safety checklist, Model/engine dashboard -- see `docs/PRODUCTION_STUDIO_RC2_REPORT.md` |
 
 ---
 
-## 4. Required Before the Next Phase (Studio MVP is done; what's left is human review)
+## 4. Required Before the Next Phase (Studio RC2 is done; what's left is human review)
 
 | Item | Why | Owner |
 |---|---|---|
-| Hamza's hands-on Studio MVP QA pass | Every step above is engineer-verified with real data, but product feel/quality is Hamza's call, not the executor's | Hamza |
+| Hamza's hands-on QA pass over the RC2 additions | Every milestone above is engineer-verified with real/synthetic data, but product feel/quality is Hamza's call | Hamza |
 | Decide whether image/continuity quality is acceptable for real use | Quality is `CANDIDATE`; continuity is prompt-only (Tier 1) — good enough for MVP testing, not yet a final guarantee | Hamza |
-| Pick the next roadmap track (Phase 2.7 Production Studio Foundations vs. Phase 3.1 video polish vs. Phase 4.x assistant lab) | All three are now unblocked; sequencing is a product priority call | Hamza |
+| Pick the next roadmap track (Phase 3.1 video polish vs. Phase 3.3 export presets vs. Phase 4.x assistant lab) | Production Studio Foundations (Phase 2.7) is now done; sequencing the next track is a product priority call | Hamza |
 
-Recommended default if Hamza wants Autopilot after QA:
+Production Studio Foundations (Phase 2.7) is now `PASS` -- job queue/progress, Timeline
+View, Asset Library, Quality Review Board, and Ken Burns/Better Video Assembly are all
+implemented (see `docs/PRODUCTION_STUDIO_RC2_REPORT.md`). The next reasonable tracks,
+not yet started:
 
-1. Real Job Queue / Background Workers.
-2. Project Timeline View.
-3. Project Asset Library.
-4. Quality Review Board.
-5. Ken Burns / Better Video Assembly.
-
-These are future features, not part of the current Production MVP. They improve the already-working pipeline without adding new model risk.
+1. Advanced Image Continuity (reference/seed/IPAdapter benchmarks).
+2. Export Presets (YouTube 16:9, TikTok 9:16, audio-only, etc.).
+3. Advanced Subtitle Editor (burn-in, styling).
+4. Phase 4.x Local Assistant Lab (still docs-only, see `docs/LOCAL_AI_ASSISTANT_LAB_PLAN.md`).
 
 ~~Sync visible UI phase/status text~~ — done, hero now shows "Phase 3.1 — استوديو متكامل: صوت، صور، فيديو، ترجمة".
 ~~Confirm image worker security boundary~~ — done and re-verified every milestone (grepped every response for the AI Server's address/path).
@@ -203,21 +214,24 @@ Exit criteria:
 - A 12+ scene story can run in batches.
 - User sees progress, ETA, and failed-scene recovery.
 
-### Phase 2.7 — Production Studio Foundations
+### Phase 2.7 — Production Studio Foundations — ✅ PASS (RC2, 2026-06-26)
 
 Goal: introduce the product structures that turn generated media into a manageable studio workflow.
 
-Scope:
-- Project Timeline View: scene → narration → audio → image → subtitle → video segment.
-- Project Asset Library: audio, generated images, subtitles, exports, reference images, anchors, style references, metadata.
-- Quality Review Board: approve/retry/reject per scene with notes and warnings.
-- Regenerate per scene: retry audio/image/subtitles/prompt without regenerating the whole project.
+Implemented:
+- Project Timeline View: scene → narration → audio → image → subtitle → video segment, in one "الخط الزمني" step.
+- Project Asset Library: audio, generated images, subtitles, video, exports, grouped with available/missing state in "مكتبة الأصول".
+- Quality Review Board: approve/needs_retry/reject per scene with notes, in "مراجعة الجودة".
+- Regenerate per scene: already existed for images (Phase 2.2), now also reachable directly from the Timeline view.
+- Bonus (folded into this track): lightweight local job/progress system, Ken Burns/fade video mode, standalone Image Studio, safety/rights checklist, model/engine dashboard -- see `docs/PRODUCTION_STUDIO_RC2_REPORT.md`.
 
-Exit criteria:
-- Every scene shows asset status and missing items.
-- Generated assets are previewable/downloadable from the project, not hidden in folders.
-- Hamza can approve or reject scene outputs before video assembly.
-- Failed scene outputs can be retried without restarting the full project.
+Exit criteria — verified:
+- Every scene shows asset status and missing items. ✅ (Timeline view)
+- Generated assets are previewable/downloadable from the project, not hidden in folders. ✅ (Asset Library, all backend-proxied)
+- Hamza can approve or reject scene outputs before video assembly. ✅ (Review Board; export shows a non-blocking warning if scenes are unreviewed)
+- Failed scene outputs can be retried without restarting the full project. ✅ (per-scene image regenerate; Review Board flags which scenes need it)
+
+Not implemented (explicitly deferred, needs a reference-image workflow first): version history/snapshots, a dedicated single-scene-audio-retry job (the existing generate-all already skips/continues past per-scene failures, which covers the same practical need).
 
 ### Phase 3.0 — Video Foundation
 
@@ -435,14 +449,16 @@ This is a Phase 4.x lab track. It should use the existing Open WebUI + Ollama se
 
 ## 8. Recommendation
 
-**Recommended next action: Hamza final manual QA only.**
+**Recommended next action: Hamza manual QA over the RC2 additions.**
 
-If Hamza approves the Production MVP, the next Autopilot execution track should be **Production Studio Foundations**, in this order:
+Production Studio Foundations (Phase 2.7) is now `PASS` -- job queue/progress, Timeline
+View, Asset Library, Quality Review Board, and Ken Burns/Better Video Assembly are all
+implemented and tested (`docs/PRODUCTION_STUDIO_RC2_REPORT.md`). If Hamza approves RC2,
+the next reasonable Autopilot tracks, in rough priority order:
 
-1. Real Job Queue / Background Workers.
-2. Project Timeline View.
-3. Project Asset Library.
-4. Quality Review Board.
-5. Ken Burns / Better Video Assembly.
+1. Advanced Image Continuity (reference/seed/IPAdapter benchmark).
+2. Export Presets (platform-specific dimensions/audio-only/subtitles-only).
+3. Advanced Subtitle Editor (burn-in, styling presets).
+4. Phase 4.x Local Assistant Lab (Open WebUI/RAG benchmark, still docs-only).
 
-Do not start AI motion, local assistant integration, new TTS engines, public deployment, DB/Auth, or advanced continuity until the foundation track is stable and explicitly approved.
+Do not start AI motion, local assistant integration, new TTS engines, public deployment, or DB/Auth until explicitly approved.

@@ -1,8 +1,25 @@
 # Feature Inventory
 
-Last updated: 2026-06-25
+Last updated: 2026-06-26
 
-## Implemented
+## Implemented (Production Studio RC2, 2026-06-26)
+
+| Feature | Evidence | Status |
+|---|---|---|
+| Long story improve (chunked) | `StoryEngine.improve_narration_script()` + `split_text_into_chunks()` in `backend/app/story_engine/engine.py`, `LONG_STORY_CHUNK_CHARS` setting | Working — verified with real Ollama on short (1 chunk) and synthetic long (2+ chunks) stories |
+| Distinct Ollama error messages | `backend/app/ai_providers/ollama.py` (`Timeout`/`ConnectionError`/`HTTPError` handled separately) | Working — verified via mocked exception injection |
+| Lightweight job/progress system | `backend/app/jobs.py`, `GET /api/jobs/{id}`, `GET /api/projects/{id}/jobs` | Working — local JSON, no DB/Redis/Celery |
+| Job-based story improve/images/video/audio | `POST .../story/improve/jobs`, `.../images/generate-all/jobs`, `.../video/render/jobs`, `.../tts/generate-all/jobs` | Working — original synchronous endpoints unchanged |
+| Project Timeline View | `frontend/src/App.tsx` "الخط الزمني" step | Working — derived from existing project/audio/image/video data |
+| Project Asset Library | `frontend/src/App.tsx` "مكتبة الأصول" step | Working — every project file grouped with available/missing state, backend-proxied downloads |
+| Quality Review Board | `Scene.review_status/review_notes`, "مراجعة الجودة" step | Working — persists via existing `PUT /api/projects/{id}` |
+| Ken Burns / fade video mode | `Project.video_mode/video_transition`, `_build_segment_video_filter()` in `backend/app/routers/videos.py` | Working — ffmpeg `zoompan` + per-segment fade; static mode still default; duration-sync re-verified |
+| Image prompt preview | `GET .../images/scenes/{id}/prompt-preview` | Working — read-only, no job spent |
+| Simple Image Studio | `POST /api/images/standalone/jobs`, "استوديو الصور المستقل" step | Working — verified with one real small ComfyUI job |
+| Safety & rights checklist | `Project.safety_source_type/safety_consent_confirmed/safety_rights_notes/safety_applies_to` | Working — informational only, never blocks flow |
+| Model/engine status dashboard | `GET /api/system/status` | Working — aggregates existing health checks, no URLs/secrets exposed |
+
+## Implemented (Production MVP, through 2026-06-25)
 
 | Feature | Evidence | Status |
 |---|---|---|
@@ -41,8 +58,8 @@ Last updated: 2026-06-25
 
 | Feature | Current Gap | Recommended Phase |
 |---|---|---|
-| Job progress | Basic status exists; no percentage/ETA/scene-by-scene project progress | Shared job/progress model, later |
-| Image/video synchronous endpoints | `.../images/scenes/{id}/generate`, `.../images/generate-all`, and `.../video/render` block the HTTP request until done (up to ~2 minutes per scene/render, per `docs/API_CONTRACTS.md`) instead of returning a job ID to poll. Acceptable for MVP single-user usage; would not scale to concurrent users or longer stories without a real job queue. | Unified job/progress model, later — no rework planned for Studio MVP |
+| Job progress (RC2) | `current_step`/`total_steps`/`message_ar` exist and are polled live; still no percentage/ETA by design (deliberately not faked) and no cancel/retry endpoint yet | Later hardening if needed |
+| Image/video/audio synchronous endpoints | Original `.../images/scenes/{id}/generate`, `.../images/generate-all`, `.../video/render`, `.../tts/generate-all` still block the HTTP request until done -- kept for callers that don't need polling. The frontend itself now uses the `/jobs` variants for the long-running ones. | Stable as-is; both paths intentionally coexist |
 
 ## Benchmark-Only
 
@@ -59,21 +76,14 @@ Last updated: 2026-06-25
 
 | Feature | Planned Phase |
 |---|---|
-| Unified job progress model | Expanded later, no foundation work started |
-| Separate Image Studio | Phase 2.5 |
-| Long-story image batching | Phase 2.6 |
-| Project Timeline View | Phase 2.7 |
-| Project Asset Library | Phase 2.7 |
-| Quality Review Board | Phase 2.7 |
-| Regenerate per scene (beyond images) | Phase 2.7 |
+| Long-story image batching (3-6 scenes per batch for 10+ scene stories) | Phase 2.6 |
 | Version History / Snapshots | Later product safety feature |
 | Burned-in subtitles in MP4 / styling presets | Phase 3.1 |
 | Subtitle Editor / word-level alignment | Phase 3.0 / 3.1 |
 | Export presets | Phase 3.3 |
-| Job Queue Dashboard | Cross-cutting after Phase 1.5 |
-| Split `App.tsx` step panels into components (StoryStep/ScenesStep/AudioStep/ImagesStep/VideoStep/ExportStep) | Deferred — each shares 15-30+ state/handlers; needs a live browser to verify safely, see `docs/DECISION_LOG.md` 2026-06-25 entry |
-| Safety & Rights Checklist | Before voice/image reference expansion |
-| Model / Engine Dashboard | Later ops/status feature |
+| Job system crash recovery / cancel endpoint | Later hardening, if multi-user/longer sessions need it |
+| Split `App.tsx` step panels into components (StoryStep/ScenesStep/AudioStep/ImagesStep/VideoStep/TimelineStep/AssetsStep/ReviewStep/ImageStudioStep/ExportStep) | Deferred — each shares 15-30+ state/handlers; needs a live browser to verify safely, see `docs/DECISION_LOG.md` 2026-06-25 entry. App.tsx is now larger after RC2 (10 steps), making this more valuable but still deferred for the same reason. |
+| Advanced Image Continuity (reference/seed/IPAdapter/ControlNet) | Mid-future, after benchmark |
 | Local AI Assistant Lab | Phase 4.0 |
 | Chat model benchmark | Phase 4.1 |
 | Project Knowledge/RAG setup | Phase 4.2 |

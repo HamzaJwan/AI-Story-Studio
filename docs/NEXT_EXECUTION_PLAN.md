@@ -1,20 +1,21 @@
 # Next Execution Plan
 
-Last updated: 2026-06-25
+Last updated: 2026-06-26
 
 ## Current Recommendation
 
-**Do not add new product features before Hamza final manual QA.**
+**Production Studio Foundations (Phase 2.7) is complete as of RC2 (2026-06-26).** The
+plan below (Milestones A-E) was executed in full, plus the long-story-improve fix and
+four additional milestones (F-J) folded into the same RC2 pass: bible-editor/prompt
+preview, a standalone Image Studio, a safety/rights checklist, a model/engine
+dashboard, and a docs-only assistant-lab re-confirmation. See
+`docs/PRODUCTION_STUDIO_RC2_REPORT.md` for the full report and
+`docs/DECISION_LOG.md` for implementation detail.
 
-The Production MVP is accepted technically. The next engineering track after sign-off should be **Production Studio Foundations**, not another AI model integration.
-
-Recommended first track after QA:
-
-1. Real Job Queue / Background Workers.
-2. Project Timeline View.
-3. Project Asset Library.
-4. Quality Review Board.
-5. Ken Burns / Better Video Assembly.
+**Do not add new product features before Hamza's manual QA pass over the RC2
+additions.** After sign-off, the next engineering track should be one of: Advanced
+Image Continuity, Export Presets, or Advanced Subtitle Editor -- not another AI model
+integration or the local assistant lab (still docs-only, intentionally).
 
 See `docs/REMAINING_FEATURES_BACKLOG.md` for the full future backlog.
 
@@ -33,7 +34,13 @@ See `docs/REMAINING_FEATURES_BACKLOG.md` for the full future backlog.
 - Do not touch `.env` or commit generated media.
 - Do not add DB/Auth/Redis/Celery without an approved architecture step.
 
-## AUTOPILOT_NEXT_EXECUTION_PROMPT
+## AUTOPILOT_NEXT_EXECUTION_PROMPT (status: DONE, 2026-06-26 — kept for history)
+
+Every milestone below (A through E) was executed and verified during the RC2 pass.
+This section is kept verbatim as a historical record of what was asked and the
+acceptance bar that was used -- see `docs/PRODUCTION_STUDIO_RC2_REPORT.md` for what
+was actually delivered against each one. Do not re-run this prompt; use the
+"Current Recommendation" section above for what to do next.
 
 You are now Lead Executor inside AI Story Studio.
 

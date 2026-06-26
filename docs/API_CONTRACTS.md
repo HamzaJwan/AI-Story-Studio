@@ -628,3 +628,117 @@ Both: `404` for an unknown project; a zero-scene project returns `200` with an e
 ### export.zip changes
 
 Now always includes `subtitles/story.srt` and `subtitles/story.vtt` (generation is free, so unlike audio/images/video this isn't conditional on anything having been generated first).
+
+---
+
+## Production Studio RC2 (2026-06-26)
+
+### Milestone 0 — Long Story Improve Fix
+
+`POST /api/story/improve` now distinguishes real Ollama connection failures from
+timeouts/HTTP errors (previously all three collapsed into one misleading "service
+unreachable" Arabic message). Stories longer than `long_story_chunk_chars` (env
+`LONG_STORY_CHUNK_CHARS`, default 6000) are split into ordered paragraph/sentence
+chunks and improved sequentially, then joined -- no merge/smoothing pass afterwards.
+`meta.chunk_count` reports how many chunks were used (`1` for short stories).
+`GET /api/config` now also returns `long_story_chunk_chars` so the frontend doesn't
+hardcode the threshold.
+
+### Milestone A — Lightweight Job Progress Foundation
+
+New job model (`backend/app/jobs.py`): local JSON files under `data/jobs/` (gitignored,
+no DB/Redis/Celery). Fields: `job_id, project_id, job_type, status (queued/running/done/
+failed/cancelled), current_step, total_steps, completed_steps, message_ar, safe_error_ar,
+started_at, updated_at, finished_at, result_summary, affected_scene_ids`.
+
+- `GET /api/jobs/{job_id}` — one job record, `404` if unknown.
+- `GET /api/projects/{project_id}/jobs` — `{ "project_id", "jobs": JobRecord[] }`, newest first.
+- `POST /api/projects/{project_id}/story/improve/jobs`
+- `POST /api/projects/{project_id}/images/generate-all/jobs`
+- `POST /api/projects/{project_id}/video/render/jobs`
+- `POST /api/projects/{project_id}/tts/generate-all/jobs`
+
+Each `/jobs` endpoint returns immediately with a queued `JobRecord`; the real work runs
+in a FastAPI `BackgroundTasks` callable that updates the same record as it progresses.
+The original synchronous endpoints (`/story/improve`, `/images/generate-all`,
+`/video/render`, `/tts/generate-all`) are unchanged and still work for callers that
+don't need progress polling. Every job runner has a catch-all exception handler that
+marks the job `failed` with a generic `safe_error_ar` so a bug can never leave a job
+stuck on `running` forever.
+
+### Milestone D — Quality Review Board (schema only, no new endpoint)
+
+`Scene` gained `review_status` (`pending`/`approved`/`needs_retry`/`rejected`, default
+`pending`), `review_notes` (free text), `review_updated_at`. Set via the existing
+`PUT /api/projects/{id}` (send the full `scenes` array back, same pattern as any other
+scene edit) -- no dedicated review endpoint, no assets are ever deleted by a review
+status change.
+
+### Milestone E — Ken Burns / Better Video Assembly
+
+`Project` gained `video_mode` (`static` default, or `ken_burns`) and `video_transition`
+(`none` default, or `fade`). `POST /api/projects/{id}/video/render` (and its `/jobs`
+variant) read these from the project and apply them per segment:
+
+- `ken_burns`: ffmpeg `zoompan` filter, slow zoom-in capped at 1.15x, deterministic frame
+  count from the segment's real duration. Still ffmpeg-only -- no AI video model.
+- `fade`: a short fade-in/fade-out *within* each segment (not a true crossfade between
+  segments, since the concat step still uses the lossless `-c copy` demuxer). Documented
+  as a deliberate low-risk simplification.
+
+The render response/metadata and `GET /api/projects/{id}/video` both gained
+`video_mode`/`video_transition` fields reporting what was actually used. The Milestone 0
+duration-sync guarantee (rendered duration ≈ sum of real per-scene audio durations) holds
+for every mode -- verified with a synthetic 6-scene `ken_burns`+`fade` render in
+`scripts/test_ken_burns_video.py`.
+
+### Milestone F — Prompt Preview
+
+`GET /api/projects/{project_id}/images/scenes/{scene_id}/prompt-preview` — read-only,
+returns `{ "scene_id", "prompt", "negative_prompt" }`, the exact text `build_scene_image_prompt()`
+would send to the image worker, without spending a real generation job. `404` if the
+project or scene doesn't exist.
+
+### Milestone G — Simple Image Studio
+
+`POST /api/images/standalone/jobs` — single prompt in, one image job out, no project/scene
+attachment, no continuity bibles mixed in.
+
+Request:
+
+```json
+{ "prompt": "a small red apple on a white table", "style_preset": "cinematic_realistic", "negative_prompt": "", "width": 768, "height": 768, "seed": null }
+```
+
+Response: `{ "job_id", "status": "queued", "prompt" }`. Polling and download reuse the
+already-existing project-agnostic `GET /api/images/jobs/{job_id}` and
+`GET /api/images/jobs/{job_id}/download`. `503` if the image service isn't configured.
+
+### Milestone H — Safety & Rights Checklist (schema only, no new endpoint)
+
+`Project` gained `safety_source_type` (`own_content`/`licensed`/`generated`/`unknown`,
+default `unknown`), `safety_consent_confirmed` (`yes`/`no`/`not_applicable`, default
+`not_applicable`), `safety_rights_notes` (free text), `safety_applies_to` (list of
+`voice`/`image_reference`/`music_sfx`/`person_likeness`). Set via the existing
+`POST /api/projects` / `PUT /api/projects/{id}`. Purely informational -- never blocks
+generation or export.
+
+### Milestone I — Model/Engine Status Dashboard
+
+`GET /api/system/status` aggregates the existing per-provider health checks:
+
+```json
+{
+  "data": {
+    "ollama": { "ok": true, "model": "qwen2.5:7b", "latency_ms": 42 },
+    "tts": { "enabled": true, "configured": true, "remote_ok": true, "latency_ms": 12 },
+    "image": { "enabled": true, "configured": true, "remote_ok": true, "latency_ms": 13 },
+    "ffmpeg": { "available": true },
+    "benchmark_notes_doc": "docs/IMAGE_QUALITY_APPROVAL_CHECKLIST.md"
+  }
+}
+```
+
+No IPs, `.env` values, or container paths -- every field was already safe to expose
+before this endpoint existed (each provider's own `health()` already strips its URL
+down to booleans/latency); this endpoint only combines three existing calls into one.
