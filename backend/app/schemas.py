@@ -199,3 +199,17 @@ class StandaloneImageJobRequest(BaseModel):
     @classmethod
     def strip_text(cls, value: str) -> str:
         return value.strip()
+
+
+class AssistantAskRequest(BaseModel):
+    """Milestone 13 -- Local Assistant Lab: a single-turn, stateless question
+    about one project's own data, answered by the existing local Ollama
+    model. No RAG, no web search, no conversation history, no citations
+    claimed -- intentionally the simplest safe version, not a chat product."""
+
+    question: str = Field(min_length=1, max_length=500)
+
+    @field_validator("question")
+    @classmethod
+    def strip_question(cls, value: str) -> str:
+        return value.strip()
