@@ -249,6 +249,20 @@ h1 {
   margin-top: 22px;
 }
 
+.engine-dashboard {
+  margin-top: 16px;
+  padding: 14px 24px;
+}
+
+.engine-dashboard summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.engine-dashboard[open] summary {
+  margin-bottom: 10px;
+}
+
 .glass-panel {
   padding: 24px;
   border-radius: 24px;
@@ -632,7 +646,8 @@ pre {
   background: rgba(190, 48, 78, 0.16);
 }
 
-.tts-status--checking {
+.tts-status--checking,
+.tts-status--warning {
   color: #f9d28a;
   border-color: rgba(249, 210, 138, 0.32);
   background: rgba(249, 210, 138, 0.12);
