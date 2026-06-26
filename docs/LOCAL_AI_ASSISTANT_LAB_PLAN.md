@@ -1,6 +1,17 @@
 # Local AI Assistant Lab Plan
 
-Last updated: 2026-06-25
+Last updated: 2026-06-26
+
+## Status (Milestone J, Production Studio RC2)
+
+This remains a **docs-only plan** -- no code, no chat UI, no Open WebUI iframe, and no
+custom assistant exist in AI Story Studio as of this update. Re-confirmed during the
+RC2 milestone pass: Open WebUI is the current Local Chat Hub; RAG over project docs is
+the preferred path before any fine-tuning; web search and vision chat stay benchmark-gated
+lab tasks with no integration yet; the anti-hallucination strategy below still applies;
+Story Studio assistant tools (Phase 4.5) remain the last step, only after the earlier
+phases pass their own benchmarks. Nothing in this document changed in substance --
+this update only re-validates it against the rest of the RC2 pass.
 
 ## Purpose
 
