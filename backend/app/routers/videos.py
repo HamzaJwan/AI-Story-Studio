@@ -21,6 +21,44 @@ RENDER_WIDTH = 768
 RENDER_HEIGHT = 768
 SEGMENT_TIMEOUT_SECONDS = 60
 CONCAT_TIMEOUT_SECONDS = 120
+KEN_BURNS_FPS = 25
+KEN_BURNS_MAX_ZOOM = 1.15
+KEN_BURNS_ZOOM_STEP = 0.0008
+MAX_FADE_SECONDS = 0.5
+
+
+def _build_segment_video_filter(video_mode: str, video_transition: str, duration: float) -> str:
+    """ffmpeg-only video filter chain for one scene segment.
+
+    `ken_burns` is a slow zoom-in pan via the `zoompan` filter (Milestone E) --
+    not AI motion, just a deterministic ffmpeg effect on the existing static
+    image, capped at 1.15x zoom so it stays subtle. `fade` is a short
+    fade-in/fade-out *within* each segment (not a true crossfade between
+    segments -- the pipeline still concatenates segments with the lossless
+    `-c copy` demuxer, so a real crossfade would require re-encoding the
+    whole concat step). This is a deliberate low-risk simplification: it
+    softens hard cuts without touching the duration-sync guarantee from the
+    Milestone 0 fix.
+    """
+    filters: list[str] = []
+    if video_mode == "ken_burns":
+        total_frames = max(1, round(duration * KEN_BURNS_FPS))
+        zoom_expr = f"min(zoom+{KEN_BURNS_ZOOM_STEP},{KEN_BURNS_MAX_ZOOM})"
+        filters.append(
+            f"zoompan=z='{zoom_expr}':d={total_frames}:"
+            f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={RENDER_WIDTH}x{RENDER_HEIGHT}:fps={KEN_BURNS_FPS}"
+        )
+    else:
+        filters.append(f"scale={RENDER_WIDTH}:{RENDER_HEIGHT}")
+
+    if video_transition == "fade" and duration > 0:
+        fade_duration = min(MAX_FADE_SECONDS, duration / 4)
+        if fade_duration > 0:
+            fade_out_start = max(0.0, duration - fade_duration)
+            filters.append(f"fade=t=in:st=0:d={fade_duration:.3f}")
+            filters.append(f"fade=t=out:st={fade_out_start:.3f}:d={fade_duration:.3f}")
+
+    return ",".join(filters)
 
 
 def get_storage(settings: Settings = Depends(get_settings)) -> ProjectStorage:
@@ -109,13 +147,16 @@ def _render_video_for_project(
             # only when there is no saved audio for this scene.
             segment_duration = scene_durations[scene.scene_id]
 
+            video_filter = _build_segment_video_filter(
+                project.video_mode, project.video_transition, segment_duration
+            )
             segment_path = tmp_path / f"segment_{scene.scene_id}.mp4"
             cmd = ["ffmpeg", "-y", "-loop", "1", "-i", str(image_path)]
             if audio_path is not None:
                 cmd += ["-i", str(audio_path)]
             cmd += [
                 "-t", f"{segment_duration:.3f}",
-                "-vf", f"scale={RENDER_WIDTH}:{RENDER_HEIGHT}",
+                "-vf", video_filter,
                 "-c:v", "libx264",
                 "-pix_fmt", "yuv420p",
             ]
@@ -163,6 +204,8 @@ def _render_video_for_project(
         "skipped_scenes": skipped,
         "duration_seconds": total_duration,
         "video_bytes": final_path.stat().st_size,
+        "video_mode": project.video_mode,
+        "video_transition": project.video_transition,
     }
     storage.save_video_metadata(project_id, metadata)
     return metadata
@@ -279,6 +322,8 @@ def get_project_video(
         "rendered_at": metadata.get("rendered_at"),
         "included_scenes": metadata.get("included_scenes", []),
         "skipped_scenes": metadata.get("skipped_scenes", []),
+        "video_mode": metadata.get("video_mode", "static"),
+        "video_transition": metadata.get("video_transition", "none"),
     }
     return ApiEnvelope(data=data)
 

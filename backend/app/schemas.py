@@ -55,6 +55,9 @@ class Scene(BaseModel):
     image_engine: str | None = None
     image_seed: int | None = None
     image_prompt_used: str | None = None
+    review_status: Literal["pending", "approved", "needs_retry", "rejected"] = "pending"
+    review_notes: str = ""
+    review_updated_at: datetime | None = None
 
 
 class SplitScenesData(BaseModel):
@@ -74,6 +77,14 @@ class ProjectCreateRequest(BaseModel):
     object_bible: str = Field(default="", max_length=2000)
     negative_prompt: str = Field(default="", max_length=500)
     style_preset: str = Field(default="cinematic_realistic", max_length=50)
+    video_mode: Literal["static", "ken_burns"] = "static"
+    video_transition: Literal["none", "fade"] = "none"
+    safety_source_type: Literal["own_content", "licensed", "generated", "unknown"] = "unknown"
+    safety_consent_confirmed: Literal["yes", "no", "not_applicable"] = "not_applicable"
+    safety_rights_notes: str = Field(default="", max_length=1000)
+    safety_applies_to: list[Literal["voice", "image_reference", "music_sfx", "person_likeness"]] = Field(
+        default_factory=list
+    )
 
     @field_validator(
         "title",
@@ -84,6 +95,7 @@ class ProjectCreateRequest(BaseModel):
         "location_bible",
         "object_bible",
         "negative_prompt",
+        "safety_rights_notes",
     )
     @classmethod
     def strip_project_text(cls, value: str) -> str:
@@ -101,6 +113,12 @@ class ProjectUpdateRequest(BaseModel):
     object_bible: str | None = Field(default=None, max_length=2000)
     negative_prompt: str | None = Field(default=None, max_length=500)
     style_preset: str | None = Field(default=None, max_length=50)
+    video_mode: Literal["static", "ken_burns"] | None = None
+    video_transition: Literal["none", "fade"] | None = None
+    safety_source_type: Literal["own_content", "licensed", "generated", "unknown"] | None = None
+    safety_consent_confirmed: Literal["yes", "no", "not_applicable"] | None = None
+    safety_rights_notes: str | None = Field(default=None, max_length=1000)
+    safety_applies_to: list[Literal["voice", "image_reference", "music_sfx", "person_likeness"]] | None = None
 
     @field_validator(
         "title",
@@ -111,6 +129,7 @@ class ProjectUpdateRequest(BaseModel):
         "location_bible",
         "object_bible",
         "negative_prompt",
+        "safety_rights_notes",
     )
     @classmethod
     def strip_optional_project_text(cls, value: str | None) -> str | None:
@@ -131,6 +150,14 @@ class ProjectResponse(BaseModel):
     object_bible: str = ""
     negative_prompt: str = ""
     style_preset: str = "cinematic_realistic"
+    video_mode: Literal["static", "ken_burns"] = "static"
+    video_transition: Literal["none", "fade"] = "none"
+    safety_source_type: Literal["own_content", "licensed", "generated", "unknown"] = "unknown"
+    safety_consent_confirmed: Literal["yes", "no", "not_applicable"] = "not_applicable"
+    safety_rights_notes: str = ""
+    safety_applies_to: list[Literal["voice", "image_reference", "music_sfx", "person_likeness"]] = Field(
+        default_factory=list
+    )
 
 
 class ProjectListItem(BaseModel):
@@ -155,3 +182,20 @@ class ImageJobRequest(BaseModel):
     width: int | None = Field(default=None, ge=256, le=1024)
     height: int | None = Field(default=None, ge=256, le=1024)
     seed: int | None = None
+
+
+class StandaloneImageJobRequest(BaseModel):
+    """Milestone G -- Simple Image Studio: one prompt in, one image out, with
+    no project/scene attachment and no continuity-bible mixing."""
+
+    prompt: str = Field(min_length=1, max_length=2000)
+    style_preset: str | None = Field(default=None, max_length=50)
+    negative_prompt: str = Field(default="", max_length=500)
+    width: int | None = Field(default=None, ge=256, le=1024)
+    height: int | None = Field(default=None, ge=256, le=1024)
+    seed: int | None = None
+
+    @field_validator("prompt", "negative_prompt")
+    @classmethod
+    def strip_text(cls, value: str) -> str:
+        return value.strip()

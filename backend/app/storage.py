@@ -172,6 +172,12 @@ class ProjectStorage:
             object_bible=request.object_bible,
             negative_prompt=request.negative_prompt,
             style_preset=request.style_preset,
+            video_mode=request.video_mode,
+            video_transition=request.video_transition,
+            safety_source_type=request.safety_source_type,
+            safety_consent_confirmed=request.safety_consent_confirmed,
+            safety_rights_notes=request.safety_rights_notes,
+            safety_applies_to=request.safety_applies_to,
         )
         self._write_project(project, meta=meta)
         return project
