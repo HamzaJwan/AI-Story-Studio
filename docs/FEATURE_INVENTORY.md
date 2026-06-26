@@ -17,7 +17,13 @@ Last updated: 2026-06-26
 | Image prompt preview | `GET .../images/scenes/{id}/prompt-preview` | Working — read-only, no job spent |
 | Simple Image Studio | `POST /api/images/standalone/jobs`, "استوديو الصور المستقل" step | Working — verified with one real small ComfyUI job |
 | Safety & rights checklist | `Project.safety_source_type/safety_consent_confirmed/safety_rights_notes/safety_applies_to` | Working — informational only, never blocks flow |
-| Model/engine status dashboard | `GET /api/system/status` | Working — aggregates existing health checks, no URLs/secrets exposed |
+| Model/engine status dashboard | `GET /api/system/status` | Working — aggregates existing health checks, no URLs/secrets exposed; now distinguishes "needs setup" from "unreachable" |
+| Local Assistant (single-turn) | `POST /api/projects/{id}/assistant/ask`, "المساعد المحلي" step | Working — verified with one real Ollama call; no RAG, no web search, no memory, by design |
+| Job history view | `GET /api/projects/{id}/jobs` now called from the Timeline step | Working — endpoint existed since Milestone A, frontend caller added in the follow-up hardening pass |
+| Asset Library inline preview | `<audio>`/`<img>`/`<video>` elements next to download links | Working — previously download-only |
+| Review Board filter | all/pending/needs_retry/rejected/approved buttons | Working |
+| Image continuity identity-lock + negative terms | `CONTINUITY_NEGATIVE_TERMS`, repeated character-bible anchor in `backend/app/routers/images.py` | Working — still Tier 1 prompt-only, reduces but does not guarantee gender/identity drift |
+| Scene image seed/engine exposed | `GET /api/projects/{id}/images` now returns `image_seed`/`image_engine` | Working — was saved since Phase 2.2 but never returned |
 
 ## Implemented (Production MVP, through 2026-06-25)
 
@@ -84,7 +90,7 @@ Last updated: 2026-06-26
 | Job system crash recovery / cancel endpoint | Later hardening, if multi-user/longer sessions need it |
 | Split `App.tsx` step panels into components (StoryStep/ScenesStep/AudioStep/ImagesStep/VideoStep/TimelineStep/AssetsStep/ReviewStep/ImageStudioStep/ExportStep) | Deferred — each shares 15-30+ state/handlers; needs a live browser to verify safely, see `docs/DECISION_LOG.md` 2026-06-25 entry. App.tsx is now larger after RC2 (10 steps), making this more valuable but still deferred for the same reason. |
 | Advanced Image Continuity (reference/seed/IPAdapter/ControlNet) | Mid-future, after benchmark |
-| Local AI Assistant Lab | Phase 4.0 |
+| Local AI Assistant Lab (full: RAG, web search, vision, memory, Open WebUI) | Phase 4.0 -- minimal single-turn Q&A version already shipped, see "Local Assistant" above |
 | Chat model benchmark | Phase 4.1 |
 | Project Knowledge/RAG setup | Phase 4.2 |
 | Web search benchmark | Phase 4.3 |

@@ -1,5 +1,71 @@
 # Decision Log
 
+## 2026-06-26 (follow-up) — Production Studio RC2 reality-check, hardening, and Milestone 13
+
+**Decision:** Before adding anything new, verify every feature the prior RC2 report
+claimed as "Done" against the actual running code (not just re-reading the report),
+fix anything found Partial/Broken, then proceed through the remaining backlog
+(Milestones 2-14) the user's prompt specified, autonomously and to completion.
+
+**Real bug found and fixed:** `_split_long_paragraph()` in
+`backend/app/story_engine/engine.py` silently truncated a long "sentence" with zero
+`.!?؟` punctuation to its first `chunk_chars` characters, discarding the rest -- this
+was operating on the *user's input text*, not AI output, so it was real, silent data
+loss for a specific edge case (one giant run-on sentence/paragraph with no normal
+punctuation). Fixed by hard-splitting into `chunk_chars`-sized pieces instead of
+truncating. Verified with a local pure-function check (`split_text_into_chunks`
+imported directly, no Ollama call) that reassembling all returned chunks reproduces a
+14999-character no-punctuation test string exactly, byte for byte.
+
+**Real gaps found and fixed (previously reported "Done" but actually Partial):**
+- `GET /api/projects/{id}/jobs` (job history) existed on the backend since Milestone A
+  but had zero callers in the frontend -- added a "سجل العمليات الأخيرة" view to the
+  Timeline step.
+- Asset Library was download-only for audio/images/video -- added inline
+  `<audio>`/`<img>`/`<video>` preview elements next to each download link, plus the
+  video's duration.
+- Review Board had no filter and didn't surface `getSceneWarnings()` (already used
+  elsewhere) -- added an all/pending/needs_retry/rejected/approved filter and inline
+  warnings; also split the Export-step warning into a stronger one specifically for
+  rejected/needs_retry scenes vs. a soft reminder for merely-unreviewed ones.
+- Engine dashboard collapsed "not configured" and "configured but unreachable" into
+  one "غير متصل" label for all three services, even though the backend's `health()`
+  calls already returned the fields needed to tell them apart (`base_url_configured`
+  for Ollama, `configured` for TTS/image) -- fixed to show "يحتاج إعداد" vs "غير متصل"
+  correctly. Added a simple saved-projects count as the "disk/media status" the
+  original Milestone I spec asked for but never got.
+- `image_seed`/`image_engine` were saved per scene since Phase 2.2 but never returned
+  by `GET /api/projects/{id}/images` -- added.
+- The studio stepper's CSS was hardcoded to a 6-column grid; with 10 steps now (after
+  this session's RC2 additions) it wrapped awkwardly. Changed to `auto-fit` so it
+  scales with however many steps exist.
+
+**Image continuity polish (the user explicitly asked to reduce the documented
+gender-drift bug):** `build_scene_image_prompt()` now repeats the character bible once
+more as an explicit identity-lock sentence, and `build_negative_prompt()` now always
+appends (never replaces) negative terms targeting gender/identity drift whenever a
+character bible is set. This is still Tier 1, prompt-only continuity -- it measurably
+biases generation, it does not guarantee identity consistency. Documented as such in
+both the code comment and `docs/IMAGE_CONTINUITY_STRATEGY.md`.
+
+**Milestone 13 (Local Assistant Lab) -- judgment call:** the user's prompt offered two
+options: a UI placeholder only, or a simple Ollama-backed Q&A endpoint "if safe and
+fast." Chose the latter: `POST /api/projects/{id}/assistant/ask` is single-turn,
+stateless, reuses the existing `OllamaProvider` (no new service/dependency/secret),
+bounds its own prompt size so it can't trigger a long-story-style timeout, and its
+response explicitly states it may be inaccurate. This stays well inside the session's
+constraints (no DB, no paid API, no new heavy job, no auth) while being more useful
+than a static placeholder. Verified with one real Ollama call (~5.7s).
+
+**Verification approach, unchanged from the prior RC2 session:** every fix was tested
+against the live backend/frontend (not just read), full validation suite re-run after
+the rebuild, no long Arabic text printed to the transcript -- only counts, statuses,
+and structural facts.
+
+**Impact:** see `docs/PRODUCTION_STUDIO_FINAL_REPORT.md` for the full final report.
+
+---
+
 ## 2026-06-26 — Production Studio RC2: Milestones B-J (Timeline, Asset Library, Review Board, Ken Burns, Bible polish, Image Studio, Safety checklist, Engine dashboard, Assistant docs)
 
 **Decision:** Continue directly from the prior session's Milestone 0 (long story improve

@@ -2,11 +2,11 @@
 
 ## Current Stage
 
-**Stage:** AI Story Studio — Production Studio RC2
+**Stage:** AI Story Studio — Production Studio RC2 (finalized, with a reality-check hardening pass)
 
-**Status:** ✅ Studio MVP pipeline (story → scenes → audio → images → continuity → video → subtitles → export) is implemented and verified end-to-end with real data, and the Production Studio Foundations track (Phase 2.7) is now also complete: long stories improve in chunks instead of failing, a lightweight local job/progress system replaces blind "جاري..." waits for story-improve/audio/image/video, and four new workflow steps were added -- Timeline View, Asset Library, Quality Review Board, and a standalone Simple Image Studio -- plus an optional Ken Burns/fade video mode, a story-bible prompt preview, a lightweight safety/rights checklist, and a model/engine status dashboard. Hamza's manual hands-on QA pass over these RC2 additions (`docs/MANUAL_QA_CHECKLIST.md`) is the only remaining step.
+**Status:** ✅ Studio MVP pipeline (story → scenes → audio → images → continuity → video → subtitles → export) is implemented and verified end-to-end with real data, and the Production Studio Foundations track (Phase 2.7) is complete: long stories improve in chunks instead of failing (including a fixed text-loss edge case for unpunctuated run-on text), a lightweight local job/progress system replaces blind "جاري..." waits and is now actually wired up everywhere including job history, and the full set of workflow steps exist -- Timeline View, Asset Library (now with inline preview), Quality Review Board (now with filtering), and a standalone Simple Image Studio -- plus an optional Ken Burns/fade video mode, a story-bible prompt preview with stronger identity-lock continuity wording, a lightweight safety/rights checklist, a model/engine status dashboard (now distinguishing "needs setup" from "unreachable"), and a minimal single-turn local-assistant Q&A endpoint. Hamza's manual hands-on QA pass (`docs/MANUAL_QA_CHECKLIST.md`) is the only remaining step.
 
-**Recommendation:** No new engineering beyond RC2 for the current scope. Next: Hamza's manual QA pass over the new Timeline/Asset Library/Review Board/Ken Burns/Image Studio surfaces, then a product decision on the next track (advanced image continuity, export presets, or Phase 4.x assistant lab -- see `docs/REMAINING_FEATURES_BACKLOG.md`).
+**Recommendation:** No new engineering beyond this finalized RC2 for the current scope. Next: Hamza's manual QA pass over the full Timeline/Asset Library/Review Board/Ken Burns/Image Studio/Assistant surfaces, then a product decision on the next track (advanced image continuity, export presets, or full Phase 4.x assistant lab via Open WebUI -- see `docs/REMAINING_FEATURES_BACKLOG.md`).
 
 **Expected output, set expectations correctly:** a video composited from scene images (static, or a light ffmpeg-only Ken Burns zoom) + generated narration audio + subtitle timing — no AI-driven motion (no Veo/Runway/WanGP-style video). Image quality is `CANDIDATE`, not final production quality. The job/progress system is local-only (no Redis/Celery/DB) and has no crash recovery. See "Known Limitations" below.
 
@@ -19,7 +19,14 @@
 - **Prompt preview + Simple Image Studio:** a read-only endpoint shows the exact assembled image prompt before spending a job; a new standalone "one prompt, one image" studio is fully separate from scene images.
 - **Safety checklist + engine dashboard:** lightweight informational project metadata (source/consent/rights notes) and one aggregated Ollama/TTS/image/ffmpeg status view, with no URLs or secrets exposed.
 
-Full detail and verification evidence: `docs/PRODUCTION_STUDIO_RC2_REPORT.md` and `docs/DECISION_LOG.md`.
+**Follow-up hardening pass (same day):** a reality-check against the running code (not
+just the report) found and fixed a real text-loss bug in the long-story chunker for
+unpunctuated run-on text, wired up the previously-unused job-history endpoint into the
+Timeline view, added inline preview to the Asset Library, added filtering to the
+Review Board, strengthened the image continuity prompt/negative-prompt to better
+target the documented gender-drift bug, fixed the engine dashboard's status labels,
+and added a minimal single-turn local-assistant Q&A endpoint (Milestone 13). Full
+detail in `docs/PRODUCTION_STUDIO_FINAL_REPORT.md` and `docs/DECISION_LOG.md`.
 
 ## What Changed in the Prior Phase (Subtitle Export MVP)
 
@@ -50,5 +57,5 @@ Full detail and verification evidence: `docs/PRODUCTION_STUDIO_RC2_REPORT.md` an
 - **Endpoints الصور/الفيديو/الصوت لها الآن نسخة job-based اختيارية** (`.../jobs`) لا تحجب الطلب، لكن نظام الـjobs محلي فقط (ملفات JSON تحت `data/jobs/`) بدون Redis/Celery/قاعدة بيانات، وبدون استرجاع تلقائي إذا تعطّل الـbackend وسط عملية — مقبول لمستخدم واحد محلي، ليس جاهزاً لمستخدمين متزامنين.
 - **Ken Burns ليس حركة AI حقيقية** — تقريب/تلاشي بسيط عبر ffmpeg فقط (zoompan + fade)، والتلاشي داخل كل مشهد لا بين مشهدين (ليس crossfade حقيقي)، توضيح متاح في الواجهة.
 - **استمرارية الصور تبقى Tier 1 (prompt-only)** — معاينة الـprompt الجديدة توضّح ما يُرسل لكنها لا تضيف ثباتاً فعلياً بدون reference workflow (IPAdapter/ControlNet) لاحقاً.
-- **لا مساعد AI محلي بعد** — Phase 4.x، لاحقاً، يبقى docs-only.
+- **المساعد المحلي الآن endpoint بسيط فقط** — سؤال واحد بدون ذاكرة محادثة، بدون RAG حقيقي، بدون بحث إنترنت. المساعد الكامل (Open WebUI + RAG) يبقى خطة Phase 4.x مستقبلية.
 - **generated media لا يدخل Git أبداً** — كل شيء تحت `data/projects/{id}/` مستثنى بـ `.gitignore`.

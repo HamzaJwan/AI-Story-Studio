@@ -742,3 +742,58 @@ generation or export.
 No IPs, `.env` values, or container paths -- every field was already safe to expose
 before this endpoint existed (each provider's own `health()` already strips its URL
 down to booleans/latency); this endpoint only combines three existing calls into one.
+`ollama.base_url_configured` lets the frontend distinguish "needs setup" from
+"configured but unreachable" -- previously collapsed into one generic label.
+
+---
+
+## RC2 Follow-up (2026-06-26): reality-check fixes and Milestone 13
+
+### Long story improve -- text-loss fix
+
+`split_text_into_chunks()`'s fallback path (`_split_long_paragraph()`) previously
+truncated a single "sentence" with no `.!?؟` punctuation at all to just its first
+`chunk_chars` characters, silently dropping the rest. Fixed to hard-split an
+unpunctuated run-on into `chunk_chars`-sized pieces instead -- `split_text_into_chunks()`
+now never drops any input character, verified by reassembling chunks back into the
+exact original text (see `scripts/test_long_story_improve.py`).
+
+### `GET /api/projects/{project_id}/images` -- seed/engine metadata
+
+Now also returns `image_seed` and `image_engine` per scene (both were already saved by
+`save_scene_image()` but never surfaced in this response).
+
+### `GET /api/projects/{project_id}/jobs` -- now actually used by the frontend
+
+This endpoint existed since Milestone A but had no caller in the UI. The Timeline step
+now has a "سجل العمليات الأخيرة" section that calls it on demand.
+
+### Milestone 13 — Local Assistant Lab (safe minimal version)
+
+`POST /api/projects/{project_id}/assistant/ask`
+
+Request: `{ "question": "كم عدد المشاهد في هذه القصة؟" }` (1-500 chars)
+
+Response:
+
+```json
+{
+  "data": { "answer": "..." },
+  "meta": {
+    "provider": "ollama",
+    "model": "qwen2.5:7b",
+    "latency_ms": 5725,
+    "limitations": ["إجابة من Ollama مباشرة بدون RAG حقيقي أو بحث إنترنت -- قد تكون غير دقيقة، راجعها دائماً."]
+  },
+  "errors": []
+}
+```
+
+Single-turn, stateless -- no conversation history, no RAG/embeddings, no web search,
+no citations claimed. The prompt is built from the project's title, story text (capped
+at 4000 chars), and up to 12 scenes' narration (capped at 300 chars each) so it never
+risks an oversized-prompt timeout. `404` if the project doesn't exist. Reuses the same
+`OllamaProvider` as `/api/story/improve` -- no new external service. This is
+intentionally the smallest safe slice per `docs/LOCAL_AI_ASSISTANT_LAB_PLAN.md`; a full
+assistant (RAG, web search, vision, memory) remains a deferred Phase 4.x track via Open
+WebUI, not a custom build.

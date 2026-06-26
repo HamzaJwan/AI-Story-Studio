@@ -30,7 +30,20 @@ Open the app at `http://localhost:5173` before starting (or your configured `FRO
 - [ ] In the continuity section (الصور step), click "معاينة prompt المشهد الأول" and
       confirm it shows text without actually generating an image.
 - [ ] Open the "حالة الخدمات" panel under the hero and click "فحص حالة الخدمات" —
-      confirm it shows Ollama/الصوت/الصور/ffmpeg status with no IPs or URLs visible.
+      confirm it shows Ollama/الصوت/الصور/ffmpeg status with no IPs or URLs visible,
+      and that an unconfigured service shows "يحتاج إعداد" rather than "غير متصل".
+- [ ] In "الخط الزمني", click "تحديث السجل" under "سجل العمليات الأخيرة" after running
+      any job-based action — confirm it lists that operation with a status.
+- [ ] In "مكتبة الأصول", confirm audio/images/video now show an inline player/preview
+      next to each download link, not just a bare download button.
+- [ ] In "مراجعة الجودة", use the filter buttons (الكل / يحتاج مراجعة / مرفوض / مقبول)
+      and confirm the scene list updates accordingly.
+- [ ] Open "المساعد المحلي", ask a simple question about the current project (e.g. "كم
+      عدد المشاهد؟"), and confirm you get a short Arabic answer with a visible note that
+      it may be inaccurate — this is a single Ollama call, not a real chat/RAG assistant.
+- [ ] If a story uses a character bible (الشخصيات الثابتة), regenerate one scene's image
+      and check whether the character's gender/age/identity stayed consistent with what
+      you described — this remains prompt-only continuity, not a guarantee.
 
 ## 1. Story → Scenes
 
