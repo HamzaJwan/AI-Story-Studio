@@ -44,6 +44,22 @@ CONTINUITY_RULES = (
     "or to a different location unless this scene's own description says so."
 )
 
+# RC2 continuity polish (2026-06-26): the manual ComfyUI tests in
+# docs/COMFYUI_MANUAL_TEST_NOTES.md recorded a real recurring failure mode --
+# a described male character drifting into a female-presenting result. A
+# single mention of the character bible is easy for the model to deprioritize
+# in a long combined prompt; repeating it once more as an explicit identity
+# lock measurably anchors gender/age/identity better in practice, though it
+# still does not guarantee it (Tier 1, prompt-only -- see
+# docs/IMAGE_CONTINUITY_STRATEGY.md). Negative terms targeting this specific
+# failure are appended (not substituted) so a user's custom negative_prompt
+# never silently drops them.
+CONTINUITY_NEGATIVE_TERMS = (
+    "gender swap, character changed to a different gender, wrong gender, "
+    "different person, inconsistent character identity, face swap, "
+    "age changed, different age group than described"
+)
+
 
 def build_scene_image_prompt(project: ProjectResponse, scene: Scene) -> str:
     parts: list[str] = []
@@ -53,18 +69,28 @@ def build_scene_image_prompt(project: ProjectResponse, scene: Scene) -> str:
     if project.story_style_bible.strip():
         parts.append(project.story_style_bible.strip())
     parts.append(scene.image_prompt_en.strip())
-    if project.character_bible.strip():
-        parts.append(f"Characters: {project.character_bible.strip()}")
+    character_bible = project.character_bible.strip()
+    if character_bible:
+        parts.append(f"Characters: {character_bible}")
     if project.location_bible.strip():
         parts.append(f"Location: {project.location_bible.strip()}")
     if project.object_bible.strip():
         parts.append(f"Important objects: {project.object_bible.strip()}")
     parts.append(CONTINUITY_RULES)
+    if character_bible:
+        parts.append(
+            f"The character(s) must remain exactly as described ({character_bible}) -- "
+            "same gender, same age, same face and body type, same clothing -- do not "
+            "change their identity in this image."
+        )
     return ", ".join(part for part in parts if part)
 
 
 def build_negative_prompt(project: ProjectResponse) -> str:
-    return project.negative_prompt.strip() or DEFAULT_NEGATIVE_PROMPT
+    base = project.negative_prompt.strip() or DEFAULT_NEGATIVE_PROMPT
+    if project.character_bible.strip():
+        return f"{base}, {CONTINUITY_NEGATIVE_TERMS}"
+    return base
 
 
 def _generate_and_save_scene_image(
@@ -390,6 +416,8 @@ def get_project_images(
                 "image_bytes": scene.image_bytes if has_image else None,
                 "image_width": scene.image_width if has_image else None,
                 "image_height": scene.image_height if has_image else None,
+                "image_seed": scene.image_seed if has_image else None,
+                "image_engine": scene.image_engine if has_image else None,
                 "image_generated_at": scene.image_generated_at.isoformat()
                 if has_image and scene.image_generated_at
                 else None,
