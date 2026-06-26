@@ -249,6 +249,13 @@ h1 {
   margin-top: 22px;
 }
 
+.asset-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .engine-dashboard {
   margin-top: 16px;
   padding: 14px 24px;
@@ -877,7 +884,7 @@ pre {
 
 .studio-stepper {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 10px;
   margin-top: 14px;
   padding: 14px;

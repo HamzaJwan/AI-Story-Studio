@@ -190,6 +190,8 @@ type SceneImageInfo = {
   image_bytes: number | null;
   image_width: number | null;
   image_height: number | null;
+  image_seed: number | null;
+  image_engine: string | null;
   image_generated_at: string | null;
   url: string | null;
 };
@@ -213,7 +215,7 @@ type ProjectVideoData = {
 type ImageBusyAction = "health" | "scene" | "refresh" | "all" | null;
 
 type SystemStatusData = {
-  ollama: { ok: boolean; model: string; latency_ms: number | null };
+  ollama: { ok: boolean; model: string; base_url_configured: boolean; latency_ms: number | null };
   tts: { enabled: boolean; configured: boolean; remote_ok: boolean | null; latency_ms?: number };
   image: { enabled: boolean; configured: boolean; remote_ok: boolean | null; latency_ms?: number };
   ffmpeg: { available: boolean };
@@ -241,6 +243,7 @@ type StudioStep =
   | "assets"
   | "review"
   | "image_studio"
+  | "assistant"
   | "export";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -420,6 +423,21 @@ type JobRecord = {
   affected_scene_ids: string[];
 };
 
+const JOB_TYPE_LABELS: Record<string, string> = {
+  story_improve: "تحسين القصة",
+  images_generate_all: "توليد كل الصور",
+  video_render: "تجميع الفيديو",
+  audio_generate_all: "توليد كل الصوت",
+};
+
+const JOB_STATUS_LABELS: Record<string, string> = {
+  queued: "في الانتظار",
+  running: "قيد التنفيذ",
+  done: "تم",
+  failed: "فشل",
+  cancelled: "ملغى",
+};
+
 const JOB_POLL_INTERVAL_MS = 1200;
 const TERMINAL_JOB_STATUSES = new Set(["done", "failed", "cancelled"]);
 
@@ -477,6 +495,11 @@ export default function App() {
   const [systemStatus, setSystemStatus] = useState<SystemStatusData | null>(null);
   const [systemStatusBusy, setSystemStatusBusy] = useState(false);
 
+  const [projectJobs, setProjectJobs] = useState<JobRecord[]>([]);
+  const [projectJobsBusy, setProjectJobsBusy] = useState(false);
+
+  const [reviewFilter, setReviewFilter] = useState<"all" | ReviewStatus>("all");
+
   const [standaloneImage, setStandaloneImage] = useState({
     prompt: "",
     stylePreset: "cinematic_realistic",
@@ -488,6 +511,11 @@ export default function App() {
   const [standaloneImageJob, setStandaloneImageJob] = useState<ImageJobData | null>(null);
   const [standaloneImageBusy, setStandaloneImageBusy] = useState(false);
   const [standaloneImageMessage, setStandaloneImageMessage] = useState("");
+
+  const [assistantQuestion, setAssistantQuestion] = useState("");
+  const [assistantAnswer, setAssistantAnswer] = useState("");
+  const [assistantBusy, setAssistantBusy] = useState(false);
+  const [assistantMessage, setAssistantMessage] = useState("");
 
   useEffect(() => {
     if (skipDirtyEffect.current) {
@@ -545,6 +573,7 @@ export default function App() {
 
   const approvedCount = scenes.filter((s) => s.review_status === "approved").length;
   const reviewedCount = scenes.filter((s) => (s.review_status || "pending") !== "pending").length;
+  const rejectedOrRetryCount = scenes.filter((s) => s.review_status === "rejected" || s.review_status === "needs_retry").length;
 
   const studioSteps: StudioStepInfo[] = [
     { key: "story", label: "القصة", hint: "ابدأ بكتابة القصة", done: hasStoryText },
@@ -556,6 +585,7 @@ export default function App() {
     { key: "assets", label: "مكتبة الأصول", hint: "كل ملفات المشروع", done: scenes.length > 0 },
     { key: "review", label: "مراجعة الجودة", hint: "اعتماد أو إعادة كل مشهد", done: reviewedCount > 0 },
     { key: "image_studio", label: "استوديو الصور المستقل", hint: "صورة واحدة من وصف واحد", done: false },
+    { key: "assistant", label: "المساعد المحلي", hint: "اسأل عن مشروعك الحالي", done: false },
     { key: "export", label: "التصدير", hint: "حمّل المشروع كاملاً", done: false },
   ];
 
@@ -827,6 +857,19 @@ export default function App() {
       setError("تعذر الوصول إلى backend أو Ollama.");
     } finally {
       setLoading(null);
+    }
+  }
+
+  async function refreshProjectJobs() {
+    if (!projectId) return;
+    setProjectJobsBusy(true);
+    try {
+      const r = await getJson<{ project_id: string; jobs: JobRecord[] }>(`/api/projects/${projectId}/jobs`);
+      setProjectJobs(r.data.jobs || []);
+    } catch {
+      /* silent -- job history is a convenience view, not critical */
+    } finally {
+      setProjectJobsBusy(false);
     }
   }
 
@@ -1348,6 +1391,35 @@ export default function App() {
     }
   }
 
+  async function handleAskAssistant() {
+    if (!projectId) {
+      setAssistantMessage("احفظ المشروع أولاً قبل سؤال المساعد عنه.");
+      return;
+    }
+    if (!assistantQuestion.trim()) {
+      setAssistantMessage("اكتب سؤالاً أولاً.");
+      return;
+    }
+    setAssistantBusy(true);
+    setAssistantMessage("جاري التفكير...");
+    setAssistantAnswer("");
+    try {
+      const r = await postJson<{ answer: string }>(`/api/projects/${projectId}/assistant/ask`, {
+        question: assistantQuestion,
+      });
+      if (r.errors.length) {
+        setAssistantMessage(r.errors.join(" "));
+      } else {
+        setAssistantAnswer(r.data.answer);
+        setAssistantMessage("");
+      }
+    } catch (exc) {
+      setAssistantMessage(exc instanceof Error ? exc.message : "تعذر الحصول على إجابة.");
+    } finally {
+      setAssistantBusy(false);
+    }
+  }
+
   async function handleGenerateStandaloneImage() {
     if (!standaloneImage.prompt.trim()) {
       setStandaloneImageMessage("اكتب وصف الصورة أولاً.");
@@ -1456,10 +1528,36 @@ export default function App() {
         </div>
         {systemStatus && (
           <div className="studio-status-strip" aria-label="حالة الخدمات">
-            <span>Ollama: {systemStatus.ollama.ok ? `متصل (${systemStatus.ollama.model})` : "غير متصل"}</span>
-            <span>الصوت: {systemStatus.tts.configured ? (systemStatus.tts.remote_ok ? "متصل" : "غير متصل") : "غير مفعّل"}</span>
-            <span>الصور: {systemStatus.image.configured ? (systemStatus.image.remote_ok ? "متصل" : "غير متصل") : "غير مفعّل"}</span>
+            <span>
+              Ollama:{" "}
+              {!systemStatus.ollama.base_url_configured
+                ? "يحتاج إعداد (OLLAMA_BASE_URL)"
+                : systemStatus.ollama.ok
+                  ? `متصل (${systemStatus.ollama.model})`
+                  : "غير متصل"}
+            </span>
+            <span>
+              الصوت:{" "}
+              {!systemStatus.tts.enabled
+                ? "غير مفعّل"
+                : !systemStatus.tts.configured
+                  ? "يحتاج إعداد (TTS_SERVICE_URL)"
+                  : systemStatus.tts.remote_ok
+                    ? "متصل"
+                    : "غير متصل"}
+            </span>
+            <span>
+              الصور:{" "}
+              {!systemStatus.image.enabled
+                ? "غير مفعّل"
+                : !systemStatus.image.configured
+                  ? "يحتاج إعداد (IMAGE_SERVICE_URL)"
+                  : systemStatus.image.remote_ok
+                    ? "متصل"
+                    : "غير متصل"}
+            </span>
             <span>ffmpeg: {systemStatus.ffmpeg.available ? "متاح" : "غير متاح"}</span>
+            <span>المشاريع المحفوظة محلياً: {projects.length}</span>
           </div>
         )}
         <p className="muted-text field-hint">
@@ -2100,8 +2198,14 @@ export default function App() {
               <h3>قائمة السلامة والحقوق (اختياري)</h3>
               <p className="muted-text">
                 توضيح خفيف لمصدر المحتوى قبل التوسع في مراجع صوت/صورة لاحقاً. لا توقف هذا الإنتاج
-                الحالي، فقط تحذير إن كان المصدر غير معروف.
+                الحالي، فقط تحذير إن كان المصدر غير معروف. قواعد عامة يجب اتباعها دائماً:
               </p>
+              <ul className="muted-text">
+                <li>لا تستخدم صوت مشاهير أو أشخاص حقيقيين بدون إذن صريح منهم.</li>
+                <li>لا تستخدم صوراً مرجعية لا تملك حق استخدامها.</li>
+                <li>لا تنشر أي محتوى للعامة قبل إضافة مصادقة/حماية مناسبة للمشروع.</li>
+                <li>راجع أي محتوى مولّد بشرياً قبل استخدامه تجارياً.</li>
+              </ul>
               <label>
                 مصدر المحتوى
                 <select
@@ -2354,6 +2458,40 @@ export default function App() {
               حالة كل مشهد من النص إلى الفيديو في مكان واحد. اضغط "الانتقال للمشهد" للتعديل، أو
               استخدم الأزرار للاستماع/معاينة/إعادة التوليد مباشرة.
             </p>
+
+            <div className="continuity-controls">
+              <h3>سجل العمليات الأخيرة</h3>
+              <div className="action-bar">
+                <button className="ghost-button" onClick={refreshProjectJobs} disabled={!projectId || projectJobsBusy}>
+                  {projectJobsBusy ? "جاري التحديث..." : "تحديث السجل"}
+                </button>
+              </div>
+              {!projectJobs.length ? (
+                <p className="muted-text">لا توجد عمليات مسجّلة لهذا المشروع بعد، أو لم يتم تحديث السجل.</p>
+              ) : (
+                <div className="scene-list">
+                  {projectJobs.map((job) => (
+                    <div key={job.job_id} className="scene-card">
+                      <div className="scene-card-header">
+                        <strong>{JOB_TYPE_LABELS[job.job_type] || job.job_type}</strong>
+                        <span className={`tts-status-chip tts-status--${job.status === "done" ? "ready" : job.status === "failed" ? "error" : "warning"}`}>
+                          {JOB_STATUS_LABELS[job.status] || job.status}
+                        </span>
+                      </div>
+                      <p className="muted-text">
+                        {job.message_ar || `${job.completed_steps} من ${job.total_steps}`}
+                        {job.safe_error_ar ? ` — ${job.safe_error_ar}` : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="muted-text field-hint">
+                لا يوجد إلغاء أو إعادة محاولة مباشرة من هنا حالياً — لإعادة أي عملية، استخدم زر
+                التوليد نفسه من خطوته (الصوت/الصور/الفيديو/تحسين القصة).
+              </p>
+            </div>
+
             {!scenes.length ? (
               <p className="muted-text">لا توجد مشاهد بعد — ابدأ من خطوة "القصة" ثم "تقسيم إلى مشاهد".</p>
             ) : (
@@ -2454,18 +2592,24 @@ export default function App() {
                 {scenes.map((scene) => {
                   const audioInfo = projectAudio?.scenes.find((s) => s.scene_id === scene.scene_id);
                   return audioInfo?.has_audio && audioInfo.url ? (
-                    <a key={scene.scene_id} className="ghost-button" href={`${API_BASE_URL}${audioInfo.url}`} download>
-                      صوت مشهد {scene.scene_id}
-                      {audioInfo.audio_bytes != null ? ` (${Math.round(audioInfo.audio_bytes / 1024)} KB)` : ""}
-                    </a>
+                    <div key={scene.scene_id} className="asset-row">
+                      <audio controls src={`${API_BASE_URL}${audioInfo.url}`} style={{ height: "32px" }} />
+                      <a className="ghost-button" href={`${API_BASE_URL}${audioInfo.url}`} download>
+                        صوت مشهد {scene.scene_id}
+                        {audioInfo.audio_bytes != null ? ` (${Math.round(audioInfo.audio_bytes / 1024)} KB)` : ""}
+                      </a>
+                    </div>
                   ) : (
                     <span key={scene.scene_id} className="asset-missing">صوت مشهد {scene.scene_id}: غير موجود</span>
                   );
                 })}
                 {projectAudio?.final_story.has_audio && projectAudio.final_story.url ? (
-                  <a className="ghost-button" href={`${API_BASE_URL}${projectAudio.final_story.url}`} download>
-                    صوت القصة كاملة (final_story.wav)
-                  </a>
+                  <div className="asset-row">
+                    <audio controls src={`${API_BASE_URL}${projectAudio.final_story.url}`} style={{ height: "32px" }} />
+                    <a className="ghost-button" href={`${API_BASE_URL}${projectAudio.final_story.url}`} download>
+                      صوت القصة كاملة (final_story.wav)
+                    </a>
+                  </div>
                 ) : (
                   <span className="asset-missing">صوت القصة كاملة: غير موجود (يحتاج صوتاً لمشهدين على الأقل)</span>
                 )}
@@ -2478,10 +2622,20 @@ export default function App() {
                 {scenes.map((scene) => {
                   const imageInfo = projectImages?.scenes.find((s) => s.scene_id === scene.scene_id);
                   return imageInfo?.has_image && imageInfo.url ? (
-                    <a key={scene.scene_id} className="ghost-button" href={`${API_BASE_URL}${imageInfo.url}`} download>
-                      صورة مشهد {scene.scene_id}
-                      {imageInfo.image_bytes != null ? ` (${Math.round(imageInfo.image_bytes / 1024)} KB)` : ""}
-                    </a>
+                    <div key={scene.scene_id} className="asset-row">
+                      <img
+                        src={`${API_BASE_URL}${imageInfo.url}`}
+                        alt={`صورة المشهد ${scene.scene_id}`}
+                        style={{ height: "56px", borderRadius: "6px" }}
+                      />
+                      <a className="ghost-button" href={`${API_BASE_URL}${imageInfo.url}`} download>
+                        صورة مشهد {scene.scene_id}
+                        {imageInfo.image_bytes != null ? ` (${Math.round(imageInfo.image_bytes / 1024)} KB)` : ""}
+                      </a>
+                      {imageInfo.image_seed != null && (
+                        <small className="muted-text">seed: {imageInfo.image_seed}</small>
+                      )}
+                    </div>
                   ) : (
                     <span key={scene.scene_id} className="asset-missing">صورة مشهد {scene.scene_id}: غير موجودة</span>
                   );
@@ -2493,10 +2647,18 @@ export default function App() {
               <h3>الفيديو والترجمات</h3>
               <div className="export-grid">
                 {projectVideo?.has_video && projectVideo.url ? (
-                  <a className="ghost-button" href={`${API_BASE_URL}${projectVideo.url}`} download>
-                    final_story.mp4
-                    {projectVideo.video_bytes != null ? ` (${Math.round(projectVideo.video_bytes / 1024)} KB)` : ""}
-                  </a>
+                  <div className="asset-row">
+                    <video
+                      src={`${API_BASE_URL}${projectVideo.url}`}
+                      controls
+                      style={{ height: "80px", borderRadius: "6px" }}
+                    />
+                    <a className="ghost-button" href={`${API_BASE_URL}${projectVideo.url}`} download>
+                      final_story.mp4
+                      {projectVideo.duration_seconds != null ? ` — ${projectVideo.duration_seconds} ثانية` : ""}
+                      {projectVideo.video_bytes != null ? ` (${Math.round(projectVideo.video_bytes / 1024)} KB)` : ""}
+                    </a>
+                  </div>
                 ) : (
                   <span className="asset-missing">الفيديو: غير مُجمَّع بعد</span>
                 )}
@@ -2548,14 +2710,30 @@ export default function App() {
                 {approvedCount} من {scenes.length} مشهد معتمد فقط — راجع الباقي قبل اعتبار المشروع نهائياً.
               </p>
             )}
+            {scenes.length > 0 && (
+              <div className="tone-selector" aria-label="تصفية المشاهد بحالة المراجعة">
+                {(["all", "pending", "needs_retry", "rejected", "approved"] as const).map((key) => (
+                  <button
+                    key={key}
+                    className={reviewFilter === key ? "tone active" : "tone"}
+                    onClick={() => setReviewFilter(key)}
+                  >
+                    {key === "all" ? "الكل" : REVIEW_STATUS_LABELS[key]}
+                  </button>
+                ))}
+              </div>
+            )}
             {!scenes.length ? (
               <p className="muted-text">لا توجد مشاهد بعد.</p>
             ) : (
               <div className="scene-list">
-                {scenes.map((scene) => {
+                {scenes
+                  .filter((scene) => reviewFilter === "all" || (scene.review_status || "pending") === reviewFilter)
+                  .map((scene) => {
                   const audioInfo = projectAudio?.scenes.find((s) => s.scene_id === scene.scene_id);
                   const imageInfo = projectImages?.scenes.find((s) => s.scene_id === scene.scene_id);
                   const status = scene.review_status || "pending";
+                  const warnings = getSceneWarnings(scene);
                   return (
                     <div key={scene.scene_id} className="scene-card">
                       <div className="scene-card-header">
@@ -2565,6 +2743,7 @@ export default function App() {
                         </span>
                       </div>
                       <p className="muted-text">{scene.narration_ar || "(بدون نص راوٍ)"}</p>
+                      {warnings.length > 0 && <p className="error-banner">{warnings.join(" · ")}</p>}
                       <div className="action-bar">
                         {audioInfo?.has_audio && audioInfo.url && (
                           <audio controls src={`${API_BASE_URL}${audioInfo.url}`} style={{ height: "32px" }} />
@@ -2714,6 +2893,54 @@ export default function App() {
           </section>
           )}
 
+          {activeStep === "assistant" && (
+          <section className="audio-panel">
+            <div className="panel-header">
+              <div>
+                <span className="eyebrow">Local Assistant Lab</span>
+                <h2>
+                  المساعد المحلي <span className="badge-experimental">تجريبي</span>
+                </h2>
+              </div>
+            </div>
+            <p className="muted-text">
+              سؤال واحد عن المشروع الحالي فقط، يُرسل إلى نفس محرك Ollama المستخدم في "تحسين القصة" —
+              بدون بحث إنترنت حقيقي، بدون قاعدة معرفة (RAG) كاملة، وبدون أي ذاكرة محادثة بين الأسئلة.
+              هذه نسخة مبسّطة آمنة فقط؛ المساعد الكامل (Open WebUI + RAG) يبقى خطة مستقبلية موثّقة في
+              docs/LOCAL_AI_ASSISTANT_LAB_PLAN.md.
+            </p>
+            <p className="muted-text field-hint">
+              قد تكون الإجابة غير دقيقة أو غير مكتملة — راجعها دائماً قبل الاعتماد عليها، ولا تعتبرها
+              مصدراً موثقاً بالاستشهادات.
+            </p>
+            <label>
+              سؤالك عن هذا المشروع
+              <textarea
+                rows={2}
+                value={assistantQuestion}
+                onChange={(e) => setAssistantQuestion(e.target.value)}
+                placeholder="مثال: كم عدد المشاهد في هذه القصة؟ أو: ما موضوع القصة باختصار؟"
+              />
+            </label>
+            <div className="action-bar">
+              <button
+                onClick={handleAskAssistant}
+                disabled={!projectId || assistantBusy}
+                title={!projectId ? "احفظ المشروع أولاً" : undefined}
+              >
+                {assistantBusy ? "جاري التفكير..." : "اسأل"}
+              </button>
+            </div>
+            {assistantMessage && <p className="muted-text">{assistantMessage}</p>}
+            {assistantAnswer && (
+              <div className="tts-job-card">
+                <strong>الإجابة:</strong>
+                <p>{assistantAnswer}</p>
+              </div>
+            )}
+          </section>
+          )}
+
           {activeStep === "export" && (
           <section className="audio-panel export-panel">
             <div className="panel-header">
@@ -2725,7 +2952,13 @@ export default function App() {
             <p className="muted-text">
               حمّل المشروع كاملاً كحزمة ZIP تحتوي القصة، المشاهد، الصوت، الصور، الفيديو والترجمات المتاحة.
             </p>
-            {scenes.length > 0 && approvedCount < scenes.length && (
+            {scenes.length > 0 && rejectedOrRetryCount > 0 && (
+              <p className="error-banner">
+                تنبيه: {rejectedOrRetryCount} من {scenes.length} مشهد "مرفوض" أو "يحتاج إعادة" في
+                "مراجعة الجودة" — التصدير يعمل رغم ذلك، لكن راجع هذه المشاهد أولاً قبل المشاركة.
+              </p>
+            )}
+            {scenes.length > 0 && rejectedOrRetryCount === 0 && approvedCount < scenes.length && (
               <p className="notice-banner">
                 تنبيه: {scenes.length - approvedCount} من {scenes.length} مشهد غير معتمد بعد في "مراجعة
                 الجودة" — التصدير يعمل رغم ذلك، هذا فقط تذكير.
