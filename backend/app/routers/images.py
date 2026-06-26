@@ -6,7 +6,7 @@ from fastapi.responses import Response
 from app.ai_providers.image_worker import DEFAULT_NEGATIVE_PROMPT, ImageWorkerClient, ImageWorkerError
 from app.config import Settings, get_settings
 from app.jobs import JobStore, get_job_store, now_iso
-from app.schemas import ApiEnvelope, ImageJobRequest, ProjectResponse, Scene
+from app.schemas import ApiEnvelope, ImageJobRequest, ProjectResponse, Scene, StandaloneImageJobRequest
 from app.storage import ProjectStorage
 
 router = APIRouter(tags=["images"])
@@ -231,6 +231,33 @@ def create_image_job(
     )
 
 
+@router.get("/api/projects/{project_id}/images/scenes/{scene_id}/prompt-preview", response_model=ApiEnvelope)
+def preview_scene_image_prompt(
+    project_id: str,
+    scene_id: str,
+    storage: ProjectStorage = Depends(get_storage),
+) -> ApiEnvelope:
+    """Milestone F: show the exact assembled prompt (style preset + story/
+    character/location/object bibles + continuity rules) before spending an
+    AI Server job on it -- read-only, no image worker call."""
+    try:
+        project = storage.get_project(project_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    scene = next((s for s in project.scenes if s.scene_id == scene_id), None)
+    if scene is None:
+        raise HTTPException(status_code=404, detail="Scene not found in project.")
+
+    return ApiEnvelope(
+        data={
+            "scene_id": scene_id,
+            "prompt": build_scene_image_prompt(project, scene),
+            "negative_prompt": build_negative_prompt(project),
+        }
+    )
+
+
 @router.post("/api/projects/{project_id}/images/scenes/{scene_id}/generate", response_model=ApiEnvelope)
 def generate_scene_image(
     project_id: str,
@@ -387,6 +414,44 @@ def get_scene_image(
     if path is None:
         raise HTTPException(status_code=404, detail="Scene image not found.")
     return Response(content=path.read_bytes(), media_type="image/png")
+
+
+@router.post("/api/images/standalone/jobs", response_model=ApiEnvelope)
+def create_standalone_image_job(
+    request: StandaloneImageJobRequest,
+    client: ImageWorkerClient = Depends(get_image_client),
+) -> ApiEnvelope:
+    """Milestone G -- Simple Image Studio: a single prompt produces one image,
+    deliberately separate from the story/scene pipeline (no scene_id, no
+    character/location/object bibles, no continuity rules mixed in). Polling
+    and download reuse the existing /api/images/jobs/{job_id} endpoints
+    below, which were already project-agnostic."""
+    if not client.is_configured():
+        raise HTTPException(status_code=503, detail="Image service is not configured.")
+
+    parts = []
+    if request.style_preset:
+        preset_text = STYLE_PRESETS.get(request.style_preset, "")
+        if preset_text:
+            parts.append(preset_text)
+    parts.append(request.prompt)
+    prompt = ", ".join(parts)
+
+    try:
+        job_id = client.create_job(
+            prompt,
+            request.width or DEFAULT_WIDTH,
+            request.height or DEFAULT_HEIGHT,
+            request.seed if request.seed is not None else int(time.time()),
+            negative_prompt=request.negative_prompt or DEFAULT_NEGATIVE_PROMPT,
+        )
+    except ImageWorkerError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return ApiEnvelope(
+        data={"job_id": job_id, "status": "queued", "prompt": prompt},
+        meta={"provider": "image-worker", "studio": "standalone"},
+    )
 
 
 @router.get("/api/images/jobs/{job_id}", response_model=ApiEnvelope)
