@@ -1,19 +1,30 @@
-"""Regression test for the manual-QA long-story improve fix (2026-06-25):
+"""Regression test for the manual-QA long-story improve fix (2026-06-25) and
+the long-sentence-without-punctuation hardening fix (2026-06-26):
 
 /api/story/improve must not misreport a slow request (long story, near the
 model's context/time budget) as the generic "service unreachable" message,
 and must split long stories into ordered chunks instead of sending one
-oversized prompt that tends to time out.
+oversized prompt that tends to time out -- including a pathological case
+where the text has no `.!?؟` punctuation at all (e.g. one giant run-on
+sentence), which previously caused `_split_long_paragraph()` to silently
+truncate text instead of chunking it.
 
-Self-contained, hits the live backend over HTTP only -- no direct imports of
-backend modules. Builds synthetic Arabic filler text locally and NEVER prints
-story or improved-text content, only structural facts (character counts,
-chunk_count, HTTP status, errors_count), per the manual-QA transcript rule.
+Hits the live backend over HTTP for the integration checks. The pure local
+chunking-correctness check (`split_text_into_chunks`) additionally imports
+`backend/app/story_engine/engine.py` directly -- this is a dependency-free
+pure function (no I/O, no Ollama call), so this is the one script in this
+repo that imports backend code instead of staying HTTP-only, specifically to
+prove zero text loss byte-for-byte, which a live Ollama round-trip cannot
+prove (the model is free to paraphrase/shorten).
 
-Requires the backend to be up. If Ollama itself is not reachable, the test
-still verifies the failure path returns a real connection error (HTTP 200
-envelope with a non-empty errors list) instead of raising an unhandled
-exception, then skips the success-path (chunking) assertions.
+NEVER prints story or improved-text content, only structural facts (character
+counts, chunk_count, HTTP status, errors_count), per the manual-QA transcript
+rule.
+
+Requires the backend to be up. If Ollama itself is not reachable, the
+integration checks verify the failure path returns a real connection error
+(HTTP 200 envelope with a non-empty errors list) instead of raising an
+unhandled exception, then skip the success-path (chunking) assertions.
 """
 
 from __future__ import annotations
@@ -23,6 +34,8 @@ import os
 import sys
 import urllib.error
 import urllib.request
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
 BASE_URL = os.environ.get("SMOKE_BASE_URL", "http://localhost:8810")
 
@@ -35,6 +48,10 @@ _FILLER_PARAGRAPH = (
     "في ليلة من ليالي الشتاء الباردة، جلس الأطفال حول النار يستمعون إلى حكايات "
     "الراوي العجوز الذي كان يحمل فانوساً يضيء له الطريق بين القرى البعيدة.\n\n"
 )
+
+# One giant run-on "sentence" -- no periods/commas/newlines anywhere, the
+# pathological case for the sentence-boundary splitter's fallback path.
+_NO_PUNCTUATION_WORD = "كلمة"
 
 
 def request(method: str, path: str, body: dict | None = None, timeout: int = 30) -> tuple[int, dict]:
@@ -70,11 +87,29 @@ def build_long_story(chunk_chars: int) -> str:
     return "".join(parts).strip()
 
 
+def check_no_punctuation_chunking_is_lossless(chunk_chars: int) -> None:
+    """Pure local check: a long run-on sentence with zero `.!?؟` punctuation
+    must be split into chunks whose concatenation exactly reproduces the
+    original text -- no character dropped, no truncation."""
+    from app.story_engine.engine import split_text_into_chunks  # local import, see module docstring
+
+    text = ((_NO_PUNCTUATION_WORD + " ") * 3000).strip()
+    chunks = split_text_into_chunks(text, chunk_chars)
+    reassembled = "".join(chunks)
+    check("no-punctuation text: at least 2 chunks produced", len(chunks) > 1)
+    check("no-punctuation text: every chunk respects the max_chars limit", all(len(c) <= chunk_chars for c in chunks))
+    check("no-punctuation text: reassembled length matches original exactly (zero text loss)", len(reassembled) == len(text))
+    check("no-punctuation text: reassembled content matches original exactly", reassembled == text)
+    print(f"[INFO] no_punctuation_original_len={len(text)} chunk_count={len(chunks)} reassembled_len={len(reassembled)}")
+
+
 def main() -> None:
     status, config_body = request("GET", "/api/config")
     check("GET /api/config returns 200", status == 200)
     chunk_chars = int(config_body.get("data", {}).get("long_story_chunk_chars") or 6000)
     print(f"[INFO] long_story_chunk_chars={chunk_chars}")
+
+    check_no_punctuation_chunking_is_lossless(chunk_chars)
 
     status, health_body = request("GET", "/api/ai/ollama/health")
     ollama_ok = bool(health_body.get("data", {}).get("ok"))

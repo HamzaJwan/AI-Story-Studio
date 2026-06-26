@@ -170,7 +170,16 @@ def split_text_into_chunks(text: str, max_chars: int) -> list[str]:
 
 
 def _split_long_paragraph(paragraph: str, max_chars: int) -> list[str]:
+    """Split one long paragraph by sentence boundary; if a single "sentence"
+    (a run-on with no `.!?؟` anywhere) is itself longer than max_chars, hard-
+    split it into max_chars-sized pieces instead of truncating. Losing
+    narration text is worse than sending one oversized chunk to Ollama --
+    this function must never drop any input character.
+    """
     sentences = [s for s in re.split(r"(?<=[.!?؟])\s+", paragraph) if s]
+    if not sentences:
+        sentences = [paragraph]
+
     chunks: list[str] = []
     current = ""
     for sentence in sentences:
@@ -180,12 +189,21 @@ def _split_long_paragraph(paragraph: str, max_chars: int) -> list[str]:
             continue
         if current:
             chunks.append(current)
-        # A single sentence longer than max_chars is a rare edge case (no normal
-        # punctuation) -- hard-cut it so this function always terminates.
-        current = sentence[:max_chars] if len(sentence) > max_chars else sentence
+            current = ""
+        if len(sentence) <= max_chars:
+            current = sentence
+            continue
+        # No normal punctuation inside this "sentence" either -- hard-split into
+        # max_chars-sized pieces so every character still ends up in some chunk.
+        for start in range(0, len(sentence), max_chars):
+            piece = sentence[start : start + max_chars]
+            if start + max_chars >= len(sentence):
+                current = piece
+            else:
+                chunks.append(piece)
     if current:
         chunks.append(current)
-    return chunks or [paragraph[:max_chars]]
+    return chunks
 
 
 def extract_json_object(text: str) -> Any:
