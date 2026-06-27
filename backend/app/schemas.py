@@ -18,8 +18,12 @@ class ImproveStoryRequest(BaseModel):
     story_text: str = Field(min_length=1)
     tone: str = "عسكري هادئ"
     language: str = "ar"
+    # Optional -- only used for the "تلقائي" (auto-mood) analysis pass
+    # (Milestone 1), which reads the title + first/last slice of the story,
+    # never the full text. Safe to omit for any manually-chosen tone.
+    title: str = Field(default="", max_length=180)
 
-    @field_validator("story_text")
+    @field_validator("story_text", "title")
     @classmethod
     def strip_story(cls, value: str) -> str:
         return value.strip()

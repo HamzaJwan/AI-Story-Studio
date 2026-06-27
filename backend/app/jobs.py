@@ -44,6 +44,17 @@ class JobRecord:
     finished_at: str | None = None
     result_summary: dict[str, Any] | None = None
     affected_scene_ids: list[str] = field(default_factory=list)
+    # Optional, backward-compatible fields (Milestone 5) -- old job JSON
+    # files on disk simply lack these keys, and the dataclass defaults below
+    # fill them in on load via `JobRecord(**data)`, so no migration is needed.
+    phase: str | None = None
+    progress_percent: float | None = None
+    elapsed_seconds: float | None = None
+    estimated_remaining_seconds: float | None = None
+    last_activity_at: str | None = None
+    generated_units: int = 0
+    retry_count: int = 0
+    cancel_requested: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

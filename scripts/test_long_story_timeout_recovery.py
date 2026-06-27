@@ -130,13 +130,14 @@ def test_short_story_keeps_num_predict_2500() -> None:
     provider = FakeProvider()
     engine = StoryEngine(provider)
     short_story = "قصة قصيرة جداً عن راوٍ وفانوس قديم."
-    improved_text, _latency_ms, chunk_count = engine.improve_narration_script(
-        story_text=short_story, tone="هادئ", language="ar", chunk_chars=3000
-    )
-    check("short story: chunk_count == 1", chunk_count == 1)
+    result = engine.improve_narration_script(story_text=short_story, tone="هادئ", language="ar", chunk_chars=3000)
+    check("short story: chunk_count == 1", result.chunk_count == 1)
     check("short story: exactly one Ollama call", len(provider.calls) == 1)
     check("short story: num_predict == SHORT_STORY_NUM_PREDICT (2500)", provider.calls[0]["num_predict"] == SHORT_STORY_NUM_PREDICT)
-    check("short story: improved_text non-empty", bool(improved_text))
+    check("short story: improved_text non-empty", bool(result.improved_text))
+    check("short story: requested_tone preserved (custom manual tone)", result.requested_tone == "هادئ")
+    check("short story: resolved_tone equals requested_tone (no analysis call)", result.resolved_tone == "هادئ")
+    check("short story: analysis_fallback is False (no analysis attempted)", result.analysis_fallback is False)
 
 
 def test_adaptive_retry_on_chunk_timeout() -> None:
@@ -157,13 +158,14 @@ def test_adaptive_retry_on_chunk_timeout() -> None:
     engine = StoryEngine(provider)
 
     notices: list[str] = []
-    improved_text, _latency_ms, chunk_count = engine.improve_narration_script(
+    result = engine.improve_narration_script(
         story_text=story,
         tone="هادئ",
         language="ar",
         chunk_chars=chunk_chars,
         on_retry_notice=notices.append,
     )
+    improved_text, chunk_count = result.improved_text, result.chunk_count
 
     check("adaptive retry: chunk_count == 2 (top-level chunks unchanged)", chunk_count == 2)
     check("adaptive retry: exactly one retry notice fired", len(notices) == 1)
@@ -183,21 +185,26 @@ def test_adaptive_retry_on_chunk_timeout() -> None:
     print(f"[INFO] total_calls={len(provider.calls)} subchunks={len(expected_subchunks)} markers={markers}")
 
 
-def test_final_failure_message_after_subchunk_retry_exhausted() -> None:
-    """If a subchunk still times out after its one retry, the job must fail
-    with the specific Arabic message -- never the forbidden long-story-mode
-    suggestion, and never an unhandled exception."""
+class AlwaysFailProvider(FakeProvider):
+    """Every call times out, unconditionally -- used to prove the recursive
+    recovery is bounded (MAX_RECOVERY_DEPTH) and always terminates with a
+    clear failure instead of looping or crashing."""
+
+    def generate_text(self, prompt, model=None, temperature=0.2, num_ctx=8192, num_predict=None):
+        call_index = len(self.calls)
+        self.calls.append({"prompt_chars": len(prompt), "num_predict": num_predict})
+        raise OllamaTimeoutError(timeout_seconds=self.timeout, message=f"simulated timeout {call_index}")
+
+
+def test_final_failure_message_after_recovery_exhausted() -> None:
+    """If every attempt at every recovery depth still times out, the job must
+    fail with the specific Arabic message -- never the forbidden long-story-
+    mode suggestion, never an unhandled exception, and never an unbounded
+    number of calls (recursion depth is capped)."""
     chunk_chars = 600
     story = build_story(1100)
-    chunks = split_text_into_chunks(story, chunk_chars)
-    expected_subchunks = split_failed_chunk_for_retry(chunks[0], max_chars=max(400, len(chunks[0]) // 2))
 
-    provider = FakeProvider(timeout=180)
-    # Call 0: chunk 1 first attempt -> timeout. Calls 1..N: every subchunk's
-    # first attempt -> timeout too, forcing each into its retry attempt,
-    # which also times out -- so the chunk can never recover.
-    provider.behaviors = [OllamaTimeoutError(180, "t")] * (1 + len(expected_subchunks) * 2)
-
+    provider = AlwaysFailProvider(timeout=180)
     engine = StoryEngine(provider)
     notices: list[str] = []
     raised: OllamaError | None = None
@@ -213,6 +220,9 @@ def test_final_failure_message_after_subchunk_retry_exhausted() -> None:
     check("final failure: message does NOT contain the forbidden long-story-mode phrase", FORBIDDEN_PHRASE not in message)
     check("final failure: message explains a subchunk failed after splitting/retry", "تقسيمه إلى أجزاء أصغر" in message)
     check("final failure: message hints at possible CPU fallback", "CPU" in message)
+    check("final failure: at least one retry notice fired before giving up", len(notices) > 0)
+    check("final failure: total Ollama calls stayed bounded (recursion depth is capped)", len(provider.calls) < 200)
+    print(f"[INFO] total_calls_before_giving_up={len(provider.calls)} notices_fired={len(notices)}")
 
 
 def main() -> None:
@@ -220,7 +230,7 @@ def main() -> None:
     test_retry_split_long_run_on_sentence()
     test_short_story_keeps_num_predict_2500()
     test_adaptive_retry_on_chunk_timeout()
-    test_final_failure_message_after_subchunk_retry_exhausted()
+    test_final_failure_message_after_recovery_exhausted()
     print("Long story timeout recovery test passed.")
 
 

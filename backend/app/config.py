@@ -15,6 +15,16 @@ class Settings(BaseSettings):
     data_dir: str = "./data"
     max_story_chars: int = 25000
     long_story_chunk_chars: int = 3000
+    # Milestone 8 -- routing decision for /story/improve, independent of
+    # LONG_STORY_CHUNK_CHARS: any story over this length uses the job-based
+    # endpoint (real progress, cooperative cancel, the recovery path above)
+    # instead of the fragile synchronous request, even if it still fits in a
+    # single chunk and would otherwise take the old blocking single-shot path.
+    story_job_threshold_chars: int = 1500
+    # Milestone 7 -- global wall-clock deadline for one story-improve job,
+    # independent of OLLAMA_TIMEOUT_SECONDS (which only bounds a single
+    # request/stream gap). Stops retries/splits from running indefinitely.
+    long_story_max_total_seconds: int = 900
     tts_enabled: bool = False
     tts_service_url: str = ""
     tts_timeout_seconds: int = 30

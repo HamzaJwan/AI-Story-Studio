@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8810";
 
-const TONES = ["عسكري هادئ", "وثائقي مؤثر", "قصصي دافئ", "تشويقي"];
+const AUTO_TONE_VALUE = "تلقائي";
+const TONES = [AUTO_TONE_VALUE, "عسكري هادئ", "وثائقي مؤثر", "قصصي دافئ", "تشويقي"];
 
 const TONE_DESCRIPTIONS: Record<string, string> = {
+  [AUTO_TONE_VALUE]: "يحلّل النظام بداية ونهاية القصة ويقترح الأسلوب الأنسب تلقائياً (يمكنك اختيار نبرة محددة بدلاً منه في أي وقت).",
   "عسكري هادئ": "لغة منضبطة ومباشرة، بإيقاع ثابت ومن دون مبالغة. مناسب للتجارب القيادية والرسمية.",
   "وثائقي مؤثر": "سرد واقعي يشرح الأحداث بعمق ويبرز أثرها الإنساني. مناسب للقصص الحقيقية والمشاريع.",
   "قصصي دافئ": "لغة حميمة وناعمة تركز على المشاعر والذكريات. مناسب للقصص الشخصية والعائلية.",
@@ -45,9 +47,23 @@ type ConfigData = {
   model: string;
   ollama_configured: boolean;
   long_story_chunk_chars: number;
+  story_job_threshold_chars?: number;
+  long_story_max_total_seconds?: number;
+  ollama_timeout_seconds?: number;
 };
 
 const DEFAULT_LONG_STORY_CHUNK_CHARS = 3000;
+const DEFAULT_STORY_JOB_THRESHOLD_CHARS = 1500;
+const DEFAULT_OLLAMA_TIMEOUT_SECONDS = 180;
+
+type ToneAnalysisInfo = {
+  requestedTone: string;
+  resolvedTone: string;
+  genre: string | null;
+  pacing: string | null;
+  reasonAr: string | null;
+  analysisFallback: boolean;
+};
 
 type SplitData = {
   project_id: string | null;
@@ -416,6 +432,16 @@ const deleteJson = <T,>(path: string) => requestJson<T>(path, { method: "DELETE"
 
 // ── Jobs (Milestone A lightweight progress polling) ────────────────────────────
 
+type JobPhase =
+  | "analyzing"
+  | "preparing_chunks"
+  | "generating"
+  | "retrying"
+  | "assembling"
+  | "done"
+  | "failed"
+  | "cancelled";
+
 type JobRecord = {
   job_id: string;
   project_id: string;
@@ -428,7 +454,33 @@ type JobRecord = {
   safe_error_ar: string | null;
   result_summary: Record<string, unknown> | null;
   affected_scene_ids: string[];
+  phase?: JobPhase | null;
+  progress_percent?: number | null;
+  elapsed_seconds?: number | null;
+  estimated_remaining_seconds?: number | null;
+  last_activity_at?: string | null;
+  generated_units?: number;
+  retry_count?: number;
+  cancel_requested?: boolean;
 };
+
+const JOB_PHASE_LABELS: Record<string, string> = {
+  analyzing: "تحليل القصة",
+  preparing_chunks: "تجهيز الأجزاء",
+  generating: "توليد النص",
+  retrying: "إعادة محاولة",
+  assembling: "تجميع النتيجة",
+  done: "تم",
+  failed: "فشل",
+  cancelled: "ملغى",
+};
+
+function formatElapsed(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
 
 const JOB_TYPE_LABELS: Record<string, string> = {
   story_improve: "تحسين القصة",
@@ -466,11 +518,22 @@ export default function App() {
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [title, setTitle] = useState("المسرح لي");
   const [storyText, setStoryText] = useState("");
+  // TONES[0] is AUTO_TONE_VALUE ("تلقائي") -- the default for a fresh app
+  // session/new project. There is no per-project persisted tone field, so
+  // loading an existing project (applyProject/handleLoadProject) never
+  // touches this state -- whatever the user currently has selected stays
+  // selected, satisfying "don't change an existing project's tone."
   const [tone, setTone] = useState(TONES[0]);
   const [config, setConfig] = useState<ConfigData | null>(null);
   const [providerMessage, setProviderMessage] = useState("لم يتم الاختبار بعد");
   const [improveProgress, setImproveProgress] = useState("");
   const [improvedText, setImprovedText] = useState("");
+  const [improveJob, setImproveJob] = useState<JobRecord | null>(null);
+  const [improveJobId, setImproveJobId] = useState<string | null>(null);
+  const [improveCancelBusy, setImproveCancelBusy] = useState(false);
+  const [toneAnalysisInfo, setToneAnalysisInfo] = useState<ToneAnalysisInfo | null>(null);
+  const [tickingElapsedSeconds, setTickingElapsedSeconds] = useState(0);
+  const improveJobStartedAtRef = useRef<number | null>(null);
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [expandedIndices, setExpandedIndices] = useState<Set<number>>(new Set([0]));
   const [rawJsonOpen, setRawJsonOpen] = useState(false);
@@ -532,6 +595,21 @@ export default function App() {
     setIsDirty(true);
   }, [title, storyText, improvedText, scenes, storyStyleBible, characterBible, locationBible, objectBible, negativePrompt, stylePreset]);
 
+  // Milestone 5 -- elapsed time must keep moving every second from
+  // started_at even if no new job update has arrived yet (the backend only
+  // writes generated_units/last_activity_at at most once per second).
+  useEffect(() => {
+    if (loading !== "improve" || improveJobStartedAtRef.current === null) {
+      return;
+    }
+    const interval = setInterval(() => {
+      if (improveJobStartedAtRef.current !== null) {
+        setTickingElapsedSeconds((Date.now() - improveJobStartedAtRef.current) / 1000);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [loading, improveJob?.job_id]);
+
   const [ttsHealth, setTtsHealth] = useState<TtsHealthData | null>(null);
   const [ttsMessage, setTtsMessage] = useState("");
   const [ttsJob, setTtsJob] = useState<TtsJobData | null>(null);
@@ -556,6 +634,13 @@ export default function App() {
   const canRun = storyText.trim().length > 0 && loading === null;
   const longStoryChunkChars = config?.long_story_chunk_chars || DEFAULT_LONG_STORY_CHUNK_CHARS;
   const isLongStory = storyText.trim().length > longStoryChunkChars;
+  // Milestone 8 -- routing decision, independent of chunking: any story over
+  // this length uses the job endpoint (real progress/cancel/recovery) even
+  // if it still fits in a single chunk and would otherwise hit the old
+  // fragile blocking synchronous path.
+  const storyJobThresholdChars = config?.story_job_threshold_chars || DEFAULT_STORY_JOB_THRESHOLD_CHARS;
+  const usesJobEndpoint = storyText.trim().length > storyJobThresholdChars;
+  const ollamaTimeoutSeconds = config?.ollama_timeout_seconds || DEFAULT_OLLAMA_TIMEOUT_SECONDS;
 
   const sceneStats = useMemo(() => {
     const totalDuration = scenes.reduce((sum, s) => sum + (s.duration_seconds || 0), 0);
@@ -752,6 +837,7 @@ export default function App() {
         scenes: [],
       });
       applyProject(r.data);
+      setTone(AUTO_TONE_VALUE);
       await refreshProjects();
       showNotice("تم إنشاء مشروع جديد.");
     } catch (exc) {
@@ -895,24 +981,52 @@ export default function App() {
   async function handleImproveStory() {
     setLoading("improve");
     setError("");
-    setImproveProgress(isLongStory ? "النص طويل، سيتم تحسينه على أجزاء. قد يستغرق ذلك دقيقة أو أكثر..." : "");
+    setToneAnalysisInfo(null);
+    setImproveJob(null);
+    setImproveJobId(null);
+    setTickingElapsedSeconds(0);
+    improveJobStartedAtRef.current = null;
+    setImproveProgress(
+      tone === AUTO_TONE_VALUE
+        ? "جاري تحليل القصة لاختيار النبرة المناسبة..."
+        : isLongStory
+        ? "النص طويل، سيتم تحسينه على أجزاء. قد يستغرق ذلك دقيقة أو أكثر..."
+        : ""
+    );
     try {
-      if (isLongStory) {
-        // Long stories use the job-based endpoint so the UI can show real
-        // per-chunk progress (e.g. "جاري تحسين الجزء 2 من 3...") instead of a
-        // single blocking request with no feedback for a minute or more.
+      if (usesJobEndpoint) {
+        // Stories over storyJobThresholdChars use the job-based endpoint so
+        // the UI can show real progress/timing/cancel instead of a single
+        // blocking request with no feedback -- this applies even to a story
+        // that still fits in one chunk, not just genuinely "long" ones.
+        improveJobStartedAtRef.current = Date.now();
         const r = await postJson<JobRecord>(`/api/projects/${projectId ?? "draft"}/story/improve/jobs`, {
           story_text: storyText,
           tone,
+          title,
           language: "ar",
         });
         if (r.errors.length) {
           setError(r.errors.join(" "));
           return;
         }
+        setImproveJobId(r.data.job_id);
         const finalJob = await pollJob(r.data.job_id, (job) => {
+          setImproveJob(job);
           setImproveProgress(job.message_ar || `جاري تحسين الجزء ${job.current_step} من ${job.total_steps}...`);
+          const summary = job.result_summary as Record<string, unknown> | null;
+          if (summary && typeof summary.resolved_tone === "string") {
+            setToneAnalysisInfo({
+              requestedTone: String(summary.requested_tone ?? tone),
+              resolvedTone: String(summary.resolved_tone),
+              genre: (summary.genre as string | null) ?? null,
+              pacing: (summary.pacing as string | null) ?? null,
+              reasonAr: (summary.reason_ar as string | null) ?? null,
+              analysisFallback: Boolean(summary.analysis_fallback),
+            });
+          }
         });
+        setImproveJob(finalJob);
         if (finalJob.status === "done" && finalJob.result_summary) {
           const summary = finalJob.result_summary as { improved_text: string; chunk_count: number };
           setImprovedText(summary.improved_text);
@@ -921,6 +1035,8 @@ export default function App() {
               ? `تم تحسين القصة على ${summary.chunk_count} أجزاء. لا تنس حفظ المشروع.`
               : "تم تحسين القصة. لا تنس حفظ المشروع."
           );
+        } else if (finalJob.status === "cancelled") {
+          showNotice("تم إلغاء تحسين القصة.");
         } else {
           setError(finalJob.safe_error_ar || "تعذر تحسين القصة.");
         }
@@ -930,12 +1046,23 @@ export default function App() {
       const r = await postJson<{ improved_text: string }>("/api/story/improve", {
         story_text: storyText,
         tone,
+        title,
         language: "ar",
       });
       if (r.errors.length) {
         setError(r.errors.join(" "));
       } else {
         setImprovedText(r.data.improved_text);
+        if (r.meta && typeof r.meta.resolved_tone === "string") {
+          setToneAnalysisInfo({
+            requestedTone: String(r.meta.requested_tone ?? tone),
+            resolvedTone: String(r.meta.resolved_tone),
+            genre: (r.meta.genre as string | null) ?? null,
+            pacing: (r.meta.pacing as string | null) ?? null,
+            reasonAr: (r.meta.reason_ar as string | null) ?? null,
+            analysisFallback: Boolean(r.meta.analysis_fallback),
+          });
+        }
         showNotice("تم تحسين القصة. لا تنس حفظ المشروع.");
       }
     } catch (err) {
@@ -943,6 +1070,20 @@ export default function App() {
     } finally {
       setLoading(null);
       setImproveProgress("");
+      improveJobStartedAtRef.current = null;
+    }
+  }
+
+  async function handleCancelImprove() {
+    if (!improveJobId) return;
+    setImproveCancelBusy(true);
+    try {
+      await postJson<JobRecord>(`/api/jobs/${improveJobId}/cancel`, {});
+      showNotice("تم طلب الإلغاء، سيتم الإيقاف عند أول نقطة آمنة.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تعذر إرسال طلب الإلغاء.");
+    } finally {
+      setImproveCancelBusy(false);
     }
   }
 
@@ -1705,6 +1846,15 @@ export default function App() {
                   : "جاري التحسين..."
                 : "تحسين القصة"}
             </button>
+            {loading === "improve" && improveJobId && (
+              <button onClick={handleCancelImprove} disabled={improveCancelBusy || improveJob?.cancel_requested}>
+                {improveCancelBusy
+                  ? "جاري إرسال الإلغاء..."
+                  : improveJob?.cancel_requested
+                  ? "سيتم الإيقاف عند أول نقطة آمنة..."
+                  : "إلغاء العملية"}
+              </button>
+            )}
             <button onClick={handleSplitScenes} disabled={!canRun}>
               {loading === "split" ? "جاري التقسيم..." : "تقسيم إلى مشاهد"}
             </button>
@@ -1728,6 +1878,47 @@ export default function App() {
             </button>
           </div>
           {improveProgress && <p className="muted-text">{improveProgress}</p>}
+          {loading === "improve" && improveJobId && (
+            <div className="continuity-controls">
+              <p className="muted-text">
+                المرحلة: {JOB_PHASE_LABELS[improveJob?.phase || ""] || "جاري التحضير"}
+              </p>
+              <p className="muted-text">الوقت المنقضي: {formatElapsed(tickingElapsedSeconds)}</p>
+              <p className="muted-text">
+                آخر نشاط:{" "}
+                {improveJob?.last_activity_at
+                  ? (() => {
+                      const secondsSinceActivity = (Date.now() - new Date(improveJob.last_activity_at as string).getTime()) / 1000;
+                      if (secondsSinceActivity < ollamaTimeoutSeconds) {
+                        return `منذ ${Math.max(0, Math.round(secondsSinceActivity))} ثوانٍ -- Ollama ما زال يعالج.`;
+                      }
+                      return "لم يصل نشاط جديد من Ollama، قد تكون العملية متوقفة.";
+                    })()
+                  : "بانتظار أول استجابة..."}
+              </p>
+              <p className="muted-text">
+                التقدم:{" "}
+                {improveJob && improveJob.total_steps > 1
+                  ? `الجزء ${improveJob.current_step} من ${improveJob.total_steps}`
+                  : improveJob?.progress_percent != null
+                  ? `${improveJob.progress_percent}%`
+                  : "جزء واحد"}
+              </p>
+              <p className="muted-text">
+                ETA:{" "}
+                {improveJob?.estimated_remaining_seconds != null && improveJob.estimated_remaining_seconds > 0
+                  ? `حوالي ${formatElapsed(improveJob.estimated_remaining_seconds)} (تقديري)`
+                  : "سيظهر الوقت التقديري بعد اكتمال أول جزء."}
+              </p>
+            </div>
+          )}
+          {toneAnalysisInfo && toneAnalysisInfo.requestedTone === AUTO_TONE_VALUE && (
+            <p className="muted-text field-hint">
+              النبرة المقترحة: {toneAnalysisInfo.resolvedTone}
+              {toneAnalysisInfo.reasonAr ? ` — لأن ${toneAnalysisInfo.reasonAr}` : ""}
+              {toneAnalysisInfo.analysisFallback ? " (تعذّر التحليل التلقائي، استُخدمت نبرة افتراضية)" : ""}
+            </p>
+          )}
         </div>
 
         )}
