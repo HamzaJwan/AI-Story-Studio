@@ -1,6 +1,6 @@
 # Image Continuity Strategy
 
-Last updated: 2026-06-25
+Last updated: 2026-06-27
 
 ## Problem
 
@@ -129,6 +129,26 @@ is still an independent generation call with no real cross-scene memory, no refe
 IPAdapter/ControlNet. It only biases a single generation to respect what the bibles already say;
 it cannot guarantee continuity the way Tier 3+ would. Quality remains `CANDIDATE`. The full assembled
 prompt (bibles + continuity sentence) is saved to `scene.image_prompt_used` for review.
+
+### Tier 1 hardening, round 2 (2026-06-27 manual QA fix pack)
+
+Investigated whether a reference-image mechanism (Tier 3) could be added cleanly to close the
+gap explicitly. It cannot without IPAdapter/ControlNet or a new model: `backend/app/ai_providers/
+image_worker.py`'s ComfyUI workflow is a pure SDXL txt2img graph with no `LoadImage`/img2img node
+at all. Per explicit instruction, that was left for a later, dedicated round rather than rushed in
+here. Instead, the one remaining textual gap was closed: the character bible was already repeated
+as an explicit identity-lock sentence, but the location bible was only stated once. Added a mirrored
+location-lock sentence in `build_scene_image_prompt()` ("the location must remain consistent with
+its description ... unless this scene's own description explicitly places it somewhere else") --
+same pattern as the character lock, including the same per-scene override behavior.
+
+**Real test, 3 scenes, one recurring character, visually inspected (not just measured):** all three
+generated images showed the same elderly male character (same headscarf, robe, beard) and the same
+warm lantern-lit mood; scene 2 correctly rendered an outdoor night street because its own scene text
+said so, while scenes 1 and 3 shared the indoor lantern look from the location bible. No gender drift
+observed in this test -- a clear, visible improvement over the gender-drift failure mode recorded in
+`docs/COMFYUI_MANUAL_TEST_NOTES.md`. Still Tier 1: faces are not pixel-identical between scenes, and
+nothing here is a guarantee on a longer or more complex story.
 
 ## Long Stories
 

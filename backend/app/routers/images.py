@@ -72,8 +72,9 @@ def build_scene_image_prompt(project: ProjectResponse, scene: Scene) -> str:
     character_bible = project.character_bible.strip()
     if character_bible:
         parts.append(f"Characters: {character_bible}")
-    if project.location_bible.strip():
-        parts.append(f"Location: {project.location_bible.strip()}")
+    location_bible = project.location_bible.strip()
+    if location_bible:
+        parts.append(f"Location: {location_bible}")
     if project.object_bible.strip():
         parts.append(f"Important objects: {project.object_bible.strip()}")
     parts.append(CONTINUITY_RULES)
@@ -82,6 +83,16 @@ def build_scene_image_prompt(project: ProjectResponse, scene: Scene) -> str:
             f"The character(s) must remain exactly as described ({character_bible}) -- "
             "same gender, same age, same face and body type, same clothing -- do not "
             "change their identity in this image."
+        )
+    # Manual QA fix pack (2026-06-27): the character identity-lock above gets
+    # repeated for the same reason a location lock needs repeating -- a single
+    # mention is easy for the model to deprioritize. Mirrors the character
+    # lock pattern exactly, only for location/environment instead of identity.
+    if location_bible:
+        parts.append(
+            f"The location must remain consistent with its description ({location_bible}) -- "
+            "same general environment, lighting mood, and color palette as the rest of this "
+            "story -- unless this scene's own description explicitly places it somewhere else."
         )
     return ", ".join(part for part in parts if part)
 
