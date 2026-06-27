@@ -4,6 +4,13 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8810
 
 const TONES = ["عسكري هادئ", "وثائقي مؤثر", "قصصي دافئ", "تشويقي"];
 
+const TONE_DESCRIPTIONS: Record<string, string> = {
+  "عسكري هادئ": "لغة منضبطة ومباشرة، بإيقاع ثابت ومن دون مبالغة. مناسب للتجارب القيادية والرسمية.",
+  "وثائقي مؤثر": "سرد واقعي يشرح الأحداث بعمق ويبرز أثرها الإنساني. مناسب للقصص الحقيقية والمشاريع.",
+  "قصصي دافئ": "لغة حميمة وناعمة تركز على المشاعر والذكريات. مناسب للقصص الشخصية والعائلية.",
+  "تشويقي": "جمل أسرع وتصاعد تدريجي ونهايات تثير الفضول. مناسب للقصص الدرامية والمغامرات.",
+};
+
 const SAMPLE_STORY = `في ليلة هادئة، جلس الراوي أمام نافذة قديمة يتأمل المدينة التي تغيّرت كثيراً. كانت الذكريات تعود إليه مثل موج البحر، تحمل وجوهاً وأصواتاً ومواقف لم تغب عن قلبه. وفي تلك اللحظة، أدرك أن الحكاية لم تكن عن الماضي وحده، بل عن الشجاعة التي يحتاجها الإنسان كي يبدأ من جديد.`;
 
 type ReviewStatus = "pending" | "approved" | "needs_retry" | "rejected";
@@ -40,7 +47,7 @@ type ConfigData = {
   long_story_chunk_chars: number;
 };
 
-const DEFAULT_LONG_STORY_CHUNK_CHARS = 6000;
+const DEFAULT_LONG_STORY_CHUNK_CHARS = 3000;
 
 type SplitData = {
   project_id: string | null;
@@ -1679,11 +1686,13 @@ export default function App() {
                 key={item}
                 className={item === tone ? "tone active" : "tone"}
                 onClick={() => setTone(item)}
+                title={TONE_DESCRIPTIONS[item]}
               >
                 {item}
               </button>
             ))}
           </div>
+          {TONE_DESCRIPTIONS[tone] && <p className="muted-text field-hint">{TONE_DESCRIPTIONS[tone]}</p>}
 
           <div className="action-bar">
             <button onClick={handleTestOllama} disabled={loading !== null}>

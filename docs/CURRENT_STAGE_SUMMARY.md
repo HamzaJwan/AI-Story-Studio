@@ -12,7 +12,7 @@
 
 ## What Changed in This Phase (Production Studio RC2, 2026-06-26)
 
-- **Long story improve fix:** `OllamaProvider` now distinguishes timeout/connection/HTTP errors instead of one misleading "service unreachable" message; stories over `LONG_STORY_CHUNK_CHARS` (default 6000) are split into ordered chunks and improved sequentially.
+- **Long story improve fix:** `OllamaProvider` now distinguishes timeout/connection/HTTP errors instead of one misleading "service unreachable" message; stories over `LONG_STORY_CHUNK_CHARS` (default 3000 as of the 2026-06-27 timeout fix, was 6000) are split into ordered chunks and improved sequentially, with adaptive subchunk retry if a chunk itself times out -- see `docs/DECISION_LOG.md` 2026-06-27 entry.
 - **Job/progress foundation:** local JSON job records (`data/jobs/`, gitignored) with `queued/running/done/failed/cancelled` status; `/jobs` variants for story-improve, images generate-all, video render, and audio generate-all, polled by the frontend with live per-step Arabic messages. Original synchronous endpoints unchanged.
 - **Project Timeline View, Asset Library, Quality Review Board:** three new workflow steps surfacing per-scene production state, every downloadable file, and approve/needs_retry/reject review state -- all derived from existing data, no new heavy backend logic.
 - **Ken Burns video mode:** optional ffmpeg-only `zoompan` zoom-in and per-segment fade, selectable per project; static mode remains default; the existing audio-duration-sync guarantee re-verified for this mode.

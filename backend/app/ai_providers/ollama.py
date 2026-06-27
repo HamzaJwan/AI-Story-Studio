@@ -13,6 +13,20 @@ class OllamaError(RuntimeError):
     pass
 
 
+class OllamaTimeoutError(OllamaError):
+    """Raised only for a real request timeout (Ollama reachable, but the
+    request -- often a long-story chunk -- took longer than the configured
+    timeout). Kept as a distinct, narrow subclass of `OllamaError` so callers
+    can specifically catch *just* the timeout case (to trigger chunk-splitting
+    recovery) while every existing `except OllamaError` site still catches it
+    too, unchanged. Carries only `timeout_seconds` and a safe message -- never
+    a URL, prompt, or story text."""
+
+    def __init__(self, timeout_seconds: int, message: str):
+        super().__init__(message)
+        self.timeout_seconds = timeout_seconds
+
+
 _CONTEXT_OVERFLOW_HINTS = ("context", "too long", "exceed", "out of memory", "token")
 
 
@@ -108,9 +122,19 @@ class OllamaProvider:
             # as one prompt) took longer than `self.timeout`. Misreporting this as a
             # "service unreachable" error was the manual-QA bug: a healthy Ollama with
             # a long story would still show a connection-refused-style message.
-            raise OllamaError(
-                "استغرق الطلب وقتاً أطول من المسموح (Timeout). إذا كانت القصة طويلة، "
-                "جرّب وضع تحسين القصص الطويلة أو قسّم النص إلى أجزاء أصغر."
+            #
+            # This message is only ever shown to the user for the single-shot
+            # (non-chunked) call path. When this is raised from inside the
+            # long-story chunk loop, `StoryEngine` catches `OllamaTimeoutError`
+            # specifically and replaces this message with a chunk-aware one
+            # (see story_engine/engine.py) -- so a user who is already in long
+            # story mode never sees "جرّب وضع تحسين القصص الطويلة" again.
+            raise OllamaTimeoutError(
+                timeout_seconds=self.timeout,
+                message=(
+                    f"استغرق الطلب وقتاً أطول من {self.timeout} ثانية (Timeout). "
+                    "إذا كانت القصة طويلة، جرّب وضع تحسين القصص الطويلة أو قسّم النص إلى أجزاء أصغر."
+                ),
             ) from exc
         except requests.exceptions.ConnectionError as exc:
             raise OllamaError(

@@ -1,5 +1,39 @@
 # Decision Log
 
+## 2026-06-27 — Long story timeout root-cause fix (not just a bigger timeout)
+
+**Context:** Hamza tested a real 8986-character story ("حين صار الخيال منصة"). Long
+Story Mode correctly kicked in ("جاري تحسين الجزء 1 من 2...") but the job then failed
+with a Timeout. Investigation (Codex) confirmed: frontend, job polling, and Ollama
+connectivity were all correct. The real cause was a resource fight on the 8GB AI Server
+GPU -- ComfyUI (~4.6GB) + AllTalk (~1.9GB) left only ~1.2GB free, so Ollama silently fell
+back to CPU-only (`offloaded 0/29 layers to GPU`), and a flat `num_predict=2500` per
+chunk then needed far longer than `OLLAMA_TIMEOUT_SECONDS` (180s) to finish on CPU.
+
+**Decision:** Fix the actual cause with multiple small levers instead of one blunt
+"raise the timeout" change (which would only make a stuck CPU-bound request wait longer,
+not finish sooner):
+1. Lower `LONG_STORY_CHUNK_CHARS` 6000 -> 3000 (smaller request, smaller reply needed).
+2. Scale `num_predict` down by chunk size for long-story chunks (1400/1200/900) instead of
+   a flat 2500, while leaving short stories' single-shot path at 2500, unchanged.
+3. Add `OllamaTimeoutError(OllamaError)` so the story engine can react specifically to a
+   real timeout (vs. connection/HTTP errors) without touching any existing `except
+   OllamaError` call site's behavior.
+4. On a chunk timeout, split *only that chunk* into smaller subchunks
+   (paragraph/line/sentence/comma/whitespace boundaries, lossless, hard-split as last
+   resort) and retry each subchunk once at a further-reduced `num_predict`, instead of
+   failing the whole story immediately.
+5. Replace the old generic "جرّب وضع تحسين القصص الطويلة" timeout message with a specific
+   live notice while recovery is in progress, and a distinct final-failure message
+   (mentioning possible CPU fallback) only if a subchunk still fails after its retry.
+6. Added safe, content-free telemetry logging (lengths/timing/model/error class only,
+   never story or prompt text).
+
+**Not done, by explicit instruction:** did not raise `OLLAMA_TIMEOUT_SECONDS`, did not
+change the Ollama model, did not stop/restart ComfyUI/AllTalk/Ollama from the app, and
+did not add any DB/Redis/Celery. Full detail in `docs/API_CONTRACTS.md`'s "Long Story
+Timeout Recovery Fix (2026-06-27)" section.
+
 ## 2026-06-26 (follow-up) — Production Studio RC2 reality-check, hardening, and Milestone 13
 
 **Decision:** Before adding anything new, verify every feature the prior RC2 report

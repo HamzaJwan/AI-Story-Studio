@@ -41,12 +41,19 @@ def _run_improve_job(
                 message_ar=f"جاري تحسين الجزء {index} من {total}...",
             )
 
+        def on_retry_notice(message: str) -> None:
+            # A chunk timed out and is being split/retried -- surface this live
+            # via the job's message_ar instead of leaving the user on a stale
+            # "جاري تحسين الجزء..." message during the extra recovery time.
+            job_store.update(job_id, message_ar=message)
+
         improved_text, latency_ms, chunk_count = engine.improve_narration_script(
             story_text=story_text,
             tone=tone,
             language=language,
             chunk_chars=chunk_chars,
             on_progress=on_progress,
+            on_retry_notice=on_retry_notice,
         )
         job_store.update(
             job_id,

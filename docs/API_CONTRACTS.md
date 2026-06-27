@@ -797,3 +797,43 @@ risks an oversized-prompt timeout. `404` if the project doesn't exist. Reuses th
 intentionally the smallest safe slice per `docs/LOCAL_AI_ASSISTANT_LAB_PLAN.md`; a full
 assistant (RAG, web search, vision, memory) remains a deferred Phase 4.x track via Open
 WebUI, not a custom build.
+
+---
+
+## Long Story Timeout Recovery Fix (2026-06-27)
+
+Root cause (confirmed live on Hamza's "حين صار الخيال منصة" test, 8986 chars): ComfyUI
+(~4.6GB VRAM) + AllTalk (~1.9GB VRAM) left only ~1.2GB for Ollama on the 8GB AI Server
+GPU, so Ollama silently fell back to CPU-only inference (`offloaded 0/29 layers to GPU`).
+A fixed `num_predict=2500` per chunk then took far longer than `OLLAMA_TIMEOUT_SECONDS`
+(180s) to generate on CPU. Not a frontend, job-polling, or connectivity bug.
+
+- `OLLAMA_TIMEOUT_SECONDS` was **not** raised -- raising it alone would just make a stuck
+  CPU-bound request wait longer, not fix the cause.
+- `LONG_STORY_CHUNK_CHARS` default lowered from `6000` to `3000` (backend `config.py`,
+  `.env.example`) -- the 8986-char test story now splits into ~3-4 chunks instead of 2.
+- New `OllamaTimeoutError(OllamaError)` in `backend/app/ai_providers/ollama.py` --
+  carries only `timeout_seconds` and a safe message, distinguishable from connection/HTTP
+  errors so the story engine can react specifically to a real timeout.
+- `num_predict` for long-story chunks is now size-scaled instead of a flat `2500`:
+  `>2500 chars -> 1400`, `1200-2500 -> 1200`, `<1200 -> 900` (`num_predict_for_chunk()` in
+  `backend/app/story_engine/engine.py`). Short stories (single-shot, non-chunked path)
+  are unaffected and keep `num_predict=2500`.
+- Adaptive retry: if a chunk raises `OllamaTimeoutError`, it is split into smaller
+  subchunks (paragraph -> line -> sentence -> comma -> whitespace -> hard character split,
+  always lossless) and each subchunk gets one attempt at its own scaled `num_predict`, then
+  exactly one retry at a further-reduced `num_predict` if that attempt also times out.
+  Chunks that already succeeded are never reprocessed. If a subchunk still fails after its
+  retry, the job fails with a clear Arabic message instead of looping forever.
+- `POST .../story/improve/jobs`' live `message_ar` now shows a specific notice the moment
+  recovery starts (`"انتهت مهلة Ollama أثناء تحسين الجزء X من Y... سيتم تقسيم الجزء..."`)
+  instead of staying on a stale per-chunk message during the extra recovery time. The
+  generic `"جرّب وضع تحسين القصص الطويلة"` suggestion no longer appears while long-story
+  mode is already active -- it only ever shows for the single-shot short-story path.
+- Safe telemetry logging (`backend/app/story_engine/engine.py`, Python `logging`, no
+  story/prompt text): `input_chars`, `chunk_count`, `chunk_lengths`, `prompt_chars`,
+  `num_predict`, `timeout_seconds`, `elapsed_seconds`, `part_index`, `total_parts`,
+  `model`, `error_class`, `retry_attempt`.
+
+No DB/Redis/Celery, no model change, no new model, and no change to `OLLAMA_TIMEOUT_SECONDS`.
+See `docs/DECISION_LOG.md`'s 2026-06-27 entry for the full root-cause writeup.
