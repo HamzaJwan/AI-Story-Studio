@@ -2,16 +2,23 @@
 
 Last updated: 2026-06-26
 
-## Status (Milestone J, Production Studio RC2)
+## Status (updated after the RC2 follow-up hardening pass)
 
-This remains a **docs-only plan** -- no code, no chat UI, no Open WebUI iframe, and no
-custom assistant exist in AI Story Studio as of this update. Re-confirmed during the
-RC2 milestone pass: Open WebUI is the current Local Chat Hub; RAG over project docs is
-the preferred path before any fine-tuning; web search and vision chat stay benchmark-gated
-lab tasks with no integration yet; the anti-hallucination strategy below still applies;
-Story Studio assistant tools (Phase 4.5) remain the last step, only after the earlier
-phases pass their own benchmarks. Nothing in this document changed in substance --
-this update only re-validates it against the rest of the RC2 pass.
+The formal Phase 4.0-4.5 lab plan below remains a **docs-only plan** -- no Open WebUI
+iframe, no RAG/Knowledge integration, no web search, no vision chat, and no
+Story-Studio-aware assistant tools exist inside AI Story Studio. That part of this
+document is unchanged in substance from the RC2 milestone pass.
+
+**One narrow exception**, added in the same-day RC2 follow-up hardening pass (separate
+from this lab plan, not an implementation of it): `POST /api/projects/{id}/assistant/ask`
+-- a single-turn, stateless question about one project's own data, answered directly by
+the existing Ollama model (`qwen2.5:7b`). No RAG, no conversation memory, no citations,
+no web search. This is the "المساعد المحلي" Tier 1 minimal feature in the Studio UI, not
+a replacement for this lab's plan. **Open WebUI remains the real path to a full
+ChatGPT-like local assistant** (RAG, web search, vision, conversation history) -- see
+`docs/PRODUCTION_STUDIO_FINAL_REPORT.md` Milestone 13 and `docs/API_CONTRACTS.md` for
+the endpoint contract. Story Studio assistant tools (Phase 4.5) remain the last step,
+only after the earlier lab phases pass their own benchmarks.
 
 ## Purpose
 

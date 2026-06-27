@@ -33,7 +33,7 @@ current release unless it is later moved into a dedicated execution prompt.
 |---|---|---|---|---|---|---|
 | AI Motion / Real Video Lab | Benchmark WanGP/Wan, AnimateDiff, SVD, or ComfyUI video workflows on one image-to-video clip. | Current video is ffmpeg assembly (including RC2's Ken Burns), not Veo-style motion. | Only after better ffmpeg video and image quality are accepted. | AI Server GPU budget, isolated lab, benchmark protocol. | Later lab only; no product integration before PASS. | One scene clip renders on RTX 4060 Ti with time/VRAM/quality recorded. |
 | Music / Sound Effects | Add background music, SFX, ducking, volume mixing, mute/enable options. | Makes videos feel more complete when rights-safe audio exists. | After video export presets; RC2's safety checklist already covers the rights-confirmation gate. | Asset library, ffmpeg audio mixing. | Later. | User can add rights-safe music/SFX and export balanced audio without drowning narration. |
-| Local AI Assistant Lab | Evaluate Open WebUI/Ollama as a local ChatGPT/Gemini-like assistant with project docs/RAG. | Useful for story help, prompt fixes, and project Q&A without building chat from scratch. | After Production MVP is stable; as a lab first. | Existing Open WebUI, Ollama models, project docs, RAG benchmark. | Later lab; do not add custom chat app first. | Assistant answers project-doc questions with sources and refuses when evidence is missing. |
+| Local AI Assistant Lab | Evaluate Open WebUI/Ollama as a local ChatGPT/Gemini-like assistant with project docs/RAG. | Useful for story help, prompt fixes, and project Q&A without building chat from scratch. | After Production MVP is stable; as a lab first. | Existing Open WebUI, Ollama models, project docs, RAG benchmark. | Later lab; do not add custom chat app first. A minimal Tier 1 single-turn project-Q&A endpoint (no RAG/memory/citations) already shipped outside this lab in the RC2 follow-up pass -- see `docs/LOCAL_AI_ASSISTANT_LAB_PLAN.md` Status. | Assistant answers project-doc questions with sources and refuses when evidence is missing. |
 | Public Deployment / Auth | Add users, permissions, ownership, storage limits, secure reverse proxy. | Needed only if this becomes multi-user/public. | Only after explicit product decision. | Auth design, DB/storage strategy, security review. | Not now. | Users/projects are isolated, authenticated, and storage/security limits are enforced. |
 
 ## Already Done (Production Studio RC2, 2026-06-26)
@@ -50,6 +50,12 @@ These were previously listed here as backlog items and are now implemented -- se
 - Prompt / Story Bible Editor polish (prompt preview + clearer helper text).
 - Safety & Rights Checklist.
 - Model / Engine Dashboard.
+
+A same-day follow-up hardening pass (see `docs/PRODUCTION_STUDIO_FINAL_REPORT.md`) then
+fixed a real text-loss bug in long-story chunking, wired up job history, added Asset
+Library preview and Review Board filtering, strengthened image-continuity prompts, fixed
+engine-dashboard status labels, and added a minimal Tier 1 local-assistant endpoint --
+none of these are new items in this backlog, they hardened items already listed above.
 
 ## Recommended Next After RC2 QA
 

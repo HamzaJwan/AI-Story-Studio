@@ -2,6 +2,15 @@
 
 Date: 2026-06-26
 
+> **Note (RC2 Documentation Alignment pass).** This report covers Milestones 0 and
+> A-J only. A same-day follow-up hardening pass (commits `75934f5`..`fdd18d2`) found
+> and fixed a real text-loss bug in long-story chunking, wired up the job-history
+> endpoint, added Asset Library preview and Review Board filtering, strengthened image
+> continuity prompts, and added a minimal Tier 1 local-assistant endpoint -- see
+> `docs/PRODUCTION_STUDIO_FINAL_REPORT.md` for the complete, current picture. Section
+> 11's "local assistant lab remains docs/plan-only" line below is superseded by that
+> pass (see the inline note there).
+
 ## 1. Verdict
 
 **READY** for Hamza's manual QA pass. All milestones (0, A through J) from the
@@ -160,7 +169,7 @@ Be explicit, not hidden:
 - **Job system is local-only** — no Redis/Celery/DB, no crash recovery, no cancel endpoint. Fine for one local user, not for concurrent/multi-user use.
 - **Fade transition is per-segment, not a true crossfade** between two different scenes' clips (disclosed in section 7 above).
 - **No public deployment, no auth** — unchanged, not in scope.
-- **Local assistant lab remains docs/plan-only** (`docs/LOCAL_AI_ASSISTANT_LAB_PLAN.md`) — no chat UI, no Open WebUI integration, intentionally.
+- **Local assistant lab (the formal Open WebUI/RAG plan) remains docs/plan-only** (`docs/LOCAL_AI_ASSISTANT_LAB_PLAN.md`) — no chat UI, no Open WebUI integration, intentionally. *(Superseded detail: a minimal Tier 1 single-turn project-Q&A endpoint was added in the same-day follow-up pass after this report — see the note at the top of this file and `docs/PRODUCTION_STUDIO_FINAL_REPORT.md`.)*
 - **`App.tsx` is now larger** (10 Studio Workflow steps) — splitting it into per-step components remains deferred for the same reason as before (shared state, no live browser this session to verify a large refactor visually), now a slightly higher-value future cleanup.
 
 ## 12. Hamza Manual QA Script

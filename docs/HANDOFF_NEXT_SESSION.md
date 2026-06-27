@@ -1,5 +1,13 @@
 # Handoff — Production Studio RC2 (continued)
 
+> **ARCHIVED / HISTORICAL — superseded.** Written mid-RC2, when only Milestones 0 and A
+> were done and B-J were "not started" (see below). All of Milestones B-J were
+> completed afterward in the same project, followed by a same-day follow-up hardening
+> pass on top of that -- see `docs/PRODUCTION_STUDIO_RC2_REPORT.md` and
+> `docs/PRODUCTION_STUDIO_FINAL_REPORT.md` for the current, accurate state. Kept here
+> only as a historical record of how the work was sequenced -- do not treat the "Not
+> started: Milestones B through J" section below as current status.
+
 Last updated: 2026-06-25
 
 ## Current status

@@ -4,9 +4,11 @@ Last updated: 2026-06-26
 
 Owner: Hamza
 
-Current recommendation: **Production Studio RC2 is feature-complete for the foundations track** (Milestones 0, A-J). Next step is Hamza's manual QA pass over the new Timeline/Asset Library/Review Board/Ken Burns/Image Studio surfaces — see `docs/MANUAL_QA_CHECKLIST.md`. After sign-off, remaining future work lives in `docs/REMAINING_FEATURES_BACKLOG.md` (advanced continuity, export presets, AI motion lab, local assistant integration).
+Current recommendation: **Production Studio RC2 is complete, including a same-day follow-up hardening pass** (Milestones 0, A-J, then a reality-check pass numbered 1-14 in `docs/PRODUCTION_STUDIO_FINAL_REPORT.md`). Hamza's manual QA pass over the full set of surfaces (Timeline/Asset Library/Review Board/Ken Burns/Image Studio/local assistant) is the only remaining step before picking the next track — see `docs/MANUAL_QA_CHECKLIST.md`. RC2 being complete is **not** the end of the overall roadmap: it closes the Production Studio Foundations track only. Product Expansion work (advanced image continuity, export presets, advanced subtitle editor, the full Phase 4.x assistant lab) remains ahead and undone — see `docs/REMAINING_FEATURES_BACKLOG.md`.
 
-**2026-06-26 update — Production Studio RC2 complete.** Fixed the long-story-improve failure (chunked improvement + correct timeout/connection error messages), added a lightweight local job/progress system (no Redis/Celery/DB) for story-improve/audio/image/video operations, then built the full Production Studio Foundations track: Project Timeline View, Project Asset Library, Quality Review Board, Ken Burns/fade video assembly mode, story-bible prompt preview, a standalone single-prompt Image Studio, a lightweight safety/rights checklist, and a model/engine status dashboard. See `docs/PRODUCTION_STUDIO_RC2_REPORT.md` and `docs/DECISION_LOG.md` for full details.
+**2026-06-26 follow-up update — RC2 reality-check and hardening.** The same day RC2 was first marked complete, a follow-up pass re-verified every claimed feature against the actually running code (not just the report) and found and fixed a real text-loss bug in long-story chunking, wired up the previously-unused job-history endpoint, added inline preview to the Asset Library, added filtering to the Review Board, strengthened image-continuity prompts, fixed the engine-dashboard status labels, and added a minimal Tier 1 single-turn local-assistant endpoint (`POST /api/projects/{id}/assistant/ask`) -- separate from, and much smaller than, the Phase 4.0-4.5 Local Assistant Lab plan further below, which remains docs-only. Full detail in `docs/PRODUCTION_STUDIO_FINAL_REPORT.md`.
+
+**2026-06-26 update — Production Studio RC2 complete (initial pass).** Fixed the long-story-improve failure (chunked improvement + correct timeout/connection error messages), added a lightweight local job/progress system (no Redis/Celery/DB) for story-improve/audio/image/video operations, then built the full Production Studio Foundations track: Project Timeline View, Project Asset Library, Quality Review Board, Ken Burns/fade video assembly mode, story-bible prompt preview, a standalone single-prompt Image Studio, a lightweight safety/rights checklist, and a model/engine status dashboard. See `docs/PRODUCTION_STUDIO_RC2_REPORT.md` and `docs/DECISION_LOG.md` for full details.
 
 **2026-06-25 update — Production MVP hardening pass complete.** A full manual-QA hardening round fixed two real validation bugs (scene duration min mismatch, empty-title save error), added per-step completion indicators and an unsaved-changes indicator to the workflow UI, added spinners + clearer text to every long-running action, and made the export step list every downloadable asset with explicit available/missing state. No new features, no architecture change. See `docs/DECISION_LOG.md` for the full entry.
 
@@ -306,7 +308,11 @@ Scope:
 - Review current Ollama models.
 - Define project-specific assistant use cases.
 - Test whether Open WebUI is sufficient as the assistant UI.
-- No integration inside AI Story Studio yet.
+- No integration inside AI Story Studio yet **at the lab level** -- a separate, much
+  smaller Tier 1 single-turn project-Q&A endpoint already shipped outside this lab
+  track in the RC2 follow-up pass; see `docs/LOCAL_AI_ASSISTANT_LAB_PLAN.md` Status
+  section. It does not satisfy this phase's exit criteria and is not a substitute for
+  benchmarking Open WebUI.
 
 Exit criteria:
 - Clear recommendation: use Open WebUI as-is, extend via Open WebUI tools/pipelines, or build a small Story Studio bridge later.
@@ -459,6 +465,8 @@ the next reasonable Autopilot tracks, in rough priority order:
 1. Advanced Image Continuity (reference/seed/IPAdapter benchmark).
 2. Export Presets (platform-specific dimensions/audio-only/subtitles-only).
 3. Advanced Subtitle Editor (burn-in, styling presets).
-4. Phase 4.x Local Assistant Lab (Open WebUI/RAG benchmark, still docs-only).
+4. Phase 4.x Local Assistant Lab (Open WebUI/RAG benchmark) -- the formal lab
+   (Phases 4.1-4.5) remains docs-only; a minimal Tier 1 single-turn project-Q&A
+   endpoint already shipped outside that lab, see `docs/LOCAL_AI_ASSISTANT_LAB_PLAN.md`.
 
-Do not start AI motion, local assistant integration, new TTS engines, public deployment, or DB/Auth until explicitly approved.
+Do not start AI motion, full local-assistant-lab integration (Open WebUI iframe/RAG/web search/vision), new TTS engines, public deployment, or DB/Auth until explicitly approved.
