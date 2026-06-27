@@ -1,5 +1,110 @@
 # Decision Log
 
+## 2026-06-27 (later) — Manual QA fix pack: audio persistence + image continuity
+
+**Context:** Hamza's manual QA found two issues: (1) generating audio for the first
+scene sometimes appeared to work, then the audio "disappeared" / the counter stayed
+at `0/N` after a reload; (2) the main character's appearance drifted too much between
+scene images.
+
+**Root cause (audio) -- confirmed, not assumed:** `POST /api/projects/{id}/tts/jobs`
+(the endpoint the "generate audio for the first scene" button called) only ever
+proxied an ephemeral worker job and returned its `job_id`/files -- it never called
+`storage.save_scene_audio()`. This was true even before this fix pack and was
+previously *documented as intentional* in `docs/AUDIO_UX_PLAN.md` ("the 'generate
+first-scene audio' button intentionally stays ephemeral... only `generate-all`
+persists"). In practice this is exactly what "disappears after reload" looks like to
+a user: nothing was ever saved, so there was nothing to show again. `generate-all`
+itself was always correct (it always called `save_scene_audio` per scene) -- the gap
+was specifically the single-scene path, and only that path.
+
+**Fix:**
+- Added `_generate_and_persist_scene_audio()` in `backend/app/routers/tts.py` -- one
+  shared generate+poll+download+save function now used by sync `generate-all`, the
+  job-based `generate-all/jobs` background task, *and* a new
+  `POST /api/projects/{id}/tts/scenes/{scene_id}/generate` endpoint. All three save
+  the same way; there were three near-duplicate poll loops before, now there is one.
+- The frontend's "توليد صوت للمشهد الأول" button now calls that new persisted
+  endpoint instead of the old ephemeral `/tts/jobs` proxy, and calls
+  `refreshProjectAudio()` on success -- mirroring exactly what `generate-all` already
+  did. Removed the now-dead ephemeral job-card UI/state (`ttsJob`,
+  `handleRefreshTtsJob`, `TtsJobData`/`TtsJobFile`) since nothing produces that shape
+  anymore; `/tts/jobs` itself is untouched and still works for whatever else might
+  use a raw ephemeral job.
+- Added self-healing reconciliation: `ProjectStorage.get_project()` now calls
+  `_reconcile_scene_audio()` and `_reconcile_scene_images()` before returning a
+  project. If metadata says a file exists but it's gone, the stale fields are cleared
+  (not just hidden). If a real file exists on disk with no metadata (e.g. an
+  interrupted save), the metadata is recovered from the file itself
+  (format/size/timestamp). Because every other read in the app (Timeline, Asset
+  Library, export, video assembly) already goes through `get_project()`, this one
+  change fixes drift everywhere at once instead of patching each endpoint
+  separately. A failed self-heal write is swallowed (`except OSError: pass`) so it
+  can never block a normal project read.
+
+**Verified, not assumed (fresh test project, 3 scenes):**
+- Generated scene-1 audio via the new endpoint -> `GET .../audio` showed `1/3`
+  immediately. Re-read the project and audio status independently (simulated
+  reload) -> still `1/3`, file downloaded and confirmed as a real playable WAV
+  (5.14s).
+- `generate-all` on the same project -> `3/3`, `final_story` available, survived a
+  re-read the same way.
+- Reconciliation, both directions, manually forced inside the running container:
+  deleted scene 2's audio file while its metadata still claimed it existed -> next
+  read showed `has_audio: false` *and* the stored `audio_format` was actually `null`
+  again (not just hidden client-side). Then copied a file into scene 2's audio slot
+  with zero metadata -> next read recovered `audio_format`/`audio_bytes`/
+  `audio_generated_at` from the orphaned file and served it correctly.
+- Full regression: `check_utf8`, `compileall`, `docker compose config`, frontend
+  `npm run build`, `smoke_phase0_workspace.py`, `final_acceptance_check.py` -- all
+  pass, nothing else broke.
+
+**Image continuity -- investigated, then deliberately did NOT add a reference-image
+mechanism.** `backend/app/ai_providers/image_worker.py`'s ComfyUI workflow is a pure
+SDXL txt2img graph (`EmptyLatentImage` -> `KSampler` at `denoise: 1.0`) with no
+`LoadImage`/img2img/IPAdapter/ControlNet node at all. Per the explicit instruction for
+this fix pack ("don't add IPAdapter/ControlNet/a new model -- if it can't be done
+cleanly, strengthen textual continuity instead"), no reference-image support was
+added. What already existed turned out to be substantial: style preset + story bible
++ per-scene description + character bible *repeated twice* (once plainly, once as an
+explicit identity-lock sentence) + location bible (once) + object bible + a fixed
+continuity-rules sentence + gender/identity-drift negative-prompt terms -- all
+confirmed actually injected via `GET .../images/scenes/{id}/prompt-preview` for 3 real
+scenes. The one real gap: the location bible, unlike the character bible, was never
+repeated as an explicit lock. Added a mirrored "the location must remain consistent...
+unless this scene's own description explicitly places it somewhere else" sentence
+(`build_scene_image_prompt()` in `backend/app/routers/images.py`), respecting
+per-scene overrides exactly the way the existing continuity-rules sentence already
+does for characters.
+
+**Honest result on a real 3-scene generation (same gender, same age, same character
+across all 3) -- visually inspected, not just measured:** all three images show the
+same elderly male character (white wrapped headscarf, brown robe, gray beard) and the
+same warm lantern-lit mood; scene 2 correctly shows an outdoor night street (its own
+text says so) rather than being forced into the location bible's indoor room, while
+scenes 1 and 3 share the warm indoor lantern look. This is a clear, visible
+improvement over the gender-drift failure mode `docs/COMFYUI_MANUAL_TEST_NOTES.md`
+recorded previously. **It is still Tier 1, prompt-only** -- faces are not pixel-
+identical between scenes, there is still no real cross-scene memory, and nothing here
+guarantees continuity on a longer or more complex story. Quality remains `CANDIDATE`.
+Test project left in the app (titled "اختبار الإصلاح - فحص الصوت والاستمرارية") for
+Hamza to inspect the actual generated images himself; safe to delete after review.
+
+**UX micro-fixes requested separately turned out to already be implemented** (not
+silently skipped -- verified by reading the actual rendered code, not just the
+report): tone tooltips/descriptions (`TONE_DESCRIPTIONS`, both a native `title`
+tooltip per button and a visible description paragraph for the selected tone) and
+clear inline help text for every image-continuity field (including an explicit "هذا
+ليس عطلاً" note on the disabled voice/language selectors) were already present before
+this fix pack started. No changes made there; flagged so nothing gets "fixed" twice.
+
+**Not done / known limitations:** no reference-image/IPAdapter/ControlNet (explicitly
+out of scope this round); no word-level audio sync changes; reconciliation does not
+recover `image_width`/`image_height`/`image_engine`/`image_seed`/`image_prompt_used`
+for an orphaned image file recovered with no prior metadata (Pillow isn't a project
+dependency, so those fields are left `null` rather than guessed -- the image itself
+still serves and exports correctly).
+
 ## 2026-06-27 — Long story timeout root-cause fix (not just a bigger timeout)
 
 **Context:** Hamza tested a real 8986-character story ("حين صار الخيال منصة"). Long

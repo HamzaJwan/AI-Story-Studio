@@ -121,18 +121,6 @@ type TtsHealthData = {
   latency_ms?: number;
 };
 
-type TtsJobFile = {
-  url?: string;
-  format?: string;
-};
-
-type TtsJobData = {
-  job_id?: string;
-  status?: string;
-  files?: TtsJobFile[];
-  [key: string]: unknown;
-};
-
 type TtsVoice = {
   voice_id: string;
   label: string;
@@ -612,7 +600,6 @@ export default function App() {
 
   const [ttsHealth, setTtsHealth] = useState<TtsHealthData | null>(null);
   const [ttsMessage, setTtsMessage] = useState("");
-  const [ttsJob, setTtsJob] = useState<TtsJobData | null>(null);
   const [ttsBusy, setTtsBusy] = useState<TtsBusyAction>(null);
   const [ttsVoices, setTtsVoices] = useState<TtsVoicesData>(FALLBACK_TTS_VOICES);
   const [selectedVoiceId, setSelectedVoiceId] = useState<string | null>(
@@ -801,7 +788,6 @@ export default function App() {
     setExpandedIndices(new Set([0]));
     setRawJsonOpen(Boolean(project.scenes?.length));
     setProjectAudio(null);
-    setTtsJob(null);
     setImageJob(null);
     setImageMessage("");
     setProjectImages(null);
@@ -915,7 +901,6 @@ export default function App() {
       setExpandedIndices(new Set());
       setRawJsonOpen(false);
       setProjectAudio(null);
-      setTtsJob(null);
       setImageJob(null);
       setImageMessage("");
       setProjectImages(null);
@@ -1306,15 +1291,25 @@ export default function App() {
     }
     setTtsBusy(mode);
     setTtsMessage(`جاري توليد صوت المشهد 1 من ${scenes.length}...`);
-    setTtsJob(null);
     try {
-      const body = { mode, scene_id: scenes[0].scene_id, format: "wav", voice_id: selectedVoiceId };
-      const r = await postJson<TtsJobData>(`/api/projects/${projectId}/tts/jobs`, body);
-      setTtsJob(r.data);
-      if (r.errors.length) setTtsMessage(r.errors.join(" "));
-      else setTtsMessage("تم توليد صوت المشهد الأول.");
+      // Persisted, saved generation (fix pack 2026-06-27) -- this used to call
+      // the ephemeral /tts/jobs proxy, which never wrote the audio into the
+      // project, so it looked like it worked but vanished after a reload.
+      const r = await postJson<{ scene_id: string; status: string }>(
+        `/api/projects/${projectId}/tts/scenes/${scenes[0].scene_id}/generate`,
+      );
+      if (r.errors.length) {
+        setTtsMessage(r.errors.join(" "));
+      } else {
+        setTtsMessage("تم توليد صوت المشهد الأول وحفظه في المشروع.");
+        await refreshProjectAudio(projectId);
+      }
     } catch (exc) {
-      setTtsMessage(exc instanceof Error ? exc.message : "تعذر إرسال طلب توليد الصوت.");
+      setTtsMessage(
+        exc instanceof Error
+          ? exc.message
+          : "تعذر توليد صوت المشهد الأول. تحقّق من حالة خدمة الصوت أعلاه.",
+      );
     } finally {
       setTtsBusy(null);
     }
@@ -1333,7 +1328,6 @@ export default function App() {
     setTtsMessage(
       `جاري توليد صوت ${scenes.length} مشهد بالترتيب، مشهداً تلو الآخر — قد يستغرق دقائق حسب عدد المشاهد...`,
     );
-    setTtsJob(null);
     try {
       const r = await postJson<JobRecord>(`/api/projects/${projectId}/tts/generate-all/jobs`);
       if (r.errors.length) {
@@ -1358,21 +1352,6 @@ export default function App() {
       }
     } catch (exc) {
       setTtsMessage(exc instanceof Error ? exc.message : "تعذر توليد صوت المشروع.");
-    } finally {
-      setTtsBusy(null);
-    }
-  }
-
-  async function handleRefreshTtsJob() {
-    if (!ttsJob?.job_id) return;
-    setTtsBusy("refresh");
-    setTtsMessage("");
-    try {
-      const r = await getJson<TtsJobData>(`/api/tts/jobs/${ttsJob.job_id}`);
-      setTtsJob(r.data);
-      if (r.errors.length) setTtsMessage(r.errors.join(" "));
-    } catch (exc) {
-      setTtsMessage(exc instanceof Error ? exc.message : "تعذر تحديث حالة المهمة.");
     } finally {
       setTtsBusy(null);
     }
@@ -2199,36 +2178,6 @@ export default function App() {
                 {ttsBusy === "project" ? "جاري توليد صوت المشروع..." : "توليد صوت للمشروع"}
               </button>
             </div>
-
-            {ttsJob && (
-              <div className="tts-job-card">
-                {ttsJob.job_id && (
-                  <span>
-                    Job ID: <code dir="ltr">{ttsJob.job_id}</code>
-                  </span>
-                )}
-                {ttsJob.status && <span>الحالة: {ttsStatusText(ttsJob.status)}</span>}
-                {ttsJob.job_id && (
-                  <button className="ghost-button" onClick={handleRefreshTtsJob} disabled={ttsBusy !== null}>
-                    {ttsBusy === "refresh" ? "جاري التحديث..." : "تحديث الحالة"}
-                  </button>
-                )}
-                {ttsJob.status === "done" &&
-                  ttsJob.job_id &&
-                  ttsJob.files?.map((file, idx) => {
-                    const fileUrl = `${API_BASE_URL}/api/tts/jobs/${ttsJob.job_id}/download/${file.format}`;
-                    return (
-                      <span key={idx} className="tts-audio-result">
-                        <p className="muted-text">استمع إلى صوت المشهد</p>
-                        <audio controls src={fileUrl} className="tts-audio-player" />
-                        <a className="ghost-button" href={fileUrl} download>
-                          تحميل صوت المشهد ({file.format})
-                        </a>
-                      </span>
-                    );
-                  })}
-              </div>
-            )}
 
             {projectAudio && projectAudio.scenes.some((s) => s.has_audio) && (
               <div className="saved-audio-list">

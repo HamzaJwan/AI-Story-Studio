@@ -6,7 +6,7 @@ from fastapi.responses import Response
 from app.ai_providers.tts_worker import TtsWorkerClient, TtsWorkerError
 from app.config import Settings, get_settings
 from app.jobs import JobStore, get_job_store, now_iso
-from app.schemas import ApiEnvelope, ProjectResponse, TtsJobRequest
+from app.schemas import ApiEnvelope, ProjectResponse, Scene, TtsJobRequest
 from app.storage import ProjectStorage
 
 router = APIRouter(tags=["tts"])
@@ -41,6 +41,49 @@ def get_store(settings: Settings = Depends(get_settings)) -> JobStore:
     return get_job_store(settings.data_path)
 
 
+def _generate_and_persist_scene_audio(
+    client: TtsWorkerClient,
+    storage: ProjectStorage,
+    project_id: str,
+    scene: Scene,
+) -> tuple[bool, str | None]:
+    """Generate audio for one scene via the worker and persist it to disk +
+    project metadata. Shared by the single-scene endpoint, sync generate-all,
+    and the job-based generate-all -- one save path, not three (manual QA fix
+    pack, 2026-06-27: the single-scene path used to call the worker but never
+    save, which is exactly why scene-1 audio appeared to "disappear" after a
+    reload -- it was never persisted in the first place).
+
+    Returns (success, error_message_ar_or_none). Generation failures and
+    save failures are distinguished so the caller can tell the user the
+    honest difference between "couldn't generate" and "generated but
+    couldn't save into the project."
+    """
+    if not scene.narration_ar.strip():
+        return False, "نص الراوي لهذا المشهد فارغ."
+    try:
+        job = client.create_job(
+            {"text": scene.narration_ar, "voice_id": None, "speed": None, "format": "wav"}
+        )
+        job_id = job["job_id"]
+        for _ in range(POLL_MAX_ATTEMPTS):
+            if job.get("status") in ("done", "failed"):
+                break
+            time.sleep(POLL_INTERVAL_SECONDS)
+            job = client.get_job(job_id)
+        if job.get("status") != "done":
+            return False, job.get("error") or "انتهت مهلة توليد الصوت."
+        audio_bytes, _ = client.download_file(job_id, "wav")
+    except TtsWorkerError as exc:
+        return False, str(exc)
+
+    try:
+        storage.save_scene_audio(project_id, scene.scene_id, audio_bytes, "wav")
+    except (OSError, FileNotFoundError) as exc:
+        return False, f"تم توليد الصوت فعلياً لكن فشل حفظه داخل المشروع: {exc}"
+    return True, None
+
+
 def _run_generate_all_audio_job(
     job_store: JobStore,
     job_id: str,
@@ -62,27 +105,11 @@ def _run_generate_all_audio_job(
                 completed_steps=index - 1,
                 message_ar=f"جاري توليد صوت المشهد {index} من {total}...",
             )
-            if not scene.narration_ar.strip():
-                failed.append({"scene_id": scene.scene_id, "error": "Empty narration."})
-                continue
-            try:
-                job = client.create_job(
-                    {"text": scene.narration_ar, "voice_id": None, "speed": None, "format": "wav"}
-                )
-                tts_job_id = job["job_id"]
-                for _ in range(POLL_MAX_ATTEMPTS):
-                    if job.get("status") in ("done", "failed"):
-                        break
-                    time.sleep(POLL_INTERVAL_SECONDS)
-                    job = client.get_job(tts_job_id)
-                if job.get("status") != "done":
-                    failed.append({"scene_id": scene.scene_id, "error": job.get("error") or "Timed out."})
-                    continue
-                audio_bytes, _ = client.download_file(tts_job_id, "wav")
-                storage.save_scene_audio(project_id, scene.scene_id, audio_bytes, "wav")
+            ok, error = _generate_and_persist_scene_audio(client, storage, project_id, scene)
+            if ok:
                 generated.append(scene.scene_id)
-            except TtsWorkerError as exc:
-                failed.append({"scene_id": scene.scene_id, "error": str(exc)})
+            else:
+                failed.append({"scene_id": scene.scene_id, "error": error or "Unknown error."})
         job_store.update(
             job_id,
             status="done",
@@ -198,32 +225,51 @@ def generate_all_scene_audio(
     failed: list[dict[str, str]] = []
 
     for scene in project.scenes:
-        if not scene.narration_ar.strip():
-            failed.append({"scene_id": scene.scene_id, "error": "Empty narration."})
-            continue
-        try:
-            job = client.create_job(
-                {"text": scene.narration_ar, "voice_id": None, "speed": None, "format": "wav"}
-            )
-            job_id = job["job_id"]
-            for _ in range(POLL_MAX_ATTEMPTS):
-                if job.get("status") in ("done", "failed"):
-                    break
-                time.sleep(POLL_INTERVAL_SECONDS)
-                job = client.get_job(job_id)
-            if job.get("status") != "done":
-                failed.append({"scene_id": scene.scene_id, "error": job.get("error") or "Timed out."})
-                continue
-            audio_bytes, _ = client.download_file(job_id, "wav")
-            storage.save_scene_audio(project_id, scene.scene_id, audio_bytes, "wav")
+        ok, error = _generate_and_persist_scene_audio(client, storage, project_id, scene)
+        if ok:
             generated.append(scene.scene_id)
-        except TtsWorkerError as exc:
-            failed.append({"scene_id": scene.scene_id, "error": str(exc)})
+        else:
+            failed.append({"scene_id": scene.scene_id, "error": error or "Unknown error."})
 
     return ApiEnvelope(
         data={"generated": generated, "failed": failed, "total_scenes": len(project.scenes)},
         meta={"provider": "tts-worker"},
     )
+
+
+@router.post("/api/projects/{project_id}/tts/scenes/{scene_id}/generate", response_model=ApiEnvelope)
+def generate_scene_audio(
+    project_id: str,
+    scene_id: str,
+    client: TtsWorkerClient = Depends(get_tts_client),
+    storage: ProjectStorage = Depends(get_storage),
+) -> ApiEnvelope:
+    """Synchronous, persisted single-scene audio generation -- powers
+    "generate audio for the first/this scene" in the Audio Studio.
+
+    Unlike `POST /api/projects/{project_id}/tts/jobs` (mode=scene), which only
+    proxies an ephemeral worker job and was never meant to be the saved-audio
+    path, this endpoint always calls the same save logic generate-all uses
+    (`_generate_and_persist_scene_audio`), so a single scene's audio survives
+    a page reload / project reopen exactly like generate-all's output does.
+    """
+    if not client.is_configured():
+        raise HTTPException(status_code=503, detail="TTS service is not configured.")
+
+    try:
+        project = storage.get_project(project_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    scene = next((s for s in project.scenes if s.scene_id == scene_id), None)
+    if scene is None:
+        raise HTTPException(status_code=404, detail="Scene not found in project.")
+
+    ok, error = _generate_and_persist_scene_audio(client, storage, project_id, scene)
+    if not ok:
+        raise HTTPException(status_code=502, detail=error or "Audio generation failed.")
+
+    return ApiEnvelope(data={"scene_id": scene_id, "status": "done"}, meta={"provider": "tts-worker"})
 
 
 @router.post("/api/projects/{project_id}/tts/generate-all/jobs", response_model=ApiEnvelope)

@@ -79,7 +79,7 @@ Keep:
 
 - `final_story.wav` is computed on demand from current scene audio (not cached as a separate file), so it can never go stale relative to `export.zip`'s own concatenation.
 - `GET /api/projects/{project_id}/audio/{scene_id}` resolves the scene by ID against the project's actual scene list, then verifies the resulting path stays inside that project's audio directory before reading — defends against path traversal even if a `scene_id` were ever attacker-influenced via a project update.
-- The "generate first-scene audio" button intentionally stays ephemeral (job-based, not persisted) — only `generate-all` persists per-scene audio to disk/metadata, matching the existing Phase 1.3/1.4 design split.
+- **Correction (2026-06-27 manual QA fix pack):** the line above describing "generate first-scene audio" as intentionally ephemeral was wrong in practice — it meant the audio was never saved into the project, which is exactly what made it look like it "disappeared" after a reload. It now calls `POST /api/projects/{project_id}/tts/scenes/{scene_id}/generate`, the same persisted save path `generate-all` uses (shared via `_generate_and_persist_scene_audio()` in `backend/app/routers/tts.py`). See `docs/DECISION_LOG.md`'s 2026-06-27 "Manual QA fix pack" entry for the full root cause and fix.
 
 ## Practical Patterns
 

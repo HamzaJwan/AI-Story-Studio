@@ -203,7 +203,91 @@ class ProjectStorage:
         return sorted(projects, key=lambda item: item.updated_at, reverse=True)
 
     def get_project(self, project_id: str) -> ProjectResponse:
-        return self._read_project_file(self._project_path(project_id))
+        """Load a project, self-healing any drift between scene asset metadata
+        and what's actually on disk before returning it (manual QA fix pack,
+        2026-06-27 -- see docs/DECISION_LOG.md). Every other read in this app
+        (Timeline, Asset Library, export, video assembly, audio/image status)
+        goes through this one method, so fixing it here fixes all of them at
+        once instead of patching each endpoint separately."""
+        project = self._read_project_file(self._project_path(project_id))
+        audio_changed = self._reconcile_scene_audio(project)
+        images_changed = self._reconcile_scene_images(project)
+        if audio_changed or images_changed:
+            project.updated_at = datetime.now(timezone.utc)
+            try:
+                self._write_project(project)
+            except OSError:
+                # Best-effort repair -- a failed self-heal write must never
+                # block a normal project read.
+                pass
+        return project
+
+    def _reconcile_scene_audio(self, project: ProjectResponse) -> bool:
+        """Fix drift between `scene.audio_format` metadata and the real audio
+        file on disk, in both directions:
+
+        - Metadata says audio exists but the file is gone -> clear the stale
+          metadata so the UI honestly shows "no audio" instead of a dead link.
+        - A real audio file exists but the metadata was never recorded (e.g.
+          an interrupted save) -> recover scene_id/format/bytes/timestamp from
+          the file itself so the UI shows it again.
+
+        Returns True if anything changed (caller persists once for both audio
+        and images together).
+        """
+        audio_dir = self.project_audio_dir(project.project_id)
+        changed = False
+        for scene in project.scenes:
+            if scene.audio_format:
+                expected = audio_dir / f"scene_{scene.scene_id}.{scene.audio_format}"
+                if not expected.exists():
+                    scene.audio_format = None
+                    scene.audio_bytes = None
+                    scene.audio_generated_at = None
+                    changed = True
+                continue
+            for fmt in ("wav", "mp3"):
+                candidate = audio_dir / f"scene_{scene.scene_id}.{fmt}"
+                if candidate.exists():
+                    stat = candidate.stat()
+                    scene.audio_format = fmt
+                    scene.audio_bytes = stat.st_size
+                    scene.audio_generated_at = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
+                    changed = True
+                    break
+        return changed
+
+    def _reconcile_scene_images(self, project: ProjectResponse) -> bool:
+        """Same idea as `_reconcile_scene_audio`, for scene images. Recovered-
+        from-orphan-file entries cannot recover width/height/engine/seed/
+        prompt_used (that metadata only ever existed at generation time, and
+        Pillow isn't a project dependency) -- those are left `None` rather
+        than guessed. The image itself is still correctly served and
+        included in export.zip either way."""
+        images_dir = self.project_images_dir(project.project_id)
+        changed = False
+        for scene in project.scenes:
+            if scene.image_format:
+                expected = images_dir / f"scene_{scene.scene_id}.{scene.image_format}"
+                if not expected.exists():
+                    scene.image_format = None
+                    scene.image_bytes = None
+                    scene.image_generated_at = None
+                    scene.image_width = None
+                    scene.image_height = None
+                    scene.image_engine = None
+                    scene.image_seed = None
+                    scene.image_prompt_used = None
+                    changed = True
+                continue
+            candidate = images_dir / f"scene_{scene.scene_id}.png"
+            if candidate.exists():
+                stat = candidate.stat()
+                scene.image_format = "png"
+                scene.image_bytes = stat.st_size
+                scene.image_generated_at = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
+                changed = True
+        return changed
 
     def update_project(
         self,
