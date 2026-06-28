@@ -26,6 +26,24 @@ KEN_BURNS_MAX_ZOOM = 1.15
 KEN_BURNS_ZOOM_STEP = 0.0008
 MAX_FADE_SECONDS = 0.5
 
+# Fixed audio format every segment is normalized to before concat (fix pack,
+# 2026-06-28, Codex HOLD). Root cause: real saved narration audio (Piper,
+# 22050Hz mono) was passed into each segment's ffmpeg call with no explicit
+# `-ar`/`-ac`, so AAC encoding kept its native 22050/mono layout, while the
+# silent track for audio-less scenes was generated at 44100Hz stereo
+# (`anullsrc`). ffmpeg's concat demuxer (`-c copy`) trusts that every input
+# segment already shares one stream layout -- it does NOT reconcile differing
+# sample rates/channel counts at concat time. The mismatch produced
+# "Non-monotonic DTS" warnings and silence that never ended (a 3s scene
+# rendered as 4.07s, with the next scene's real audio effectively lost).
+# Forcing the same `-ar`/`-ac` (via output options, so ffmpeg's own resampler
+# normalizes whatever the input actually is) on *every* segment -- real audio
+# and silent alike -- makes every segment's audio stream byte-for-byte
+# consistent, which is what `-c copy` concat actually requires.
+NORMALIZED_AUDIO_SAMPLE_RATE = 48000
+NORMALIZED_AUDIO_CHANNELS = 2
+NORMALIZED_AUDIO_CODEC = "aac"
+
 
 def _build_segment_video_filter(video_mode: str, video_transition: str, duration: float) -> str:
     """ffmpeg-only video filter chain for one scene segment.
@@ -88,23 +106,48 @@ def _run_ffmpeg(cmd: list[str], timeout: int) -> subprocess.CompletedProcess:
         raise FfmpegError("ffmpeg timed out.", status_code=502) from exc
 
 
-def _final_video_has_audio_stream(path: Path) -> bool:
-    """ffprobe check used only as a post-render safety net (Hamza fix pack,
-    2026-06-28): proves the rendered MP4 actually contains an audio stream
-    instead of trusting that ffmpeg's exit code alone means the result is
-    correct -- a stream-layout mismatch between concatenated segments can
-    silently produce a video with no usable audio even when ffmpeg exits 0."""
+def _ffprobe_duration_seconds(path: Path) -> float | None:
     try:
         result = subprocess.run(
-            ["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index", "-of", "csv=p=0", str(path)],
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
             capture_output=True,
             text=True,
             timeout=15,
             check=False,
         )
-        return result.returncode == 0 and bool(result.stdout.strip())
-    except (OSError, subprocess.TimeoutExpired):
-        return False
+        if result.returncode == 0 and result.stdout.strip():
+            return float(result.stdout.strip())
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        pass
+    return None
+
+
+def _final_video_audio_stream_info(path: Path) -> dict | None:
+    """ffprobe check used as a post-render safety net (Hamza fix pack,
+    2026-06-28): proves the rendered MP4 actually contains a *single,
+    consistent* audio stream instead of trusting that ffmpeg's exit code
+    alone means the result is correct -- a stream-layout mismatch between
+    concatenated segments can silently produce a video with broken/missing
+    audio even when ffmpeg exits 0. Returns None if there is no audio stream
+    at all, otherwise {"sample_rate": int, "channels": int}."""
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "error", "-select_streams", "a:0",
+                "-show_entries", "stream=sample_rate,channels", "-of", "csv=p=0",
+                str(path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            return None
+        sample_rate_str, channels_str = result.stdout.strip().split(",")
+        return {"sample_rate": int(sample_rate_str), "channels": int(channels_str)}
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return None
 
 
 def _render_video_for_project(
@@ -153,6 +196,8 @@ def _render_video_for_project(
                     "scene_id": scene.scene_id, "image_used": False, "audio_used": False,
                     "audio_path_exists": False, "duration_source": None, "duration_seconds": None,
                     "skip_reason": "no saved image for this scene",
+                    "silent_audio_inserted": False, "normalized_audio_format": None,
+                    "audio_sample_rate": None, "audio_channels": None,
                 })
                 continue
             image_path = images_dir / f"scene_{scene.scene_id}.{scene.image_format}"
@@ -162,6 +207,8 @@ def _render_video_for_project(
                     "scene_id": scene.scene_id, "image_used": False, "audio_used": False,
                     "audio_path_exists": False, "duration_source": None, "duration_seconds": None,
                     "skip_reason": "image file missing on disk",
+                    "silent_audio_inserted": False, "normalized_audio_format": None,
+                    "audio_sample_rate": None, "audio_channels": None,
                 })
                 continue
 
@@ -180,6 +227,7 @@ def _render_video_for_project(
             # only when there is no saved audio for this scene.
             segment_duration = scene_durations[scene.scene_id]
             duration_source = "audio" if audio_path is not None else "scene_duration"
+            silent_audio_inserted = audio_path is None
 
             video_filter = _build_segment_video_filter(
                 project.video_mode, project.video_transition, segment_duration
@@ -187,25 +235,35 @@ def _render_video_for_project(
             segment_path = tmp_path / f"segment_{scene.scene_id}.mp4"
             cmd = ["ffmpeg", "-y", "-loop", "1", "-i", str(image_path)]
             if audio_path is not None:
+                # Real saved narration audio (Piper: 22050Hz mono) is fed in
+                # at its native format -- the explicit "-ar"/"-ac" OUTPUT
+                # options below force ffmpeg's own resampler to re-encode it
+                # into the same fixed format every segment uses, instead of
+                # passing it through to AAC at its native rate/channels.
                 cmd += ["-i", str(audio_path)]
                 any_scene_has_audio = True
             else:
                 # A scene with no saved audio still gets a silent audio track
-                # of the same duration, instead of "-an" (no audio stream at
-                # all). The concat step below uses "-c copy", which requires
-                # every segment to share the same stream layout -- mixing
-                # audio-having and audio-less ("-an") segments was found
-                # (2026-06-28 fix pack, verified with ffprobe/silencedetect)
-                # to desync or drop audio for the *entire* rest of the
-                # concatenated video, not just the one scene missing it. A
-                # silent track keeps every segment's stream layout identical.
-                cmd += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
+                # of the same duration and the same normalized format, instead
+                # of "-an" (no audio stream at all) or a silent track at a
+                # *different* format. The concat step below uses "-c copy",
+                # which requires every segment's audio stream to be
+                # byte-for-byte the same sample rate/channel layout/codec --
+                # generating the silent track at anything other than the
+                # exact normalized format reproduces the same "Non-monotonic
+                # DTS" / silence-never-ends bug this fix pack addresses.
+                cmd += [
+                    "-f", "lavfi", "-i",
+                    f"anullsrc=channel_layout=stereo:sample_rate={NORMALIZED_AUDIO_SAMPLE_RATE}",
+                ]
             cmd += [
                 "-t", f"{segment_duration:.3f}",
                 "-vf", video_filter,
                 "-c:v", "libx264",
                 "-pix_fmt", "yuv420p",
-                "-c:a", "aac",
+                "-c:a", NORMALIZED_AUDIO_CODEC,
+                "-ar", str(NORMALIZED_AUDIO_SAMPLE_RATE),
+                "-ac", str(NORMALIZED_AUDIO_CHANNELS),
             ]
             cmd.append(str(segment_path))
 
@@ -216,6 +274,9 @@ def _render_video_for_project(
                     "scene_id": scene.scene_id, "image_used": True, "audio_used": False,
                     "audio_path_exists": audio_path_exists, "duration_source": duration_source,
                     "duration_seconds": segment_duration, "skip_reason": "ffmpeg segment render failed",
+                    "silent_audio_inserted": silent_audio_inserted,
+                    "normalized_audio_format": None,
+                    "audio_sample_rate": None, "audio_channels": None,
                 })
                 continue
 
@@ -226,6 +287,10 @@ def _render_video_for_project(
                 "scene_id": scene.scene_id, "image_used": True, "audio_used": audio_path is not None,
                 "audio_path_exists": audio_path_exists, "duration_source": duration_source,
                 "duration_seconds": segment_duration, "skip_reason": None,
+                "silent_audio_inserted": silent_audio_inserted,
+                "normalized_audio_format": f"{NORMALIZED_AUDIO_CODEC}/{NORMALIZED_AUDIO_SAMPLE_RATE}Hz/{NORMALIZED_AUDIO_CHANNELS}ch",
+                "audio_sample_rate": NORMALIZED_AUDIO_SAMPLE_RATE,
+                "audio_channels": NORMALIZED_AUDIO_CHANNELS,
             })
 
         if not segment_paths:
@@ -250,13 +315,45 @@ def _render_video_for_project(
         if result.returncode != 0 or not final_path.exists():
             raise FfmpegError("ffmpeg concat step failed.")
 
-        # Post-render safety net (Milestone B.4): every segment always has an
-        # audio stream now (real or silent), so the final file must have one
-        # too -- if it doesn't despite at least one scene having real saved
-        # audio, treat that as a clear render failure instead of silently
-        # shipping a video with no usable audio.
-        if any_scene_has_audio and not _final_video_has_audio_stream(final_path):
+        # Real functional check for exactly the symptom this fix pack
+        # targets: a stream-layout mismatch made the old code's rendered
+        # duration balloon (a 3-segment, 9s-expected clip came out as 12s,
+        # because the mismatched silent track's audio never stopped). ffmpeg
+        # prints a few harmless "Non-monotonic DTS" lines even for correctly
+        # normalized segments (AAC's inherent few-millisecond encoder-delay
+        # at independently-encoded segment boundaries) -- matching that exact
+        # log text would fail every render, even fixed ones (confirmed while
+        # building this fix). Measuring the *actual* rendered duration against
+        # what was expected is the real, content-based proof instead.
+        final_duration = _ffprobe_duration_seconds(final_path)
+        expected_duration = sum(included_durations)
+        if final_duration is not None and abs(final_duration - expected_duration) > 1.5:
+            raise FfmpegError(
+                "مدة الفيديو النهائي لا تطابق مجموع مدد المشاهد المتوقعة -- قد يكون مسار الصوت "
+                "غير متطابق بين المشاهد. تم إيقاف التجميع بدل تسليم فيديو صوته غير سليم."
+            )
+
+        # Post-render safety net (Milestone B.4, strengthened 2026-06-28):
+        # every segment always has an audio stream now (real or silent), so
+        # the final file must have exactly one consistent audio stream too --
+        # if it doesn't despite at least one scene having real saved audio,
+        # treat that as a clear render failure instead of silently shipping a
+        # video with no usable (or partially missing) audio.
+        audio_info = _final_video_audio_stream_info(final_path)
+        if any_scene_has_audio and audio_info is None:
             raise FfmpegError("الفيديو النهائي لا يحتوي على مسار صوت رغم وجود صوت محفوظ لبعض المشاهد.")
+        if (
+            any_scene_has_audio
+            and audio_info is not None
+            and (
+                audio_info["sample_rate"] != NORMALIZED_AUDIO_SAMPLE_RATE
+                or audio_info["channels"] != NORMALIZED_AUDIO_CHANNELS
+            )
+        ):
+            raise FfmpegError(
+                "مسار الصوت في الفيديو النهائي غير متطابق مع التنسيق الموحّد المتوقع -- "
+                "تم إيقاف التجميع تجنباً لفيديو صوته غير سليم."
+            )
 
     total_duration = round(sum(included_durations))
     metadata = {

@@ -36,6 +36,8 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import wave
+from io import BytesIO
 from pathlib import Path
 
 BASE_URL = os.environ.get("SMOKE_BASE_URL", "http://localhost:8810")
@@ -248,6 +250,11 @@ def test_video_uses_all_scene_audio() -> None:
         if HAVE_FFPROBE:
             ffprobe_audio = _ffprobe_has_audio_and_duration(video_path)
             check("[video-all-audio] final MP4 has an audio stream", ffprobe_audio["has_audio"])
+            check(
+                f"[video-all-audio] real measured duration={ffprobe_audio['duration']:.2f}s "
+                f"matches reported duration_seconds={metadata.get('duration_seconds')}s within 1.5s",
+                abs(ffprobe_audio["duration"] - metadata.get("duration_seconds", -999)) < 1.5,
+            )
             print(f"[INFO] all_audio_video_duration={ffprobe_audio['duration']:.1f}s")
         else:
             print("[SKIP] ffprobe not on this host's PATH -- relying on scene_details metadata above instead.")
@@ -262,9 +269,14 @@ def test_video_uses_all_scene_audio() -> None:
 
 def test_video_with_missing_audio_on_one_scene() -> None:
     """The exact failure mode this fix pack targets: scenes 1 and 3 have
-    real saved audio, scene 2 has none. Before the fix, this produced a
-    final video whose audio was desynced/effectively broken for the whole
-    clip past the missing-audio segment, not just scene 2's own portion."""
+    real saved audio, scene 2 has none. Before the format-normalization fix,
+    this produced a final video whose audio was desynced/effectively broken
+    for the *whole clip past* the missing-audio segment -- not just scene 2's
+    own portion, and scene 3's real audio was lost entirely. A weaker test
+    that only checks "a silence window exists somewhere" would have given a
+    false PASS on the broken version too (it had a silence window -- it just
+    never ended). This test checks the window's *position* and that scene 3's
+    audio is actually still there afterward, which the broken version fails."""
     project_id, project_dir, scenes = create_test_project("Video Missing Audio Test (throwaway)", 3, attach_images=True)
     try:
         for scene_id in ("01", "03"):
@@ -279,6 +291,21 @@ def test_video_with_missing_audio_on_one_scene() -> None:
         check("[mixed-audio] scene 02 has NO audio (as set up)", scenes_audio["02"]["has_audio"] is False)
         check("[mixed-audio] scene 03 has audio", scenes_audio["03"]["has_audio"] is True)
 
+        # Exact expected timeline, computed from the real saved WAV durations
+        # (not guessed) -- scene 2 has no audio, so it falls back to its
+        # duration_seconds estimate (8s, set by make_scene()).
+        audio1_seconds = _download_wav_duration_seconds(scenes_audio["01"]["url"])
+        audio3_seconds = _download_wav_duration_seconds(scenes_audio["03"]["url"])
+        scene2_duration_seconds = 8.0
+        expected_scene2_start = audio1_seconds
+        expected_scene2_end = audio1_seconds + scene2_duration_seconds
+        expected_total = audio1_seconds + scene2_duration_seconds + audio3_seconds
+        print(
+            f"[INFO] expected_timeline audio1={audio1_seconds:.2f}s "
+            f"scene2_silent={scene2_duration_seconds:.2f}s audio3={audio3_seconds:.2f}s "
+            f"total={expected_total:.2f}s"
+        )
+
         status, body = request("POST", f"/api/projects/{project_id}/video/render/jobs")
         check("[mixed-audio] render job created", status == 200)
         final_job = wait_for_terminal(body["data"]["job_id"])
@@ -287,10 +314,16 @@ def test_video_with_missing_audio_on_one_scene() -> None:
 
         details = {d["scene_id"]: d for d in metadata.get("scene_details", [])}
         check("[mixed-audio] scene 01 metadata: audio_used=true, duration_source=audio", details["01"]["audio_used"] is True and details["01"]["duration_source"] == "audio")
-        check("[mixed-audio] scene 02 metadata: audio_used=false, duration_source=scene_duration", details["02"]["audio_used"] is False and details["02"]["duration_source"] == "scene_duration")
+        check("[mixed-audio] scene 02 metadata: audio_used=false, duration_source=scene_duration, silent_audio_inserted=true", details["02"]["audio_used"] is False and details["02"]["duration_source"] == "scene_duration" and details["02"]["silent_audio_inserted"] is True)
         check("[mixed-audio] scene 03 metadata: audio_used=true, duration_source=audio", details["03"]["audio_used"] is True and details["03"]["duration_source"] == "audio")
+        check("[mixed-audio] all scenes normalized to the same audio format", len({d["normalized_audio_format"] for d in details.values()}) == 1)
         check("[mixed-audio] all 3 scenes included (none skipped)", len(metadata.get("included_scenes", [])) == 3)
         check("[mixed-audio] audio_used_scene_count == 2", metadata.get("audio_used_scene_count") == 2)
+        check(
+            f"[mixed-audio] reported duration_seconds={metadata.get('duration_seconds')} "
+            f"close to expected_total={expected_total:.1f}s",
+            abs(metadata.get("duration_seconds", -999) - expected_total) < 1.5,
+        )
 
         video_path = project_dir / "video" / "final_story.mp4"
         if HAVE_FFPROBE:
@@ -299,18 +332,52 @@ def test_video_with_missing_audio_on_one_scene() -> None:
                 "[mixed-audio] final MP4 still has a consistent audio stream despite one scene missing audio",
                 ffprobe_audio["has_audio"],
             )
+            check(
+                f"[mixed-audio] real measured MP4 duration={ffprobe_audio['duration']:.2f}s "
+                f"matches expected_total={expected_total:.2f}s within 1.5s "
+                "(the broken version measured ~33% longer than expected)",
+                abs(ffprobe_audio["duration"] - expected_total) < 1.5,
+            )
+
             silence_windows = _ffprobe_silence_windows(video_path)
             check(
                 "[mixed-audio] exactly one silence window detected (scene 2's silent track), not the whole tail desynced",
                 len(silence_windows) == 1,
             )
-            print(f"[INFO] mixed_audio_silence_windows={silence_windows}")
+            if silence_windows:
+                silence_start, silence_end = silence_windows[0]
+                check(
+                    f"[mixed-audio] silence starts at scene 2's start (~{expected_scene2_start:.2f}s), measured {silence_start:.2f}s",
+                    abs(silence_start - expected_scene2_start) < 0.75,
+                )
+                check(
+                    f"[mixed-audio] silence ends before scene 3 starts (~{expected_scene2_end:.2f}s), measured {silence_end:.2f}s "
+                    "-- the broken version never ended this window at all",
+                    silence_end < expected_scene2_end + 0.75 and silence_end > expected_scene2_start,
+                )
+
+            scene3_volume = _ffprobe_mean_volume_db(video_path, start=expected_scene2_end + 0.3, duration=max(0.5, audio3_seconds - 0.5))
+            check(
+                f"[mixed-audio] scene 3's audio is actually audible after the silent section "
+                f"(mean_volume={scene3_volume}dB, not near-silent) -- proves audio after the gap is NOT lost",
+                scene3_volume is not None and scene3_volume > -50,
+            )
+            print(f"[INFO] mixed_audio_silence_windows={silence_windows} scene3_mean_volume_db={scene3_volume}")
         else:
-            print("[SKIP] ffprobe not on this host's PATH -- relying on scene_details metadata above instead.")
+            print("[SKIP] ffprobe not on this host's PATH -- relying on duration/scene_details metadata above instead.")
         print(f"[INFO] scene_details={list(details.values())}")
     finally:
         request("DELETE", f"/api/projects/{project_id}")
         shutil.rmtree(project_dir, ignore_errors=True)
+
+
+def _download_wav_duration_seconds(url_path: str) -> float:
+    status, raw = request_raw("GET", url_path)
+    check(f"[mixed-audio] download {url_path} for exact duration measurement returns 200", status == 200)
+    with wave.open(BytesIO(raw), "rb") as wav_file:
+        frames = wav_file.getnframes()
+        rate = wav_file.getframerate()
+        return frames / float(rate)
 
 
 def _ffprobe_has_audio_and_duration(path: Path) -> dict:
@@ -330,7 +397,11 @@ def _ffprobe_has_audio_and_duration(path: Path) -> dict:
     }
 
 
-def _ffprobe_silence_windows(path: Path) -> list[float]:
+def _ffprobe_silence_windows(path: Path) -> list[tuple[float, float]]:
+    """Returns [(start, end), ...] for every detected silence window -- not
+    just start times, so a window that never ends (the original bug, where
+    silence swallowed the rest of the video) is distinguishable from one that
+    closes normally."""
     import re
     import subprocess
 
@@ -338,8 +409,21 @@ def _ffprobe_silence_windows(path: Path) -> list[float]:
         ["ffmpeg", "-i", str(path), "-af", "silencedetect=noise=-30dB:d=0.5", "-f", "null", "-"],
         capture_output=True, text=True, timeout=30, check=False,
     )
-    starts = re.findall(r"silence_start:\s*([\d.]+)", result.stderr)
-    return [round(float(s), 1) for s in starts]
+    starts = [float(s) for s in re.findall(r"silence_start:\s*([\d.]+)", result.stderr)]
+    ends = [float(e) for e in re.findall(r"silence_end:\s*([\d.]+)", result.stderr)]
+    return list(zip(starts, ends))
+
+
+def _ffprobe_mean_volume_db(path: Path, start: float, duration: float) -> float | None:
+    import re
+    import subprocess
+
+    result = subprocess.run(
+        ["ffmpeg", "-ss", f"{start:.3f}", "-i", str(path), "-t", f"{duration:.3f}", "-af", "volumedetect", "-f", "null", "-"],
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    match = re.search(r"mean_volume:\s*(-?[\d.]+)\s*dB", result.stderr)
+    return float(match.group(1)) if match else None
 
 
 def main() -> None:

@@ -588,6 +588,17 @@ audio-having segments was proven (real ffmpeg + `ffprobe`/`silencedetect` experi
 desync/break audio for the entire rest of the concatenated video, not just the one scene
 missing it.
 
+Every segment's audio (real saved narration or silent) is also explicitly re-encoded to
+one fixed format -- **48000Hz, stereo, AAC** (Codex HOLD fix, 2026-06-28) -- via output
+`-ar`/`-ac` flags on each segment's ffmpeg call. Real saved narration (Piper: 22050Hz
+mono) was previously passed through unchanged while the silent track used a different
+rate/channel count (44100Hz stereo); concatenating mismatched segments with `-c copy`
+produced "Non-monotonic DTS" warnings, an inflated final duration, and silent loss of
+audio for every scene after the mismatched one. See `docs/DECISION_LOG.md`'s 2026-06-28
+"(later)" entry for the full root-cause writeup and why a blanket
+"fail on any DTS warning" check was tried and reverted in favor of a real
+measured-duration check.
+
 ```json
 {
   "data": {
@@ -595,7 +606,12 @@ missing it.
     "included_scenes": ["01", "02", "03"],
     "skipped_scenes": [{ "scene_id": "04", "reason": "no saved image for this scene" }],
     "scene_details": [
-      { "scene_id": "01", "image_used": true, "audio_used": true, "audio_path_exists": true, "duration_source": "audio", "duration_seconds": 5.1, "skip_reason": null }
+      {
+        "scene_id": "01", "image_used": true, "audio_used": true, "audio_path_exists": true,
+        "duration_source": "audio", "duration_seconds": 5.1, "skip_reason": null,
+        "silent_audio_inserted": false, "normalized_audio_format": "aac/48000Hz/2ch",
+        "audio_sample_rate": 48000, "audio_channels": 2
+      }
     ],
     "audio_used_scene_count": 2,
     "duration_seconds": 52,
@@ -605,7 +621,7 @@ missing it.
 ```
 
 - Returns `422` if the project has no scenes, or if every scene lacks a saved image (nothing to render).
-- Returns `503` if ffmpeg is missing from the image (should not happen post-build); `502` if a render or concat step fails, or if the final MP4 unexpectedly has no audio stream despite at least one scene having real saved audio (post-render `ffprobe` safety check, 2026-06-28).
+- Returns `503` if ffmpeg is missing from the image (should not happen post-build); `502` if a render or concat step fails, if the final MP4 unexpectedly has no audio stream despite at least one scene having real saved audio, if the final audio stream's sample rate/channels don't match the normalized format, or if the measured final duration drifts more than 1.5s from the expected sum of segment durations (post-render `ffprobe` safety nets, 2026-06-28).
 - Re-rendering overwrites the previous `final_story.mp4` (no separate "re-render" endpoint, same pattern as image regeneration).
 
 ### GET /api/projects/{project_id}/video

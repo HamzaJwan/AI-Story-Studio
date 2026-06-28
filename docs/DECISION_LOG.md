@@ -1,5 +1,55 @@
 # Decision Log
 
+## 2026-06-28 (later) — Video segment audio stream normalization (Codex HOLD)
+
+**Context:** Codex reviewed the audio/video integration fix above and gave a HOLD: the
+fix replaced `-an` with a silent track for audio-less scenes, but never normalized the
+*sample rate/channels* between that silent track and real saved narration audio. Real
+Piper audio is 22050Hz mono; the silent `anullsrc` track was generated at 44100Hz
+stereo. ffmpeg's concat demuxer (`-c copy`) requires byte-identical stream layout across
+segments -- it does not reconcile differing sample rates at concat time. Reproduced
+exactly with a real ffmpeg experiment: a 3-segment clip (22050 mono / 44100 stereo
+silent / 22050 mono) produced dozens of "Non-monotonic DTS" warnings, a 9s clip came out
+12.07s, and the silence window never closed -- scene 3's real audio was effectively
+lost. The existing test had only checked "a silence window exists somewhere," which the
+broken version also satisfied (a false PASS).
+
+**Fix:** every segment's audio is now explicitly re-encoded to one fixed format --
+48000Hz, stereo, AAC (`NORMALIZED_AUDIO_SAMPLE_RATE`/`NORMALIZED_AUDIO_CHANNELS` in
+`backend/app/routers/videos.py`) -- via output-side `-ar`/`-ac` flags on every segment's
+ffmpeg call, both the real-audio branch (ffmpeg's own resampler converts 22050 mono ->
+48000 stereo before AAC encoding) and the silent branch (`anullsrc` generated directly
+at the target rate). Verified with the same ffmpeg experiment: duration dropped from
+12.07s back to 9.02s, and `silencedetect` showed a clean, correctly-closing 3s window.
+
+**A blanket "fail on any 'Non-monotonic DTS' in stderr" check was tried and reverted.**
+Even with every segment correctly normalized, ffmpeg's AAC encoder still prints 1-2
+benign sub-frame "Non-monotonic DTS" lines per segment boundary (a well-known encoder-
+priming-delay artifact, not data loss) -- confirmed by running the real fixed pipeline
+against the actual TTS worker and watching it fail every single render, including
+correct ones. Replaced with a real, content-based check instead: measure the rendered
+MP4's actual `ffprobe` duration and compare it against the sum of the segments' expected
+durations (tolerance 1.5s, matching the project's existing duration-sync convention).
+This is what actually distinguishes the bug (12.07s vs 9s expected -- real, large drift)
+from the harmless AAC artifact (9.02s vs 9.00s -- noise). Also added a stream-format
+consistency check on the final file (sample_rate/channels must match the normalized
+target) as a second, independent safety net.
+
+**Test strengthened, not just re-run:** the mixed-audio test now downloads the two real
+WAV files to compute the *exact* expected timeline (not guessed), and checks the silence
+window's start *and end* position against it, plus confirms scene 3's audio is
+genuinely audible afterward (`volumedetect` mean_volume, not just "a stream exists").
+The original "does a silence window exist" check would have passed on the broken
+version too -- this one would not have.
+
+**Per-scene metadata extended:** `silent_audio_inserted`, `normalized_audio_format`,
+`audio_sample_rate`, `audio_channels` added to `scene_details` alongside the existing
+`audio_used`/`duration_source`/`skip_reason`.
+
+**Not done:** no TTS engine, Piper, image pipeline, or DB/Redis/Celery changes. No new
+frontend features (existing warning banners from the prior pass cover this case too,
+since they're driven by the same `audioCount`/`scene_details`, not new UI).
+
 ## 2026-06-28 — Project audio persistence and video integration fix pack
 
 **Context:** Hamza clarified the prior fix pack's scope was too narrow -- the real
