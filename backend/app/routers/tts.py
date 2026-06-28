@@ -14,19 +14,83 @@ router = APIRouter(tags=["tts"])
 POLL_INTERVAL_SECONDS = 1.5
 POLL_MAX_ATTEMPTS = 80  # ~2 minutes per scene at the interval above
 
-# The deployed worker (deploy/ai-server/tts-worker) has no voice-listing endpoint
-# and currently only runs Piper with this one voice. Reflect that honestly instead
-# of inventing options the worker doesn't actually support.
-KNOWN_VOICES = [
+KNOWN_LANGUAGES = [{"language": "ar", "label": "العربية", "default": True}]
+
+# Voice Expansion Lab (2026-06-28): every voice the worker could in principle
+# serve, *not* "every voice the UI may show". Availability is decided live in
+# get_voice_catalog() against the worker's real /health response, never
+# assumed -- see docs/DECISION_LOG.md for why no second Arabic voice is in
+# this registry yet:
+#   - Piper's own official voice set (rhasspy/piper-voices) has exactly one
+#     Arabic speaker ("kareem", ar_JO) in two quality tiers of the SAME
+#     speaker -- not a second voice or a female voice.
+#   - The AllTalk service reachable on the AI Server exposes several
+#     explicitly celebrity-named reference samples (forbidden outright) and
+#     several generically-named ones ("arabic_male.wav", "female_01.wav", ...)
+#     with no documented consent/provenance -- AllTalk is voice CLONING by
+#     design, so every one of those stays Deferred per the safety rules until
+#     Hamza supplies his own licensed reference recording.
+#   - SILMA is explicitly blocked on this deployment (stalled model download,
+#     see worker_app/jobs.py's _run_piper() note).
+#   - A community Hugging Face Arabic-Emirati female Piper voice exists, but
+#     its model card discloses no consent/provenance for the source speaker,
+#     so it cannot pass the "licensed and safe" bar either.
+# When a second voice clears safety review, add its registry entry here --
+# the catalog/UI/generation plumbing below already supports more than one.
+VOICE_REGISTRY = [
     {
         "voice_id": "ar_JO-kareem-medium",
-        "label": "Arabic Kareem",
+        "display_name_ar": "كريم (عربي - رجل)",
+        "gender": "male",
         "language": "ar",
         "engine": "piper",
+        "quality_label": "medium",
+        "experimental": False,
         "default": True,
+        "notes_ar": "صوت Piper مجتمعي مرخّص (MIT)، وليس صوت شخص حقيقي أو مشهور.",
     }
 ]
-KNOWN_LANGUAGES = [{"language": "ar", "label": "العربية", "default": True}]
+DEFAULT_VOICE_ID = next(v["voice_id"] for v in VOICE_REGISTRY if v.get("default"))
+
+
+def get_voice_catalog(client: TtsWorkerClient) -> list[dict]:
+    """Real discovery, not a static guess: a registry voice is only reported
+    `available: true` if the worker is actually reachable right now AND is
+    actually running the engine that voice needs. The worker has no
+    voice-listing endpoint of its own, so this is the safe adapter the task
+    calls for -- it never claims a voice works without checking."""
+    health = client.health()
+    remote_engine = health.get("remote_engine") if health.get("remote_ok") else None
+    catalog = []
+    for voice in VOICE_REGISTRY:
+        available = bool(client.is_configured() and remote_engine == voice["engine"])
+        entry = dict(voice)
+        entry["available"] = available
+        if not available:
+            entry["notes_ar"] = (
+                f"{voice['notes_ar']} غير متاح حالياً -- تعذر التأكد أن محرك "
+                f"{voice['engine']} يعمل على خدمة الصوت الآن."
+            )
+        catalog.append(entry)
+    return catalog
+
+
+def resolve_voice_id(catalog: list[dict], requested_voice_id: str | None) -> tuple[str | None, str | None]:
+    """Returns (resolved_voice_id, error_message_ar). Never silently swaps a
+    user's explicit voice choice for a different one -- if they asked for a
+    voice that isn't in the catalog or isn't available, that's a failure to
+    report, not something to paper over with the default voice."""
+    if requested_voice_id is None:
+        default = next((v for v in catalog if v["voice_id"] == DEFAULT_VOICE_ID), None)
+        if default is None or not default["available"]:
+            return None, "الصوت الافتراضي غير متاح حالياً."
+        return DEFAULT_VOICE_ID, None
+    match = next((v for v in catalog if v["voice_id"] == requested_voice_id), None)
+    if match is None:
+        return None, "الصوت المطلوب غير معروف."
+    if not match["available"]:
+        return None, "الصوت المطلوب غير متاح حالياً."
+    return requested_voice_id, None
 
 
 def get_tts_client(settings: Settings = Depends(get_settings)) -> TtsWorkerClient:
@@ -46,6 +110,7 @@ def _generate_and_persist_scene_audio(
     storage: ProjectStorage,
     project_id: str,
     scene: Scene,
+    voice_id: str | None = None,
 ) -> tuple[bool, str | None]:
     """Generate audio for one scene via the worker and persist it to disk +
     project metadata. Shared by the single-scene endpoint, sync generate-all,
@@ -54,6 +119,11 @@ def _generate_and_persist_scene_audio(
     save, which is exactly why scene-1 audio appeared to "disappear" after a
     reload -- it was never persisted in the first place).
 
+    `voice_id` is resolved against the live voice catalog (Voice Expansion
+    Lab, 2026-06-28) -- if the caller asked for a specific voice and it isn't
+    actually available right now, this fails honestly instead of silently
+    falling back to a different voice the user didn't choose.
+
     Returns (success, error_message_ar_or_none). Generation failures and
     save failures are distinguished so the caller can tell the user the
     honest difference between "couldn't generate" and "generated but
@@ -61,9 +131,16 @@ def _generate_and_persist_scene_audio(
     """
     if not scene.narration_ar.strip():
         return False, "نص الراوي لهذا المشهد فارغ."
+
+    catalog = get_voice_catalog(client)
+    resolved_voice_id, voice_error = resolve_voice_id(catalog, voice_id)
+    if voice_error is not None:
+        return False, voice_error
+    voice_entry = next(v for v in catalog if v["voice_id"] == resolved_voice_id)
+
     try:
         job = client.create_job(
-            {"text": scene.narration_ar, "voice_id": None, "speed": None, "format": "wav"}
+            {"text": scene.narration_ar, "voice_id": resolved_voice_id, "speed": None, "format": "wav"}
         )
         job_id = job["job_id"]
         for _ in range(POLL_MAX_ATTEMPTS):
@@ -78,7 +155,14 @@ def _generate_and_persist_scene_audio(
         return False, str(exc)
 
     try:
-        storage.save_scene_audio(project_id, scene.scene_id, audio_bytes, "wav")
+        storage.save_scene_audio(
+            project_id,
+            scene.scene_id,
+            audio_bytes,
+            "wav",
+            voice_id=resolved_voice_id,
+            engine=voice_entry["engine"],
+        )
     except (OSError, FileNotFoundError) as exc:
         return False, f"تم توليد الصوت فعلياً لكن فشل حفظه داخل المشروع: {exc}"
     return True, None
@@ -91,6 +175,7 @@ def _run_generate_all_audio_job(
     project: ProjectResponse,
     client: TtsWorkerClient,
     storage: ProjectStorage,
+    voice_id: str | None = None,
 ) -> None:
     job_store.update(job_id, status="running", started_at=now_iso())
     try:
@@ -105,7 +190,7 @@ def _run_generate_all_audio_job(
                 completed_steps=index - 1,
                 message_ar=f"جاري توليد صوت المشهد {index} من {total}...",
             )
-            ok, error = _generate_and_persist_scene_audio(client, storage, project_id, scene)
+            ok, error = _generate_and_persist_scene_audio(client, storage, project_id, scene, voice_id=voice_id)
             if ok:
                 generated.append(scene.scene_id)
             else:
@@ -148,9 +233,15 @@ def tts_health(client: TtsWorkerClient = Depends(get_tts_client)) -> ApiEnvelope
 
 
 @router.get("/api/tts/voices", response_model=ApiEnvelope)
-def list_tts_voices() -> ApiEnvelope:
+def list_tts_voices(client: TtsWorkerClient = Depends(get_tts_client)) -> ApiEnvelope:
+    catalog = get_voice_catalog(client)
     return ApiEnvelope(
-        data={"voices": KNOWN_VOICES, "languages": KNOWN_LANGUAGES},
+        data={
+            "voices": catalog,
+            "languages": KNOWN_LANGUAGES,
+            "default_voice_id": DEFAULT_VOICE_ID,
+            "single_voice_available": sum(1 for v in catalog if v["available"]) <= 1,
+        },
         meta={"provider": "tts-worker"},
     )
 
@@ -207,6 +298,7 @@ def create_tts_job(
 @router.post("/api/projects/{project_id}/tts/generate-all", response_model=ApiEnvelope)
 def generate_all_scene_audio(
     project_id: str,
+    voice_id: str | None = None,
     client: TtsWorkerClient = Depends(get_tts_client),
     storage: ProjectStorage = Depends(get_storage),
 ) -> ApiEnvelope:
@@ -225,7 +317,7 @@ def generate_all_scene_audio(
     failed: list[dict[str, str]] = []
 
     for scene in project.scenes:
-        ok, error = _generate_and_persist_scene_audio(client, storage, project_id, scene)
+        ok, error = _generate_and_persist_scene_audio(client, storage, project_id, scene, voice_id=voice_id)
         if ok:
             generated.append(scene.scene_id)
         else:
@@ -241,6 +333,7 @@ def generate_all_scene_audio(
 def generate_scene_audio(
     project_id: str,
     scene_id: str,
+    voice_id: str | None = None,
     client: TtsWorkerClient = Depends(get_tts_client),
     storage: ProjectStorage = Depends(get_storage),
 ) -> ApiEnvelope:
@@ -265,7 +358,7 @@ def generate_scene_audio(
     if scene is None:
         raise HTTPException(status_code=404, detail="Scene not found in project.")
 
-    ok, error = _generate_and_persist_scene_audio(client, storage, project_id, scene)
+    ok, error = _generate_and_persist_scene_audio(client, storage, project_id, scene, voice_id=voice_id)
     if not ok:
         raise HTTPException(status_code=502, detail=error or "Audio generation failed.")
 
@@ -276,6 +369,7 @@ def generate_scene_audio(
 def generate_all_scene_audio_job(
     project_id: str,
     background_tasks: BackgroundTasks,
+    voice_id: str | None = None,
     client: TtsWorkerClient = Depends(get_tts_client),
     storage: ProjectStorage = Depends(get_storage),
     store: JobStore = Depends(get_store),
@@ -299,7 +393,9 @@ def generate_all_scene_audio_job(
         total_steps=len(project.scenes),
         message_ar="في قائمة الانتظار...",
     )
-    background_tasks.add_task(_run_generate_all_audio_job, store, job.job_id, project_id, project, client, storage)
+    background_tasks.add_task(
+        _run_generate_all_audio_job, store, job.job_id, project_id, project, client, storage, voice_id
+    )
     return ApiEnvelope(data=job.to_dict(), meta={"provider": "tts-worker"})
 
 
@@ -358,6 +454,8 @@ def get_project_audio(
                 "audio_generated_at": scene.audio_generated_at.isoformat()
                 if has_audio and scene.audio_generated_at
                 else None,
+                "audio_voice_id": scene.audio_voice_id if has_audio else None,
+                "audio_engine": scene.audio_engine if has_audio else None,
                 "url": f"/api/projects/{project_id}/audio/{scene.scene_id}" if has_audio else None,
             }
         )

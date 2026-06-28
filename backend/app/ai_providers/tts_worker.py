@@ -37,7 +37,15 @@ class TtsWorkerClient:
             response = requests.get(f"{self.service_url}/health", timeout=min(self.timeout, 10))
             response.raise_for_status()
             data["remote_ok"] = True
+            body = response.json()
+            # Surfaced for real voice-catalog discovery (which engine is actually
+            # serving requests right now) -- not internal filesystem paths, so
+            # safe to pass through to the browser.
+            data["remote_engine"] = body.get("engine")
+            data["remote_device"] = body.get("device")
         except requests.RequestException:
+            data["remote_ok"] = False
+        except ValueError:
             data["remote_ok"] = False
         data["latency_ms"] = int((time.perf_counter() - started) * 1000)
         return data

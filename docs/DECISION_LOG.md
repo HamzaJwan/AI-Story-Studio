@@ -1,5 +1,78 @@
 # Decision Log
 
+## 2026-06-28 (latest) — Voice Expansion Lab: real voice catalog, no second safe Arabic voice found
+
+**Goal:** add at least one more Arabic male voice (other than Kareem) and one Arabic
+female voice, with a real voice picker that only shows voices that actually work, no
+celebrity voices, and no voice cloning without explicit consent.
+
+**Investigation findings (each checked directly, not assumed):**
+- **Piper** (the only engine actually running on the AI Server, confirmed via
+  `GET /health` -> `{"engine": "piper"}`): the official `rhasspy/piper-voices` catalog
+  (`voices.json`) has exactly **one** Arabic speaker, `kareem` (`ar_JO`), in two quality
+  tiers (`low`/`medium`) of the *same* speaker -- not a second voice, and no female
+  voice exists in Piper's official catalog at all. `deploy/ai-server/tts-worker/app/engine_piper.py`
+  also hardcodes `VOICE_NAME` and ignores any `voice_id` sent to it, so even quality-tier
+  switching would need a worker-side code change, not just a backend catalog entry.
+- **AllTalk**: actually reachable on the AI Server LAN (`http://<AI_SERVER_IP>:7851`,
+  `/api/ready` -> `Ready`). `GET /api/voices` returned a real voice list, but it contains
+  several explicitly celebrity-named reference samples (forbidden outright by the
+  project's safety rules, full stop -- not gated by approval) plus several generically
+  named samples (e.g. an Arabic-labeled one) with **no documented consent or provenance**.
+  AllTalk/XTTS is voice-cloning-by-design (it clones from a reference sample), so every
+  voice it offers stays Deferred per the explicit safety rule ("voice cloning bila
+  approval wadiha") until Hamza supplies his own licensed/consented reference recording.
+  No AllTalk voice was generated against or wired into the product.
+- **SILMA**: still explicitly blocked on this deployment -- `worker_app/jobs.py`'s
+  `_run_piper()` note says so directly ("SILMA is BLOCKED on this deployment due to a
+  stalled model download").
+- A community Hugging Face model (`arabic-emirati-female-piper`, MIT-licensed, Piper-
+  compatible, 22050Hz) was found during the search for a safe second voice. Its model
+  card discloses no information about the source speaker's identity or consent, so it
+  cannot pass the "licensed and safe" bar either -- noted here as a candidate for Hamza
+  to review later, not adopted.
+
+**Conclusion:** no second Arabic voice clears this project's safety bar today. This is
+the honest, rule-compliant outcome of "إن توفر" (if available) in the original ask, not
+a shortcut -- adding any of the above without consent/license clarity would be exactly
+the unconsented-voice-cloning risk the rules exist to prevent.
+
+**What was built instead (real infrastructure, not cosmetic):**
+- `backend/app/routers/tts.py`: replaced the frozen `KNOWN_VOICES` list with
+  `VOICE_REGISTRY` (every voice the worker could in principle serve) + `get_voice_catalog()`,
+  which marks a voice `available` only if `client.health()`'s live `remote_engine` field
+  (newly surfaced from the worker's own `/health` body in `ai_providers/tts_worker.py`)
+  actually matches that voice's engine right now. `/api/tts/voices` reports zero voices
+  as available if the worker goes down -- proven with the catalog test below, not assumed.
+- `resolve_voice_id()`: a requested `voice_id` is validated against the live catalog.
+  Unknown or currently-unavailable voice_ids fail loudly (`الصوت المطلوب غير متاح/معروف`)
+  instead of silently falling back to Kareem -- the previous frontend voice dropdown was
+  cosmetic (the selection was never sent to any endpoint); this closes that gap end to end.
+- `voice_id` now flows through every saved-audio path: single-scene generate, sync
+  generate-all, and the job-based generate-all (as a query parameter, defaulting to
+  Kareem when omitted). `Scene.audio_voice_id`/`Scene.audio_engine` (new fields in
+  `backend/app/schemas.py`, persisted by `storage.save_scene_audio()`) record which voice
+  actually produced each scene's audio, survive reload, and are exposed via
+  `GET /api/projects/{id}/audio` and in `videos.py`'s `scene_details`.
+- Frontend (`frontend/src/App.tsx`): the voice picker now renders only `available`
+  voices from the real catalog, with gender label and an explicit "تجريبي" tag for any
+  future experimental engine; when only one voice is available it shows the required
+  "الصوت المتاح حالياً: X فقط" notice instead of a dropdown. The selected `voice_id` is
+  now actually sent on generate requests (previously dead state).
+
+**Tests added (`scripts/test_voice_selection.py`):** catalog never claims unavailable
+voices work; explicit voice_id is recorded in metadata and survives reload; an unknown
+voice_id fails (502 for single-scene, in the `failed` list for generate-all) with zero
+audio saved, rather than silently substituting Kareem; the default path with no
+`voice_id` still works. All run against the real TTS worker, plus the existing
+`test_audio_generate_all_and_video_integration.py` and `test_ken_burns_video.py` were
+re-run (host + in-container ffprobe) to confirm no regression to the prior audio/video
+fix pack.
+
+**Not done (explicitly out of scope per the task's "do not touch" list):** no DB/Redis/
+Celery, no paid API, no TTS worker/Piper model changes, no voice cloning, no celebrity
+voice, no AllTalk integration into the product.
+
 ## 2026-06-28 (later) — Video segment audio stream normalization (Codex HOLD)
 
 **Context:** Codex reviewed the audio/video integration fix above and gave a HOLD: the

@@ -198,6 +198,7 @@ def _render_video_for_project(
                     "skip_reason": "no saved image for this scene",
                     "silent_audio_inserted": False, "normalized_audio_format": None,
                     "audio_sample_rate": None, "audio_channels": None,
+                    "audio_voice_id": None, "audio_engine": None,
                 })
                 continue
             image_path = images_dir / f"scene_{scene.scene_id}.{scene.image_format}"
@@ -209,6 +210,7 @@ def _render_video_for_project(
                     "skip_reason": "image file missing on disk",
                     "silent_audio_inserted": False, "normalized_audio_format": None,
                     "audio_sample_rate": None, "audio_channels": None,
+                    "audio_voice_id": None, "audio_engine": None,
                 })
                 continue
 
@@ -277,6 +279,7 @@ def _render_video_for_project(
                     "silent_audio_inserted": silent_audio_inserted,
                     "normalized_audio_format": None,
                     "audio_sample_rate": None, "audio_channels": None,
+                    "audio_voice_id": None, "audio_engine": None,
                 })
                 continue
 
@@ -291,6 +294,8 @@ def _render_video_for_project(
                 "normalized_audio_format": f"{NORMALIZED_AUDIO_CODEC}/{NORMALIZED_AUDIO_SAMPLE_RATE}Hz/{NORMALIZED_AUDIO_CHANNELS}ch",
                 "audio_sample_rate": NORMALIZED_AUDIO_SAMPLE_RATE,
                 "audio_channels": NORMALIZED_AUDIO_CHANNELS,
+                "audio_voice_id": scene.audio_voice_id if audio_path is not None else None,
+                "audio_engine": scene.audio_engine if audio_path is not None else None,
             })
 
         if not segment_paths:

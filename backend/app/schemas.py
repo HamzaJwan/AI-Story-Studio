@@ -51,6 +51,8 @@ class Scene(BaseModel):
     audio_generated_at: datetime | None = None
     audio_bytes: int | None = None
     audio_format: str | None = None
+    audio_voice_id: str | None = None
+    audio_engine: str | None = None
     image_generated_at: datetime | None = None
     image_bytes: int | None = None
     image_format: str | None = None

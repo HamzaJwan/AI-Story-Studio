@@ -123,10 +123,15 @@ type TtsHealthData = {
 
 type TtsVoice = {
   voice_id: string;
-  label: string;
+  display_name_ar: string;
+  gender: "male" | "female" | "unknown";
   language: string;
   engine: string;
+  quality_label: string;
+  experimental: boolean;
   default: boolean;
+  notes_ar: string;
+  available: boolean;
 };
 
 type TtsLanguage = {
@@ -138,6 +143,8 @@ type TtsLanguage = {
 type TtsVoicesData = {
   voices: TtsVoice[];
   languages: TtsLanguage[];
+  default_voice_id: string | null;
+  single_voice_available: boolean;
 };
 
 type SceneAudioInfo = {
@@ -146,6 +153,8 @@ type SceneAudioInfo = {
   audio_format: string | null;
   audio_bytes: number | null;
   audio_generated_at: string | null;
+  audio_voice_id: string | null;
+  audio_engine: string | null;
   url: string | null;
 };
 
@@ -170,10 +179,29 @@ function presetLabel(key: string): string {
 
 const FALLBACK_TTS_VOICES: TtsVoicesData = {
   voices: [
-    { voice_id: "ar_JO-kareem-medium", label: "Arabic Kareem", language: "ar", engine: "piper", default: true },
+    {
+      voice_id: "ar_JO-kareem-medium",
+      display_name_ar: "كريم (عربي - رجل)",
+      gender: "male",
+      language: "ar",
+      engine: "piper",
+      quality_label: "medium",
+      experimental: false,
+      default: true,
+      notes_ar: "",
+      available: true,
+    },
   ],
   languages: [{ language: "ar", label: "العربية", default: true }],
+  default_voice_id: "ar_JO-kareem-medium",
+  single_voice_available: true,
 };
+
+function voiceGenderLabel(gender: TtsVoice["gender"]): string {
+  if (gender === "male") return "رجل";
+  if (gender === "female") return "امرأة";
+  return "غير محدد";
+}
 
 type TtsBusyAction = "health" | "scene" | "project" | "refresh" | null;
 
@@ -687,10 +715,18 @@ export default function App() {
   async function fetchTtsVoices() {
     try {
       const r = await getJson<TtsVoicesData>("/api/tts/voices");
-      if (r.data.voices.length) {
+      const available = r.data.voices.filter((v) => v.available);
+      if (available.length) {
         setTtsVoices(r.data);
-        setSelectedVoiceId(r.data.voices.find((v) => v.default)?.voice_id ?? r.data.voices[0].voice_id);
+        const preferred =
+          available.find((v) => v.voice_id === r.data.default_voice_id) ??
+          available.find((v) => v.default) ??
+          available[0];
+        setSelectedVoiceId(preferred.voice_id);
       }
+      // If nothing came back available, keep FALLBACK_TTS_VOICES rather than
+      // showing an empty/broken selector -- Voice Expansion Lab rule (D):
+      // never display a voice that doesn't actually work.
     } catch {
       /* keep FALLBACK_TTS_VOICES — never break the selector */
     }
@@ -1302,8 +1338,9 @@ export default function App() {
       // Persisted, saved generation (fix pack 2026-06-27) -- this used to call
       // the ephemeral /tts/jobs proxy, which never wrote the audio into the
       // project, so it looked like it worked but vanished after a reload.
+      const voiceQuery = selectedVoiceId ? `?voice_id=${encodeURIComponent(selectedVoiceId)}` : "";
       const r = await postJson<{ scene_id: string; status: string }>(
-        `/api/projects/${projectId}/tts/scenes/${scenes[0].scene_id}/generate`,
+        `/api/projects/${projectId}/tts/scenes/${scenes[0].scene_id}/generate${voiceQuery}`,
       );
       if (r.errors.length) {
         setTtsMessage(r.errors.join(" "));
@@ -1340,7 +1377,8 @@ export default function App() {
       `جاري توليد صوت ${scenes.length} مشهد بالترتيب، مشهداً تلو الآخر — قد يستغرق دقائق حسب عدد المشاهد...`,
     );
     try {
-      const r = await postJson<JobRecord>(`/api/projects/${projectId}/tts/generate-all/jobs`);
+      const voiceQuery = selectedVoiceId ? `?voice_id=${encodeURIComponent(selectedVoiceId)}` : "";
+      const r = await postJson<JobRecord>(`/api/projects/${projectId}/tts/generate-all/jobs${voiceQuery}`);
       if (r.errors.length) {
         setTtsMessage(r.errors.join(" "));
         return;
@@ -2128,46 +2166,52 @@ export default function App() {
             </p>
 
             <p className="muted-text">
-              الصوت المتاح حالياً: <strong>{ttsVoices.voices[0]?.label ?? "—"}</strong> فقط — هذا
-              التطبيق متصل بمحرك صوت واحد حالياً (Piper)، فلا يوجد صوت آخر للاختيار منه بعد.
-              اختيار اللغة غير متاح حالياً إلا للعربية، لأن المحرك المتاح يدعم العربية فقط. هذا ليس
-              عطلاً — القائمتان ستُفعَّلان تلقائياً عند إضافة أصوات/لغات حقيقية لاحقاً.
+              الأصوات المعروضة هنا هي التي نجح النظام في اكتشافها وتشغيلها فعلياً — لا تُعرض هنا أي
+              أصوات لم يتم التأكد من عملها. لا يوجد أي صوت مشاهير أو صوت مستنسخ من شخص حقيقي بدون
+              إذنه الصريح في هذا المشروع.
             </p>
-            <div className="tts-selectors">
-              <label>
-                الصوت
-                <select
-                  value={selectedVoiceId ?? ""}
-                  onChange={(e) => setSelectedVoiceId(e.target.value)}
-                  disabled={ttsVoices.voices.length <= 1}
-                  title={
-                    ttsVoices.voices.length <= 1
-                      ? `الصوت المتاح حالياً: ${ttsVoices.voices[0]?.label ?? "—"} فقط`
-                      : undefined
-                  }
-                >
-                  {ttsVoices.voices.map((v) => (
-                    <option key={v.voice_id} value={v.voice_id}>
-                      {v.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                اللغة
-                <select
-                  value={ttsVoices.languages[0]?.language ?? "ar"}
-                  disabled
-                  title="اختيار اللغة غير متاح حالياً إلا للعربية"
-                >
-                  {ttsVoices.languages.map((l) => (
-                    <option key={l.language} value={l.language}>
-                      {l.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
+            {(() => {
+              const availableVoices = ttsVoices.voices.filter((v) => v.available);
+              return availableVoices.length <= 1 ? (
+                <p className="muted-text">
+                  الصوت المتاح حالياً:{" "}
+                  <strong>
+                    {availableVoices[0]?.display_name_ar ?? "—"} (
+                    {voiceGenderLabel(availableVoices[0]?.gender ?? "unknown")})
+                  </strong>{" "}
+                  فقط — لا يوجد صوت آخر للاختيار منه بعد. اختيار اللغة غير متاح حالياً إلا للعربية.
+                  هذا ليس عطلاً — القائمتان ستُفعَّلان تلقائياً عند إضافة أصوات/لغات حقيقية معتمدة لاحقاً.
+                </p>
+              ) : (
+                <div className="tts-selectors">
+                  <label>
+                    الصوت
+                    <select value={selectedVoiceId ?? ""} onChange={(e) => setSelectedVoiceId(e.target.value)}>
+                      {availableVoices.map((v) => (
+                        <option key={v.voice_id} value={v.voice_id}>
+                          {v.display_name_ar} ({voiceGenderLabel(v.gender)})
+                          {v.experimental ? " — تجريبي" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    اللغة
+                    <select
+                      value={ttsVoices.languages[0]?.language ?? "ar"}
+                      disabled
+                      title="اختيار اللغة غير متاح حالياً إلا للعربية"
+                    >
+                      {ttsVoices.languages.map((l) => (
+                        <option key={l.language} value={l.language}>
+                          {l.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              );
+            })()}
 
             <BusyNotice busy={ttsBusy === "scene" || ttsBusy === "project"} message={ttsMessage} />
 
@@ -2206,6 +2250,13 @@ export default function App() {
                           تحميل صوت المشهد
                         </a>
                         {s.audio_bytes != null && <small>{Math.round(s.audio_bytes / 1024)} KB</small>}
+                        {s.audio_voice_id && (
+                          <small>
+                            صوت:{" "}
+                            {ttsVoices.voices.find((v) => v.voice_id === s.audio_voice_id)?.display_name_ar ??
+                              s.audio_voice_id}
+                          </small>
+                        )}
                       </div>
                     );
                   })}

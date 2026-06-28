@@ -64,6 +64,8 @@ Response:
     "configured": true,
     "service_url_configured": true,
     "remote_ok": true,
+    "remote_engine": "piper",
+    "remote_device": "GPU",
     "latency_ms": 12
   },
   "meta": {
@@ -72,6 +74,11 @@ Response:
   "errors": []
 }
 ```
+
+`remote_engine`/`remote_device` (Voice Expansion Lab, 2026-06-28) come straight from the
+worker's own `/health` body (`engine`/`device`) when reachable — no internal filesystem
+paths, just the engine name. This is what `GET /api/tts/voices` uses to decide whether a
+registry voice is actually `available` right now, instead of assuming.
 
 ### POST /api/projects/{project_id}/tts/jobs
 
@@ -117,6 +124,14 @@ Streams generated job audio through the backend proxy.
 
 Generates WAV audio for all scenes, saves the files under the local project audio folder, and updates scene audio metadata.
 
+Optional query parameter `voice_id` (Voice Expansion Lab, 2026-06-28): selects a voice
+from the live catalog returned by `GET /api/tts/voices`. Omitting it uses the catalog's
+`default_voice_id` (Arabic Kareem). An unknown or currently-unavailable `voice_id` is
+**not** silently swapped for the default — that scene is reported in `failed` with a
+clear Arabic error instead, and no audio is generated/saved for it. The same `voice_id`
+query parameter works on `POST .../tts/scenes/{scene_id}/generate` and
+`POST .../tts/generate-all/jobs`.
+
 Response:
 
 ```json
@@ -139,22 +154,49 @@ These are lightweight UX proxy endpoints only — they introduce no new TTS engi
 
 #### GET /api/tts/voices
 
-The deployed worker has no voice-listing endpoint and currently only runs Piper with one voice, so this returns a static, honest catalog rather than inventing options. Always returns `200`, independent of `TTS_ENABLED`/connectivity (this is "what voices does the app support", not a live health check).
+The deployed worker has no voice-listing endpoint of its own, so this is the safe backend
+adapter the Voice Expansion Lab (2026-06-28) calls for: every voice in the backend's
+`VOICE_REGISTRY` (`backend/app/routers/tts.py`) is checked against the worker's *live*
+`GET /api/tts/health` response (`remote_engine`) before being reported `available` —
+never assumed. Always returns `200`, independent of `TTS_ENABLED`/connectivity (the
+shape itself never errors; `available: false` on every entry is how "nothing works right
+now" is reported).
 
 ```json
 {
   "data": {
     "voices": [
-      { "voice_id": "ar_JO-kareem-medium", "label": "Arabic Kareem", "language": "ar", "engine": "piper", "default": true }
+      {
+        "voice_id": "ar_JO-kareem-medium",
+        "display_name_ar": "كريم (عربي - رجل)",
+        "gender": "male",
+        "language": "ar",
+        "engine": "piper",
+        "quality_label": "medium",
+        "experimental": false,
+        "default": true,
+        "notes_ar": "صوت Piper مجتمعي مرخّص (MIT)، وليس صوت شخص حقيقي أو مشهور.",
+        "available": true
+      }
     ],
     "languages": [
       { "language": "ar", "label": "العربية", "default": true }
-    ]
+    ],
+    "default_voice_id": "ar_JO-kareem-medium",
+    "single_voice_available": true
   },
   "meta": { "provider": "tts-worker" },
   "errors": []
 }
 ```
+
+As of 2026-06-28 this still returns exactly one voice — see `docs/DECISION_LOG.md`'s
+"Voice Expansion Lab" entry for why no second Arabic male/female voice currently clears
+the project's safety rules (Piper's official catalog has only Kareem; AllTalk is reachable
+but every voice it offers is either an explicit celebrity sample or has undocumented
+consent/provenance; SILMA is blocked on this deployment). The frontend only ever renders
+entries with `available: true`, and shows the "single voice available" notice instead of
+a dropdown when there is only one.
 
 #### GET /api/projects/{project_id}/audio
 
@@ -171,6 +213,8 @@ Per-scene and full-story saved-audio metadata. `url` values are relative paths o
         "audio_format": "wav",
         "audio_bytes": 425004,
         "audio_generated_at": "2026-06-24T22:37:29.255028+00:00",
+        "audio_voice_id": "ar_JO-kareem-medium",
+        "audio_engine": "piper",
         "url": "/api/projects/{project_id}/audio/01"
       }
     ],
@@ -610,7 +654,8 @@ measured-duration check.
         "scene_id": "01", "image_used": true, "audio_used": true, "audio_path_exists": true,
         "duration_source": "audio", "duration_seconds": 5.1, "skip_reason": null,
         "silent_audio_inserted": false, "normalized_audio_format": "aac/48000Hz/2ch",
-        "audio_sample_rate": 48000, "audio_channels": 2
+        "audio_sample_rate": 48000, "audio_channels": 2,
+        "audio_voice_id": "ar_JO-kareem-medium", "audio_engine": "piper"
       }
     ],
     "audio_used_scene_count": 2,

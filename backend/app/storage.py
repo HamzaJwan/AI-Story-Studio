@@ -244,6 +244,8 @@ class ProjectStorage:
                     scene.audio_format = None
                     scene.audio_bytes = None
                     scene.audio_generated_at = None
+                    scene.audio_voice_id = None
+                    scene.audio_engine = None
                     changed = True
                 continue
             for fmt in ("wav", "mp3"):
@@ -320,6 +322,8 @@ class ProjectStorage:
         scene_id: str,
         audio_bytes: bytes,
         fmt: str,
+        voice_id: str | None = None,
+        engine: str | None = None,
     ) -> ProjectResponse:
         project = self.get_project(project_id)
         scene = next((s for s in project.scenes if s.scene_id == scene_id), None)
@@ -333,6 +337,8 @@ class ProjectStorage:
         scene.audio_generated_at = datetime.now(timezone.utc)
         scene.audio_bytes = len(audio_bytes)
         scene.audio_format = fmt
+        scene.audio_voice_id = voice_id
+        scene.audio_engine = engine
         project.updated_at = datetime.now(timezone.utc)
         self._write_project(project)
         return project
