@@ -1289,6 +1289,13 @@ export default function App() {
       setTtsMessage("لا توجد مشاهد لتوليد صوت لها.");
       return;
     }
+    if (isDirty) {
+      // Generation reads narration_ar from the SAVED project on disk, not
+      // from unsaved in-memory edits -- generating now would narrate stale
+      // text without the user realizing it (manual-QA fix pack, 2026-06-28).
+      setTtsMessage("لديك تغييرات غير محفوظة. احفظ المشروع أولاً ليتطابق الصوت مع آخر نص.");
+      return;
+    }
     setTtsBusy(mode);
     setTtsMessage(`جاري توليد صوت المشهد 1 من ${scenes.length}...`);
     try {
@@ -1322,6 +1329,10 @@ export default function App() {
     }
     if (!scenes.length) {
       setTtsMessage("لا توجد مشاهد لتوليد صوت لها.");
+      return;
+    }
+    if (isDirty) {
+      setTtsMessage("لديك تغييرات غير محفوظة. احفظ المشروع أولاً ليتطابق الصوت مع آخر نص لكل مشهد.");
       return;
     }
     setTtsBusy("project");
@@ -1378,6 +1389,7 @@ export default function App() {
   function audioActionDisabledReason(): string | undefined {
     if (!projectId) return "احفظ المشروع أولاً";
     if (!scenes.length) return "لا توجد مشاهد بعد";
+    if (isDirty) return "لديك تغييرات غير محفوظة -- احفظ المشروع أولاً";
     if (!ttsHealth?.configured) return "خدمة الصوت غير مفعّلة";
     return undefined;
   }
@@ -2165,14 +2177,14 @@ export default function App() {
               </button>
               <button
                 onClick={() => handleGenerateAudio("scene")}
-                disabled={!projectId || !scenes.length || !ttsHealth?.configured || ttsBusy !== null}
+                disabled={!projectId || !scenes.length || isDirty || !ttsHealth?.configured || ttsBusy !== null}
                 title={audioActionDisabledReason()}
               >
                 {ttsBusy === "scene" ? "جاري توليد صوت المشهد..." : "توليد صوت للمشهد الأول"}
               </button>
               <button
                 onClick={handleGenerateAllAudio}
-                disabled={!projectId || !scenes.length || !ttsHealth?.configured || ttsBusy !== null}
+                disabled={!projectId || !scenes.length || isDirty || !ttsHealth?.configured || ttsBusy !== null}
                 title={audioActionDisabledReason()}
               >
                 {ttsBusy === "project" ? "جاري توليد صوت المشروع..." : "توليد صوت للمشروع"}
@@ -2543,6 +2555,18 @@ export default function App() {
               "تلاشي خفيف" يعني أن كل مشهد يبدأ وينتهي بتلاشي صغير، وليس مزجاً حقيقياً بين مشهدين
               متتاليين. اضغط "حفظ المشروع" لحفظ هذا الإعداد قبل تجميع الفيديو.
             </p>
+
+            {scenes.length > 0 && audioCount === 0 && (
+              <p className="error-banner">
+                لم يتم العثور على صوت محفوظ للمشاهد. سيُجمّع الفيديو بدون صوت أو بمدد تقديرية.
+              </p>
+            )}
+            {scenes.length > 0 && audioCount > 0 && audioCount < scenes.length && (
+              <p className="notice-banner">
+                صوت محفوظ لـ {audioCount} من {scenes.length} مشهد فقط -- المشاهد الباقية ستُجمَّع بصوت صامت
+                بمدتها التقديرية.
+              </p>
+            )}
 
             <BusyNotice busy={videoBusy} message={videoMessage} />
 

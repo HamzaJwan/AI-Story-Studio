@@ -579,7 +579,14 @@ Backend-only ffmpeg pipeline (installed in `backend/Dockerfile`) that combines e
 
 ### POST /api/projects/{project_id}/video/render
 
-Synchronous. For each scene, in order: skips it (with a `reason`) if it has no saved image; otherwise renders a per-scene H.264 segment (`768x768`, scene's saved image held static for `scene.duration_seconds`, muxed with the scene's saved audio if present, silent otherwise) via `ffmpeg -loop 1 -i image ...`, then concatenates all segments with ffmpeg's concat demuxer (`-c copy`, no re-encode) into `data/projects/{id}/video/final_story.mp4`.
+Synchronous. For each scene, in order: skips it (with a `reason`) if it has no saved image; otherwise renders a per-scene H.264 segment (`768x768`, scene's saved image held static for `scene.duration_seconds`, muxed with the scene's saved audio if present) via `ffmpeg -loop 1 -i image ...`, then concatenates all segments with ffmpeg's concat demuxer (`-c copy`, no re-encode) into `data/projects/{id}/video/final_story.mp4`.
+
+A scene with no saved audio gets a **silent** audio track (`anullsrc`) of the same
+duration instead of `-an` (audio fix pack, 2026-06-28) -- the concat demuxer's `-c copy`
+requires every segment to share the same stream layout; mixing `-an` segments with
+audio-having segments was proven (real ffmpeg + `ffprobe`/`silencedetect` experiment) to
+desync/break audio for the entire rest of the concatenated video, not just the one scene
+missing it.
 
 ```json
 {
@@ -587,6 +594,10 @@ Synchronous. For each scene, in order: skips it (with a `reason`) if it has no s
     "rendered_at": "2026-06-25T10:50:54Z",
     "included_scenes": ["01", "02", "03"],
     "skipped_scenes": [{ "scene_id": "04", "reason": "no saved image for this scene" }],
+    "scene_details": [
+      { "scene_id": "01", "image_used": true, "audio_used": true, "audio_path_exists": true, "duration_source": "audio", "duration_seconds": 5.1, "skip_reason": null }
+    ],
+    "audio_used_scene_count": 2,
     "duration_seconds": 52,
     "video_bytes": 1051399
   }
@@ -594,12 +605,12 @@ Synchronous. For each scene, in order: skips it (with a `reason`) if it has no s
 ```
 
 - Returns `422` if the project has no scenes, or if every scene lacks a saved image (nothing to render).
-- Returns `503` if ffmpeg is missing from the image (should not happen post-build); `502` if a render or concat step fails.
+- Returns `503` if ffmpeg is missing from the image (should not happen post-build); `502` if a render or concat step fails, or if the final MP4 unexpectedly has no audio stream despite at least one scene having real saved audio (post-render `ffprobe` safety check, 2026-06-28).
 - Re-rendering overwrites the previous `final_story.mp4` (no separate "re-render" endpoint, same pattern as image regeneration).
 
 ### GET /api/projects/{project_id}/video
 
-Metadata only: `has_video`, `url` (backend-relative download path), `duration_seconds`, `video_bytes`, `rendered_at`, `included_scenes`, `skipped_scenes`. Reads a small sidecar `metadata.json` next to the video file rather than adding per-project schema fields, since the video is a single derived artifact, not per-scene data.
+Metadata only: `has_video`, `url` (backend-relative download path), `duration_seconds`, `video_bytes`, `rendered_at`, `included_scenes`, `skipped_scenes`, `scene_details`, `audio_used_scene_count`. Reads a small sidecar `metadata.json` next to the video file rather than adding per-project schema fields, since the video is a single derived artifact, not per-scene data.
 
 ### GET /api/projects/{project_id}/video/download
 

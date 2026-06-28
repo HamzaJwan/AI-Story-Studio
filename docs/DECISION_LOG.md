@@ -1,5 +1,65 @@
 # Decision Log
 
+## 2026-06-28 — Project audio persistence and video integration fix pack
+
+**Context:** Hamza clarified the prior fix pack's scope was too narrow -- the real
+concern was the whole-project "generate all audio" flow, whether it reliably persists,
+and whether the rendered video actually uses every scene's saved audio.
+
+**Forensic finding:** `tts.py`/`storage.py`'s generate-all (sync and job-based) and
+`get_project()`'s self-healing reconciliation were already correct from the 2026-06-27
+fix pack -- proven, not assumed, with a real test against the actually-configured TTS
+worker: generate-all (sync and job), reload (a second independent `GET .../audio`),
+and downloading the resulting WAV files all matched expectations (`scripts/
+test_audio_generate_all_and_video_integration.py`).
+
+**The real, previously-undetected bug was in video assembly, not audio persistence.**
+`_render_video_for_project()` (`backend/app/routers/videos.py`) rendered a scene without
+saved audio with `-an` (no audio stream at all), while scenes with saved audio got a
+real AAC audio stream. The final concat step uses `-f concat -c copy`, which requires
+every segment to share the same stream layout. Proven with a real ffmpeg experiment (3
+segments: audio/none/audio) and `ffprobe`/`silencedetect`: mixing `-an` segments with
+audio-having segments via concat demuxer `-c copy` corrupts/desyncs the audio for the
+*entire rest* of the concatenated video, not just the one scene missing it. This is
+almost certainly why a video could "look like it has no scene audio" even when most
+scenes had real saved audio -- one scene without audio (image not yet captioned, audio
+generation failed for just that scene, etc.) could silently break the whole video's
+audio track.
+
+**Fix:** every segment now gets an audio stream -- a real one if the scene has saved
+audio, otherwise a silent `anullsrc` track of the same duration -- so concat stays
+stream-consistent. Verified the fix with the same ffmpeg experiment: the silent-track
+version produces a clean `silencedetect` result (exactly one silence window, at the
+correct position), unlike the broken `-an` version. Added a post-render `ffprobe`
+safety check (if any scene had real audio but the final MP4 has no audio stream at all,
+treat that as a clear render failure, not a silent success). Added richer per-scene
+`scene_details` metadata (`audio_used`, `audio_path_exists`, `duration_source`,
+`skip_reason`) to both the job `result_summary` and `GET /api/projects/{id}/video`, so
+this is now directly inspectable instead of inferred.
+
+**Frontend:** added an explicit warning banner in the Video step when `audioCount === 0`
+("سيُجمّع الفيديو بدون صوت أو بمدد تقديرية") and a softer one when only some scenes have
+audio, and a guard (matching the existing disabled-button pattern) that blocks audio
+generation while there are unsaved project edits, with a clear message asking the user
+to save first -- generation reads `narration_ar` from the saved project on disk, not
+from unsaved in-memory edits, so generating before saving would silently narrate stale
+text.
+
+**Testing pitfall worth recording:** verifying the `ffprobe`-based checks required
+running the test *inside* the backend container (ffmpeg/ffprobe aren't on the Windows
+host PATH). Passing `-e SMOKE_DATA_DIR=/app/data` through a Git-Bash-wrapped `docker
+compose exec` silently mangled the path into `C:/Program Files/Git/app/data`, causing a
+confusing, intermittent-looking false failure during this session's own verification
+(not a real product bug -- purely a Git Bash POSIX-path-rewriting artifact). Fixed by
+not setting that env var at all inside the container (the script's own default relative
+`"data"` path already resolves correctly there). Documented in the test script itself so
+it isn't rediscovered the hard way again.
+
+**Not done:** no changes to the TTS engine, no DB/Redis/Celery, no new media in Git.
+Real test projects created during this fix pack's own verification were deleted
+afterward (confirmed via `GET /api/projects` before and after) -- none of Hamza's
+existing projects were touched.
+
 ## 2026-06-27 (later) — Manual QA fix pack: audio persistence + image continuity
 
 **Context:** Hamza's manual QA found two issues: (1) generating audio for the first

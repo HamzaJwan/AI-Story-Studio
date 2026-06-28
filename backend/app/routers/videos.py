@@ -88,6 +88,25 @@ def _run_ffmpeg(cmd: list[str], timeout: int) -> subprocess.CompletedProcess:
         raise FfmpegError("ffmpeg timed out.", status_code=502) from exc
 
 
+def _final_video_has_audio_stream(path: Path) -> bool:
+    """ffprobe check used only as a post-render safety net (Hamza fix pack,
+    2026-06-28): proves the rendered MP4 actually contains an audio stream
+    instead of trusting that ffmpeg's exit code alone means the result is
+    correct -- a stream-layout mismatch between concatenated segments can
+    silently produce a video with no usable audio even when ffmpeg exits 0."""
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index", "-of", "csv=p=0", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        return result.returncode == 0 and bool(result.stdout.strip())
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
 def _render_video_for_project(
     project_id: str,
     storage: ProjectStorage,
@@ -116,6 +135,8 @@ def _render_video_for_project(
     included: list[str] = []
     included_durations: list[float] = []
     skipped: list[dict[str, str]] = []
+    scene_details: list[dict] = []
+    any_scene_has_audio = False
     total_scenes = len(project.scenes)
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -128,17 +149,29 @@ def _render_video_for_project(
 
             if not scene.image_format:
                 skipped.append({"scene_id": scene.scene_id, "reason": "no saved image for this scene"})
+                scene_details.append({
+                    "scene_id": scene.scene_id, "image_used": False, "audio_used": False,
+                    "audio_path_exists": False, "duration_source": None, "duration_seconds": None,
+                    "skip_reason": "no saved image for this scene",
+                })
                 continue
             image_path = images_dir / f"scene_{scene.scene_id}.{scene.image_format}"
             if not image_path.exists():
                 skipped.append({"scene_id": scene.scene_id, "reason": "image file missing on disk"})
+                scene_details.append({
+                    "scene_id": scene.scene_id, "image_used": False, "audio_used": False,
+                    "audio_path_exists": False, "duration_source": None, "duration_seconds": None,
+                    "skip_reason": "image file missing on disk",
+                })
                 continue
 
             audio_path = None
+            audio_path_exists = False
             if scene.audio_format:
                 candidate = audio_dir / f"scene_{scene.scene_id}.{scene.audio_format}"
                 if candidate.exists():
                     audio_path = candidate
+                    audio_path_exists = True
 
             # Use the scene's real saved-audio duration when present (Issue 2
             # fix: previously always used the fixed duration_seconds estimate,
@@ -146,6 +179,7 @@ def _render_video_for_project(
             # and cut audio off mid-sentence). Falls back to duration_seconds
             # only when there is no saved audio for this scene.
             segment_duration = scene_durations[scene.scene_id]
+            duration_source = "audio" if audio_path is not None else "scene_duration"
 
             video_filter = _build_segment_video_filter(
                 project.video_mode, project.video_transition, segment_duration
@@ -154,26 +188,45 @@ def _render_video_for_project(
             cmd = ["ffmpeg", "-y", "-loop", "1", "-i", str(image_path)]
             if audio_path is not None:
                 cmd += ["-i", str(audio_path)]
+                any_scene_has_audio = True
+            else:
+                # A scene with no saved audio still gets a silent audio track
+                # of the same duration, instead of "-an" (no audio stream at
+                # all). The concat step below uses "-c copy", which requires
+                # every segment to share the same stream layout -- mixing
+                # audio-having and audio-less ("-an") segments was found
+                # (2026-06-28 fix pack, verified with ffprobe/silencedetect)
+                # to desync or drop audio for the *entire* rest of the
+                # concatenated video, not just the one scene missing it. A
+                # silent track keeps every segment's stream layout identical.
+                cmd += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
             cmd += [
                 "-t", f"{segment_duration:.3f}",
                 "-vf", video_filter,
                 "-c:v", "libx264",
                 "-pix_fmt", "yuv420p",
+                "-c:a", "aac",
             ]
-            if audio_path is not None:
-                cmd += ["-c:a", "aac"]
-            else:
-                cmd += ["-an"]
             cmd.append(str(segment_path))
 
             result = _run_ffmpeg(cmd, SEGMENT_TIMEOUT_SECONDS)
             if result.returncode != 0 or not segment_path.exists():
                 skipped.append({"scene_id": scene.scene_id, "reason": "ffmpeg segment render failed"})
+                scene_details.append({
+                    "scene_id": scene.scene_id, "image_used": True, "audio_used": False,
+                    "audio_path_exists": audio_path_exists, "duration_source": duration_source,
+                    "duration_seconds": segment_duration, "skip_reason": "ffmpeg segment render failed",
+                })
                 continue
 
             segment_paths.append(segment_path)
             included.append(scene.scene_id)
             included_durations.append(segment_duration)
+            scene_details.append({
+                "scene_id": scene.scene_id, "image_used": True, "audio_used": audio_path is not None,
+                "audio_path_exists": audio_path_exists, "duration_source": duration_source,
+                "duration_seconds": segment_duration, "skip_reason": None,
+            })
 
         if not segment_paths:
             raise VideoNoContentError(
@@ -197,11 +250,21 @@ def _render_video_for_project(
         if result.returncode != 0 or not final_path.exists():
             raise FfmpegError("ffmpeg concat step failed.")
 
+        # Post-render safety net (Milestone B.4): every segment always has an
+        # audio stream now (real or silent), so the final file must have one
+        # too -- if it doesn't despite at least one scene having real saved
+        # audio, treat that as a clear render failure instead of silently
+        # shipping a video with no usable audio.
+        if any_scene_has_audio and not _final_video_has_audio_stream(final_path):
+            raise FfmpegError("الفيديو النهائي لا يحتوي على مسار صوت رغم وجود صوت محفوظ لبعض المشاهد.")
+
     total_duration = round(sum(included_durations))
     metadata = {
         "rendered_at": datetime.now(timezone.utc).isoformat(),
         "included_scenes": included,
         "skipped_scenes": skipped,
+        "scene_details": scene_details,
+        "audio_used_scene_count": sum(1 for d in scene_details if d["audio_used"]),
         "duration_seconds": total_duration,
         "video_bytes": final_path.stat().st_size,
         "video_mode": project.video_mode,
@@ -322,6 +385,8 @@ def get_project_video(
         "rendered_at": metadata.get("rendered_at"),
         "included_scenes": metadata.get("included_scenes", []),
         "skipped_scenes": metadata.get("skipped_scenes", []),
+        "scene_details": metadata.get("scene_details", []),
+        "audio_used_scene_count": metadata.get("audio_used_scene_count", 0),
         "video_mode": metadata.get("video_mode", "static"),
         "video_transition": metadata.get("video_transition", "none"),
     }
